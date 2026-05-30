@@ -23,6 +23,7 @@ export function middleware(req: NextRequest) {
   // Parse subdomain from hostname
   let subdomain = "";
   const isDevelopment = hostname.includes("localhost") || hostname.includes("127.0.0.1");
+  const isVercelDomain = hostname.endsWith("vercel.app");
   
   if (isDevelopment) {
     const parts = hostname.split(":");
@@ -31,14 +32,22 @@ export function middleware(req: NextRequest) {
     if (hostParts.length > 1) {
       subdomain = hostParts[0];
     }
+  } else if (isVercelDomain) {
+    // E.g. school-name.project-name.vercel.app -> parts length is 4
+    // E.g. project-name.vercel.app -> parts length is 3 (no school subdomain)
+    const hostParts = hostname.split(".");
+    if (hostParts.length > 3) {
+      subdomain = hostParts[0];
+    }
   } else {
+    // Custom domain e.g. schoolname.schoolpro.ug -> parts length is 3
     const hostParts = hostname.split(".");
     if (hostParts.length > 2 && hostParts[0] !== "www") {
       subdomain = hostParts[0];
     }
   }
 
-  // Apply query parameter overrides if present
+  // Apply query parameter overrides if present (very useful for Vercel preview URLs)
   if (adminParam === "true") {
     subdomain = "admin";
   } else if (schoolParam) {
@@ -48,7 +57,6 @@ export function middleware(req: NextRequest) {
   // Rewrite routes based on subdomain
   if (subdomain === "admin") {
     url.pathname = `/super-admin${path}`;
-    // Keep search params for testing overrides
     return NextResponse.rewrite(url);
   }
 

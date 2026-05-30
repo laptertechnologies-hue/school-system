@@ -583,7 +583,7 @@ export default function SchoolPortal({ params }: PageProps) {
 
   // Dashboard layout
   return (
-    <div style={{ minHeight: "100vh", display: "flex", backgroundColor: "#f1f5f9", color: "#1e293b" }}>
+    <div data-theme="light" style={{ minHeight: "100vh", display: "flex", backgroundColor: "#f1f5f9", color: "#1e293b" }}>
       
       {/* Sidebar navigation */}
       <aside style={{ width: "260px", background: "#0f172a", color: "#cbd5e1", display: "flex", flexDirection: "column" }} className="flex-mobile-col">

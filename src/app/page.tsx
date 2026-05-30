@@ -93,7 +93,7 @@ export default function MarketingPage() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(135deg, #0b0f19 0%, #111827 100%)", color: "#f3f4f6" }}>
+    <div data-theme="dark" style={{ minHeight: "100vh", background: "linear-gradient(135deg, #0b0f19 0%, #111827 100%)", color: "#f3f4f6" }}>
       {/* Premium Gradient Top Border */}
       <div style={{ height: "6px", background: "linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%)" }}></div>
 
@@ -139,7 +139,7 @@ export default function MarketingPage() {
                   <button onClick={() => setActiveTab("register")} className="btn btn-primary" style={{ padding: "12px 28px" }}>
                     Get Started Free <ArrowRight size={16} />
                   </button>
-                  <a href="?admin=true" className="btn btn-secondary" style={{ padding: "12px 28px", color: "white", borderColor: "rgba(255,255,255,0.15)" }}>
+                  <a href="?admin=true" className="btn btn-outline" style={{ padding: "12px 28px", color: "white", borderColor: "rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.03)" }}>
                     <Lock size={16} style={{ marginRight: "4px" }} /> Super Admin Demo
                   </a>
                 </div>
@@ -168,7 +168,7 @@ export default function MarketingPage() {
                   </p>
                 </div>
 
-                <div className="card" style={{ background: "#10b981, 0.15", border: "1px solid #374151" }}>
+                <div className="card" style={{ background: "#1f2937", borderColor: "#374151" }}>
                   <div style={{ background: "rgba(16, 185, 129, 0.15)", padding: "12px", borderRadius: "10px", display: "inline-block", marginBottom: "16px" }}>
                     <DollarSign size={24} color="var(--success)" />
                   </div>

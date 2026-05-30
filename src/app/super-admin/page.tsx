@@ -107,7 +107,7 @@ export default function SuperAdminDashboard() {
   );
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#f8fafc", color: "#1e293b", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+    <div data-theme="light" style={{ minHeight: "100vh", backgroundColor: "#f8fafc", color: "#1e293b", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
       {/* Header bar */}
       <div style={{ background: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)", color: "white", padding: "20px 0" }}>
         <div className="container flex justify-between align-center">

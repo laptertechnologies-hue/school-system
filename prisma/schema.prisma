@@ -1,0 +1,179 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model School {
+  id           String    @id @default(uuid())
+  name         String
+  subdomain    String    @unique
+  packageType  String    // "BASIC" (report cards), "PREMIUM" (report cards + finance)
+  status       String    @default("PENDING") // PENDING, ACTIVE, INACTIVE
+  studentRange String
+  contactEmail String
+  contactPhone String
+  createdAt    DateTime  @default(now())
+  expiresAt    DateTime?
+  users        User[]
+  classes      Class[]
+  students     Student[]
+  subjects     Subject[]
+  examPapers   ExamPaper[]
+  payments     Payment[]
+  expenses     Expense[]
+  feeStructures FeeStructure[]
+}
+
+model User {
+  id           String    @id @default(uuid())
+  schoolId     String
+  school       School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name         String
+  email        String
+  passwordHash String
+  role         String    // "ADMIN", "HEADTEACHER", "DIRECTOR", "DOS", "TEACHER"
+  createdAt    DateTime  @default(now())
+  marksCreated Mark[]    @relation("MarkCreator")
+  teacherSubjects TeacherSubject[]
+
+  @@unique([schoolId, email])
+}
+
+model Class {
+  id           String    @id @default(uuid())
+  schoolId     String
+  school       School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name         String    // e.g. "P1", "S4"
+  level        String    // "PRIMARY", "SECONDARY"
+  streams      Stream[]
+  students     Student[]
+  subjects     Subject[]
+  teacherSubjects TeacherSubject[]
+  feeStructures FeeStructure[]
+}
+
+model Stream {
+  id           String    @id @default(uuid())
+  classId      String
+  class        Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  name         String    // e.g. "A", "B"
+  students     Student[]
+  teacherSubjects TeacherSubject[]
+}
+
+model Student {
+  id               String    @id @default(uuid())
+  schoolId         String
+  school           School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  classId          String
+  class            Class     @relation(fields: [classId], references: [id])
+  streamId         String
+  stream           Stream    @relation(fields: [streamId], references: [id])
+  name             String
+  studentNumber    String    // Unique inside the school
+  type             String    // "DAY", "BOARDING"
+  marks            Mark[]
+  studentPayments  StudentPayment[]
+
+  @@unique([schoolId, studentNumber])
+}
+
+model Subject {
+  id           String    @id @default(uuid())
+  schoolId     String
+  school       School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  classId      String
+  class        Class     @relation(fields: [classId], references: [id])
+  name         String    // e.g. "Mathematics"
+  code         String?   // e.g. "MTC"
+  marks        Mark[]
+  teacherSubjects TeacherSubject[]
+}
+
+model TeacherSubject {
+  id           String    @id @default(uuid())
+  teacherId    String
+  teacher      User      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  subjectId    String
+  subject      Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  classId      String
+  class        Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  streamId     String
+  stream       Stream    @relation(fields: [streamId], references: [id], onDelete: Cascade)
+}
+
+model ExamPaper {
+  id              String    @id @default(uuid())
+  schoolId        String
+  school          School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  term            Int       // 1, 2, 3
+  year            Int
+  name            String    // e.g., "Beginning of Term (BOT)", "Mid-Term (MOT)", "End of Term (EOT)"
+  maxMarks        Float     @default(100)
+  isNewCurriculum Boolean   @default(false) // If true, grades are letters/competency based
+  marks           Mark[]
+}
+
+model Mark {
+  id              String    @id @default(uuid())
+  studentId       String
+  student         Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  examPaperId     String
+  examPaper       ExamPaper @relation(fields: [examPaperId], references: [id], onDelete: Cascade)
+  subjectId       String
+  subject         Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  score           Float     // Numeric score out of examPaper.maxMarks
+  competencyGrade String?   // A, B, C, D, E (For secondary CBC) or computed PLE Aggregate grade (1-8)
+  comments        String?
+  createdAt       DateTime  @default(now())
+  createdById     String
+  createdBy       User      @relation("MarkCreator", fields: [createdById], references: [id])
+}
+
+model Payment {
+  id           String    @id @default(uuid())
+  schoolId     String
+  school       School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  amount       Float
+  method       String    // "MOBILE_MONEY", "BANK", "CASH", "CARD"
+  status       String    // "PENDING", "COMPLETED", "FAILED"
+  date         DateTime  @default(now())
+  txRef        String?
+}
+
+model FeeStructure {
+  id             String    @id @default(uuid())
+  schoolId       String
+  school         School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  classId        String
+  class          Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  term           Int       // 1, 2, 3
+  year           Int
+  tuitionAmount  Float
+  boardingAmount Float
+}
+
+model StudentPayment {
+  id           String    @id @default(uuid())
+  studentId    String
+  student      Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  term         Int
+  year         Int
+  amountPaid   Float
+  balance      Float
+  date         DateTime  @default(now())
+}
+
+model Expense {
+  id           String    @id @default(uuid())
+  schoolId     String
+  school       School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  category     String
+  amount       Float
+  description  String
+  date         DateTime  @default(now())
+}

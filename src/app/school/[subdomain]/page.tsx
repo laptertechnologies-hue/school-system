@@ -159,16 +159,6 @@ export default function SchoolPortal({ params }: PageProps) {
       const isConnected = await checkDatabaseConnection();
       setDbConnected(isConnected);
       
-      // Auto login in demo mode for ease of use
-      if (s) {
-        if (s.subdomain === "greenhill") {
-          setEmail("admin@greenhill.ug");
-          setPassword("password");
-        } else if (s.subdomain === "kpps") {
-          setEmail("admin@kpps.ac.ug");
-          setPassword("password");
-        }
-      }
       setLoading(false);
     }
     fetchSchool();

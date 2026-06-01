@@ -6,6 +6,7 @@ import {
   createPayment, 
   updateSchoolStatus, 
   checkDatabaseConnection,
+  authenticateUser,
   School, 
   Payment 
 } from "../../lib/services";
@@ -19,10 +20,16 @@ import {
   RefreshCw, 
   PlusCircle,
   FileText,
-  Database
+  Database,
+  Lock
 } from "lucide-react";
 
 export default function SuperAdminDashboard() {
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [authError, setAuthError] = useState("");
+
   const [schools, setSchools] = useState<School[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,9 +69,26 @@ export default function SuperAdminDashboard() {
     }
   };
 
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError("");
+    try {
+      const user = await authenticateUser(email, password, "admin");
+      if (user) {
+        setCurrentUser(user);
+      } else {
+        setAuthError("Invalid super-admin credentials.");
+      }
+    } catch (err) {
+      setAuthError("Authentication system error.");
+    }
+  };
+
   useEffect(() => {
-    loadData();
-  }, []);
+    if (currentUser) {
+      loadData();
+    }
+  }, [currentUser]);
 
   const handleToggleStatus = async (schoolId: string, currentStatus: string) => {
     const nextStatus = currentStatus === "ACTIVE" ? "INACTIVE" : "ACTIVE";
@@ -119,6 +143,65 @@ export default function SuperAdminDashboard() {
     s.subdomain.toLowerCase().includes(search.toLowerCase()) ||
     s.contactEmail.toLowerCase().includes(search.toLowerCase())
   );
+
+  if (!currentUser) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#f8fafc", fontFamily: "var(--font-sans)" }} className="animate-fade-in">
+        <div className="card shadow-lg" style={{ width: "100%", maxWidth: "420px", padding: "40px", backgroundColor: "#ffffff", border: "1px solid #cbd5e1" }}>
+          <div style={{ textAlign: "center", marginBottom: "30px" }}>
+            <div style={{ display: "inline-flex", background: "var(--primary-light)", padding: "14px", borderRadius: "50%", marginBottom: "16px" }}>
+              <Lock size={30} color="var(--primary)" />
+            </div>
+            <h2 style={{ fontSize: "24px", fontWeight: 800, color: "#0f172a" }}>Super Admin Access</h2>
+            <p style={{ fontSize: "13px", color: "#64748b", marginTop: "8px" }}>Enter secure administrator credentials to enter dashboard console.</p>
+          </div>
+
+          {authError && (
+            <div style={{ background: "var(--danger-light)", border: "1px solid var(--danger)", color: "var(--danger)", padding: "12px", borderRadius: "8px", fontSize: "13px", marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px" }}>
+              <XCircle size={16} />
+              <span>{authError}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleLogin}>
+            <div className="form-group" style={{ marginBottom: "16px" }}>
+              <label className="form-label" style={{ color: "#1e293b" }}>Admin Email</label>
+              <input 
+                type="email" 
+                className="input-field" 
+                placeholder="admin@schoolpro.ug" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                style={{ background: "#ffffff", color: "#1e293b" }}
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: "24px" }}>
+              <label className="form-label" style={{ color: "#1e293b" }}>Password</label>
+              <input 
+                type="password" 
+                className="input-field" 
+                placeholder="••••••••" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                style={{ background: "#ffffff", color: "#1e293b" }}
+              />
+            </div>
+
+            <button type="submit" className="btn btn-primary hover-scale" style={{ width: "100%", padding: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+              Authenticate System
+            </button>
+          </form>
+          
+          <div style={{ marginTop: "24px", textAlign: "center" }}>
+            <a href="/" style={{ fontSize: "13px", color: "var(--primary)", textDecoration: "none", fontWeight: 600 }}>Back to Landing Page</a>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#ffffff", color: "#1e293b", fontFamily: "var(--font-sans)" }} className="animate-fade-in">
@@ -248,7 +331,7 @@ export default function SuperAdminDashboard() {
                               </div>
                             </td>
                             <td>
-                              <span style={{ fontFamily: "monospace", color: "var(--primary)", fontWeight: 700 }}>{s.subdomain}.schoolpro.ug</span>
+                              <span style={{ fontFamily: "monospace", color: "var(--primary)", fontWeight: 700 }}>{s.subdomain}.portal.laptertech.store</span>
                             </td>
                             <td>
                               <span className={`badge ${s.packageType === "PREMIUM" ? "badge-success" : "badge-primary"}`} style={{ color: "var(--primary)", background: "var(--primary-light)" }}>

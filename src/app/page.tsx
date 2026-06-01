@@ -162,15 +162,19 @@ export default function MarketingPage() {
                   <button onClick={() => setActiveTab("register")} className="btn btn-primary hover-scale" style={{ padding: "14px 32px", fontSize: "15px" }}>
                     Register School Free <ArrowRight size={18} />
                   </button>
-                  <a href="?admin=true" className="btn btn-outline hover-scale" style={{ padding: "14px 32px", color: "#1e293b", borderColor: "#cbd5e1", background: "#f8fafc", fontSize: "15px" }}>
+                  <a href="/super-admin" className="btn btn-outline hover-scale" style={{ padding: "14px 32px", color: "#1e293b", borderColor: "#cbd5e1", background: "#f8fafc", fontSize: "15px" }}>
                     <Lock size={16} style={{ marginRight: "4px" }} /> Super Admin Console
                   </a>
+                </div>
+
+                {/* Hero Showcase Image */}
+                <div style={{ marginTop: "40px", maxWidth: "900px", margin: "40px auto 0", border: "1px solid #e2e8f0", borderRadius: "16px", overflow: "hidden", boxShadow: "0 20px 40px rgba(0,0,0,0.06)" }} className="hover-scale">
+                  <img src="/images/school_dashboard_preview.png" alt="SchoolPro Dashboard Preview" style={{ width: "100%", height: "auto", display: "block" }} />
                 </div>
               </div>
 
               {/* Core Features Grid */}
               <div className="grid grid-cols-3 gap-3" style={{ marginBottom: "60px" }}>
-                
                 <div className="card hover-scale" style={{ background: "#ffffff", borderColor: "#e2e8f0" }}>
                   <div style={{ background: "var(--primary-light)", padding: "14px", borderRadius: "12px", display: "inline-block", marginBottom: "16px" }}>
                     <Award size={26} color="var(--primary)" />
@@ -200,26 +204,59 @@ export default function MarketingPage() {
                     Manage tuition parameters, log student fee payments, track defaulters, and record school expenses alongside teacher payroll databases.
                   </p>
                 </div>
+              </div>
 
+              {/* Showcase Section 1: Report Cards */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "40px", alignItems: "center", marginBottom: "60px", padding: "40px 0", borderTop: "1px solid #e2e8f0" }} className="flex-mobile-col">
+                <div>
+                  <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "1.5px" }}>Academic Analytics</span>
+                  <h2 style={{ fontSize: "28px", fontWeight: 800, color: "#0f172a", marginTop: "8px", marginBottom: "16px" }}>Ugandan Standard PLE & Lower Secondary CBC Grading</h2>
+                  <p style={{ color: "#475569", lineHeight: 1.6, marginBottom: "20px", fontSize: "15px" }}>
+                    Our grading system is built specifically to address the academic guidelines of the Uganda National Examinations Board (UNEB) and the National Curriculum Development Centre (NCDC).
+                  </p>
+                  <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "10px", color: "#475569" }}>
+                    <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="var(--primary)" /> Complete PLE Division calculation (aggregates for 4 subjects)</li>
+                    <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="var(--primary)" /> Continuous Assessment projects tracking (20% score weight)</li>
+                    <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="var(--primary)" /> CBC Competence grades mapping (A to E descriptor scale)</li>
+                  </ul>
+                </div>
+                <div style={{ border: "1px solid #cbd5e1", borderRadius: "12px", overflow: "hidden", boxShadow: "0 10px 20px rgba(0,0,0,0.03)" }} className="hover-scale">
+                  <img src="/images/report_card_preview.png" alt="Academic Report Card Preview" style={{ width: "100%", height: "auto", display: "block" }} />
+                </div>
+              </div>
+
+              {/* Showcase Section 2: Payments */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "40px", alignItems: "center", marginBottom: "60px", padding: "40px 0", borderTop: "1px solid #e2e8f0" }} className="flex-mobile-col">
+                <div style={{ border: "1px solid #cbd5e1", borderRadius: "12px", overflow: "hidden", boxShadow: "0 10px 20px rgba(0,0,0,0.03)" }} className="hover-scale">
+                  <img src="/images/checkout_preview.png" alt="Billing and Payment Options Preview" style={{ width: "100%", height: "auto", display: "block" }} />
+                </div>
+                <div>
+                  <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "1.5px" }}>Secure Billing Gateway</span>
+                  <h2 style={{ fontSize: "28px", fontWeight: 800, color: "#0f172a", marginTop: "8px", marginBottom: "16px" }}>Simulated Mobile Money & Visa Checkout Portal</h2>
+                  <p style={{ color: "#475569", lineHeight: 1.6, marginBottom: "20px", fontSize: "15px" }}>
+                    Enable parents and school administrators to renew licenses or pay tuition balances in seconds. Supports simulations of East Africa's leading payment platforms.
+                  </p>
+                  <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "10px", color: "#475569" }}>
+                    <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="var(--primary)" /> MTN Mobile Money & Airtel Money instant prompt integration</li>
+                    <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="var(--primary)" /> Visa & Mastercard Credit/Debit card form processing</li>
+                    <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="var(--primary)" /> 3D Secure OTP verification simulation for active safety</li>
+                  </ul>
+                </div>
               </div>
 
               {/* Instant Interactive Demos Section */}
               <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "16px", padding: "40px", textAlign: "center" }}>
-                <h2 style={{ color: "#0f172a", marginBottom: "16px", fontSize: "24px" }}>Experience the Live Interactive Demo</h2>
+                <h2 style={{ color: "#0f172a", marginBottom: "16px", fontSize: "24px" }}>Start Your 1-Year Free School Trial Today</h2>
                 <p style={{ color: "#475569", maxWidth: "600px", margin: "0 auto 30px", fontSize: "15px", lineHeight: 1.5 }}>
-                  We have pre-configured trial accounts. Click any of the entry points below to test roles ranging from Director, DOS, Teacher, to Super Admin!
+                  Wiped clean of dummy accounts, the platform is ready for active testing. Register your school name in seconds to provision a custom subdomain and explore features under the Basic or Premium plans!
                 </p>
 
                 <div className="flex justify-center flex-wrap gap-2">
-                  <a href="?school=greenhill" className="card hover-scale" style={{ background: "#ffffff", borderColor: "#cbd5e1", padding: "20px 30px", minWidth: "250px", display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", textDecoration: "none" }}>
-                    <span className="badge badge-success" style={{ background: "var(--primary-light)", color: "var(--primary)" }}>Premium Active</span>
-                    <strong style={{ color: "#0f172a", fontSize: "16px" }}>Greenhill Academy</strong>
-                    <span style={{ fontSize: "12px", color: "#64748b" }}>Login as: Admin, Teacher, DOS, Director</span>
-                  </a>
-                  <a href="?school=kpps" className="card hover-scale" style={{ background: "#ffffff", borderColor: "#cbd5e1", padding: "20px 30px", minWidth: "250px", display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", textDecoration: "none" }}>
-                    <span className="badge badge-primary">Basic Active</span>
-                    <strong style={{ color: "#0f172a", fontSize: "16px" }}>Kampala Parents Primary</strong>
-                    <span style={{ fontSize: "12px", color: "#64748b" }}>Login as: Admin, Teacher, DOS</span>
+                  <button onClick={() => setActiveTab("register")} className="btn btn-primary hover-scale" style={{ padding: "14px 32px" }}>
+                    Register Trial School Now
+                  </button>
+                  <a href="/super-admin" className="btn btn-outline hover-scale" style={{ padding: "14px 32px", color: "#1e293b", borderColor: "#cbd5e1", background: "#f8fafc" }}>
+                    Access Super Admin Login
                   </a>
                 </div>
               </div>
@@ -319,7 +356,7 @@ export default function MarketingPage() {
                           style={{ flex: 1 }}
                         />
                         <span style={{ background: "#f1f5f9", padding: "12px 14px", borderRadius: "8px", fontSize: "14px", color: "#475569", border: "1px solid #cbd5e1" }}>
-                          .schoolpro.ug
+                          .portal.laptertech.store
                         </span>
                       </div>
                       <span style={{ fontSize: "11px", color: "#64748b" }}>Lowercase letters & numbers only, no spaces.</span>
@@ -396,7 +433,7 @@ export default function MarketingPage() {
                     <div style={{ marginBottom: "12px" }}>
                       <strong style={{ display: "block", fontSize: "12px", color: "#64748b", textTransform: "uppercase" }}>School Subdomain</strong>
                       <span style={{ fontSize: "16px", color: "var(--primary)", fontWeight: 700 }}>
-                        {registeredSchool.subdomain}.schoolpro.ug
+                        {registeredSchool.subdomain}.portal.laptertech.store
                       </span>
                     </div>
                     
@@ -416,7 +453,9 @@ export default function MarketingPage() {
                   </p>
 
                   <a 
-                    href={`${demoHost}?school=${registeredSchool.subdomain}`} 
+                    href={demoHost.includes("localhost") 
+                      ? `${demoHost.split("//")[0]}//${registeredSchool.subdomain}.${demoHost.split("//")[1]}` 
+                      : `https://${registeredSchool.subdomain}.portal.laptertech.store`}
                     className="btn btn-primary hover-scale"
                     style={{ width: "100%", padding: "12px", display: "inline-flex", justifyContent: "center" }}
                   >
@@ -426,6 +465,38 @@ export default function MarketingPage() {
               )}
             </div>
           )}
+
+          {/* Team Section */}
+          <div style={{ marginTop: "60px", padding: "40px 0", borderTop: "1px solid #e2e8f0" }}>
+            <div style={{ textAlign: "center", marginBottom: "40px" }}>
+              <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "1.5px" }}>Our Team</span>
+              <h2 style={{ fontSize: "32px", fontWeight: 800, color: "#0f172a", marginTop: "8px" }}>Built by Education & Tech Leaders</h2>
+              <p style={{ color: "#64748b", marginTop: "8px" }}>Dedicated to modernizing school administration systems in Uganda.</p>
+            </div>
+            
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "24px" }} className="flex-mobile-col">
+              <div className="card text-center hover-scale" style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "24px", background: "white", borderColor: "#cbd5e1" }}>
+                <div style={{ width: "80px", height: "80px", borderRadius: "50%", background: "var(--primary-light)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", fontWeight: "bold", color: "var(--primary)", marginBottom: "16px" }}>RO</div>
+                <h4 style={{ color: "#0f172a", marginBottom: "4px" }}>Ronald Okello</h4>
+                <span style={{ fontSize: "12px", color: "var(--primary)", fontWeight: 700 }}>Co-Founder & CEO</span>
+                <p style={{ fontSize: "13px", color: "#64748b", marginTop: "12px", lineHeight: 1.4 }}>Former school administrator with 10+ years experience in East African educational systems.</p>
+              </div>
+
+              <div className="card text-center hover-scale" style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "24px", background: "white", borderColor: "#cbd5e1" }}>
+                <div style={{ width: "80px", height: "80px", borderRadius: "50%", background: "var(--primary-light)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", fontWeight: "bold", color: "var(--primary)", marginBottom: "16px" }}>SN</div>
+                <h4 style={{ color: "#0f172a", marginBottom: "4px" }}>Sylvia Nakafeero</h4>
+                <span style={{ fontSize: "12px", color: "var(--primary)", fontWeight: 700 }}>Chief Product Officer</span>
+                <p style={{ fontSize: "13px", color: "#64748b", marginTop: "12px", lineHeight: 1.4 }}>Lead developer specializing in CBC curriculum integrations and automated grading algorithms.</p>
+              </div>
+
+              <div className="card text-center hover-scale" style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "24px", background: "white", borderColor: "#cbd5e1" }}>
+                <div style={{ width: "80px", height: "80px", borderRadius: "50%", background: "var(--primary-light)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", fontWeight: "bold", color: "var(--primary)", marginBottom: "16px" }}>JM</div>
+                <h4 style={{ color: "#0f172a", marginBottom: "4px" }}>Joseph Mugisha</h4>
+                <span style={{ fontSize: "12px", color: "var(--primary)", fontWeight: 700 }}>Head of Customer Success</span>
+                <p style={{ fontSize: "13px", color: "#64748b", marginTop: "12px", lineHeight: 1.4 }}>Managing client support, onboarding, and training for partner schools across Uganda.</p>
+              </div>
+            </div>
+          </div>
 
         </div>
       </main>

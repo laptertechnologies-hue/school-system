@@ -27,6 +27,7 @@ export default function MarketingPage() {
   const [loginSubdomain, setLoginSubdomain] = useState("");
   const [loginEmail, setLoginEmail] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [lastSubdomain, setLastSubdomain] = useState("");
 
   const [schoolName, setSchoolName] = useState("");
   const [subdomain, setSubdomain] = useState("");
@@ -43,6 +44,11 @@ export default function MarketingPage() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       setDemoHost(window.location.origin);
+      const saved = localStorage.getItem("lastSubdomain");
+      if (saved) {
+        setLastSubdomain(saved);
+        setLoginSubdomain(saved);
+      }
     }
     // Check database connection
     async function checkDb() {
@@ -79,6 +85,11 @@ export default function MarketingPage() {
       if (!school) {
         setLoginError(`School subdomain "${sub}" does not exist in our systems.`);
         return;
+      }
+
+      // Save to localStorage so they don't have to enter it again next time
+      if (typeof window !== "undefined") {
+        localStorage.setItem("lastSubdomain", sub);
       }
 
       // Build target URL
@@ -522,6 +533,37 @@ export default function MarketingPage() {
                 {loginError && (
                   <div style={{ background: "var(--danger-light)", border: "1px solid var(--danger)", borderRadius: "8px", padding: "12px", color: "var(--danger)", fontSize: "14px", marginBottom: "20px" }}>
                     {loginError}
+                  </div>
+                )}
+                {lastSubdomain && (
+                  <div style={{ background: "var(--primary-light)", border: "1px solid var(--primary-glow)", borderRadius: "8px", padding: "16px", marginBottom: "20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ textAlign: "left" }}>
+                      <span style={{ fontSize: "10px", color: "var(--primary)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px" }}>Returning User</span>
+                      <div style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", marginTop: "2px" }}>
+                        {lastSubdomain}.portal.laptertech.store
+                      </div>
+                    </div>
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        const host = window.location.origin;
+                        let targetUrl = "";
+                        if (host.includes("localhost") || host.includes("127.0.0.1")) {
+                          const parts = host.split("//");
+                          targetUrl = `${parts[0]}//${lastSubdomain}.${parts[1]}`;
+                        } else {
+                          targetUrl = `https://${lastSubdomain}.portal.laptertech.store`;
+                        }
+                        if (loginEmail) {
+                          targetUrl += `?email=${encodeURIComponent(loginEmail)}`;
+                        }
+                        window.location.href = targetUrl;
+                      }}
+                      className="btn btn-primary hover-scale" 
+                      style={{ padding: "8px 16px", fontSize: "13px" }}
+                    >
+                      Go to Portal <ArrowRight size={14} style={{ marginLeft: "4px" }} />
+                    </button>
                   </div>
                 )}
 

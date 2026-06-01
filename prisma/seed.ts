@@ -32,6 +32,22 @@ async function main() {
   await prisma.school.deleteMany({});
 
   console.log("Seeding schools...");
+  // Create a dummy system school for the superadmin user to satisfy Prisma FK constraints
+  await prisma.school.create({
+    data: {
+      id: "super",
+      name: "Lapter System Admin School",
+      subdomain: "super-admin-system",
+      packageType: "PREMIUM",
+      status: "ACTIVE",
+      studentRange: "N/A",
+      contactEmail: "admin@schoolpro.ug",
+      contactPhone: "+256 000 000000",
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      expiresAt: null,
+    }
+  });
+
   for (const s of data.schools) {
     await prisma.school.create({
       data: {

@@ -23,7 +23,11 @@ import {
 } from "lucide-react";
 
 export default function MarketingPage() {
-  const [activeTab, setActiveTab] = useState<"features" | "pricing" | "register">("features");
+  const [activeTab, setActiveTab] = useState<"features" | "pricing" | "register" | "login">("features");
+  const [loginSubdomain, setLoginSubdomain] = useState("");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginError, setLoginError] = useState("");
+
   const [schoolName, setSchoolName] = useState("");
   const [subdomain, setSubdomain] = useState("");
   const [packageType, setPackageType] = useState<"BASIC" | "PREMIUM">("PREMIUM");
@@ -51,6 +55,50 @@ export default function MarketingPage() {
   const handleSubdomainChange = (val: string) => {
     // lowercase alphanumeric only, no spaces
     setSubdomain(val.toLowerCase().replace(/[^a-z0-9]/g, ""));
+  };
+
+  const handlePortalRedirect = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError("");
+
+    if (!loginSubdomain) {
+      setLoginError("Please enter your school subdomain.");
+      return;
+    }
+
+    const sub = loginSubdomain.toLowerCase().replace(/[^a-z0-9-]/g, "");
+
+    // Check if it's the super admin subdomain
+    if (sub === "admin" || sub === "super-admin" || sub === "super" || sub === "superadmin") {
+      window.location.href = "/super-admin";
+      return;
+    }
+
+    try {
+      const school = await getSchoolBySubdomain(sub);
+      if (!school) {
+        setLoginError(`School subdomain "${sub}" does not exist in our systems.`);
+        return;
+      }
+
+      // Build target URL
+      const host = window.location.origin;
+      let targetUrl = "";
+      if (host.includes("localhost") || host.includes("127.0.0.1")) {
+        const parts = host.split("//");
+        targetUrl = `${parts[0]}//${sub}.${parts[1]}`;
+      } else {
+        targetUrl = `https://${sub}.portal.laptertech.store`;
+      }
+
+      if (loginEmail) {
+        targetUrl += `?email=${encodeURIComponent(loginEmail)}`;
+      }
+
+      window.location.href = targetUrl;
+    } catch (err) {
+      setLoginError("Failed to verify school subdomain.");
+    }
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -125,16 +173,11 @@ export default function MarketingPage() {
             </div>
           </div>
           <div className="flex align-center gap-2 flex-mobile-col">
-            {dbConnected !== null && (
-              <span className={`badge ${dbConnected ? "badge-success animate-float-pulse" : "badge-primary"}`} style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 12px" }}>
-                <Database size={13} />
-                {dbConnected ? "PostgreSQL Connected" : "Sandbox Database Mode"}
-              </span>
-            )}
             <nav className="flex gap-2">
               <button onClick={() => { setActiveTab("features"); setRegisteredSchool(null); }} className={`btn ${activeTab === "features" ? "btn-primary" : "btn-outline"}`} style={{ padding: "8px 16px" }}>Features</button>
               <button onClick={() => { setActiveTab("pricing"); setRegisteredSchool(null); }} className={`btn ${activeTab === "pricing" ? "btn-primary" : "btn-outline"}`} style={{ padding: "8px 16px" }}>Pricing</button>
               <button onClick={() => { setActiveTab("register"); setRegisteredSchool(null); }} className={`btn ${activeTab === "register" ? "btn-primary" : "btn-outline"}`} style={{ padding: "8px 16px" }}>Register School</button>
+              <button onClick={() => { setActiveTab("login"); setRegisteredSchool(null); }} className={`btn ${activeTab === "login" ? "btn-primary" : "btn-outline"}`} style={{ padding: "8px 16px" }}>Login</button>
             </nav>
           </div>
         </div>
@@ -162,9 +205,9 @@ export default function MarketingPage() {
                   <button onClick={() => setActiveTab("register")} className="btn btn-primary hover-scale" style={{ padding: "14px 32px", fontSize: "15px" }}>
                     Register School Free <ArrowRight size={18} />
                   </button>
-                  <a href="/super-admin" className="btn btn-outline hover-scale" style={{ padding: "14px 32px", color: "#1e293b", borderColor: "#cbd5e1", background: "#f8fafc", fontSize: "15px" }}>
-                    <Lock size={16} style={{ marginRight: "4px" }} /> Super Admin Console
-                  </a>
+                  <button onClick={() => setActiveTab("login")} className="btn btn-outline hover-scale" style={{ padding: "14px 32px", color: "#1e293b", borderColor: "#cbd5e1", background: "#f8fafc", fontSize: "15px" }}>
+                    Login to Portal <ArrowRight size={16} style={{ marginLeft: "6px" }} />
+                  </button>
                 </div>
 
                 {/* Hero Showcase Image */}
@@ -255,9 +298,9 @@ export default function MarketingPage() {
                   <button onClick={() => setActiveTab("register")} className="btn btn-primary hover-scale" style={{ padding: "14px 32px" }}>
                     Register Trial School Now
                   </button>
-                  <a href="/super-admin" className="btn btn-outline hover-scale" style={{ padding: "14px 32px", color: "#1e293b", borderColor: "#cbd5e1", background: "#f8fafc" }}>
-                    Access Super Admin Login
-                  </a>
+                  <button onClick={() => setActiveTab("login")} className="btn btn-outline hover-scale" style={{ padding: "14px 32px", color: "#1e293b", borderColor: "#cbd5e1", background: "#f8fafc" }}>
+                    Login to School Dashboard
+                  </button>
                 </div>
               </div>
             </div>
@@ -463,6 +506,63 @@ export default function MarketingPage() {
                   </a>
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === "login" && (
+            <div className="animate-slide-up" style={{ maxWidth: "500px", margin: "0 auto" }}>
+              <div className="card shadow-lg" style={{ background: "#ffffff", borderColor: "#cbd5e1", padding: "40px" }}>
+                <div style={{ textAlign: "center", marginBottom: "24px" }}>
+                  <h2 style={{ color: "#0f172a", marginBottom: "10px", fontWeight: 800 }}>Access Your School Portal</h2>
+                  <p style={{ color: "#475569", fontSize: "14px" }}>
+                    Enter your school's unique subdomain to redirect to your institution's secure login panel.
+                  </p>
+                </div>
+
+                {loginError && (
+                  <div style={{ background: "var(--danger-light)", border: "1px solid var(--danger)", borderRadius: "8px", padding: "12px", color: "var(--danger)", fontSize: "14px", marginBottom: "20px" }}>
+                    {loginError}
+                  </div>
+                )}
+
+                <form onSubmit={handlePortalRedirect}>
+                  <div className="form-group" style={{ marginBottom: "20px" }}>
+                    <label className="form-label" style={{ color: "#1e293b" }}>School Subdomain</label>
+                    <div className="flex align-center" style={{ gap: "4px" }}>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        placeholder="e.g. greenhill" 
+                        value={loginSubdomain}
+                        onChange={(e) => setLoginSubdomain(e.target.value)}
+                        required
+                        style={{ flex: 1 }}
+                      />
+                      <span style={{ background: "#f1f5f9", padding: "12px 14px", borderRadius: "8px", fontSize: "14px", color: "#475569", border: "1px solid #cbd5e1" }}>
+                        .portal.laptertech.store
+                      </span>
+                    </div>
+                    <span style={{ fontSize: "11px", color: "#64748b" }}>Tip: Enter "admin" to log in to the Super Admin Panel.</span>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: "24px" }}>
+                    <label className="form-label" style={{ color: "#1e293b" }}>Administrator/Staff Email (Optional)</label>
+                    <input 
+                      type="email" 
+                      className="input-field" 
+                      placeholder="e.g. head@yourschool.ug" 
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      style={{ background: "#ffffff", color: "#1e293b" }}
+                    />
+                    <span style={{ fontSize: "11px", color: "#64748b" }}>If provided, this will pre-fill the login form for you.</span>
+                  </div>
+
+                  <button type="submit" className="btn btn-primary hover-scale" style={{ width: "100%", padding: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                    Find Portal & Go to Login <ArrowRight size={18} />
+                  </button>
+                </form>
+              </div>
             </div>
           )}
 

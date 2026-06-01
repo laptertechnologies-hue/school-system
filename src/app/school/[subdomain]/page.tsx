@@ -164,6 +164,16 @@ export default function SchoolPortal({ params }: PageProps) {
     fetchSchool();
   }, [subdomain]);
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const searchParams = new URLSearchParams(window.location.search);
+      const emailParam = searchParams.get("email");
+      if (emailParam) {
+        setEmail(emailParam);
+      }
+    }
+  }, []);
+
   // Load core school data when logged in
   const loadSchoolData = async (schoolId: string) => {
     try {

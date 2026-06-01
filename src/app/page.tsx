@@ -184,7 +184,7 @@ export default function MarketingPage() {
             </div>
           </div>
           <div className="flex align-center gap-2 flex-mobile-col">
-            <nav className="flex gap-2">
+            <nav className="flex gap-2 flex-wrap justify-center">
               <button onClick={() => { setActiveTab("features"); setRegisteredSchool(null); }} className={`btn ${activeTab === "features" ? "btn-primary" : "btn-outline"}`} style={{ padding: "8px 16px" }}>Features</button>
               <button onClick={() => { setActiveTab("pricing"); setRegisteredSchool(null); }} className={`btn ${activeTab === "pricing" ? "btn-primary" : "btn-outline"}`} style={{ padding: "8px 16px" }}>Pricing</button>
               <button onClick={() => { setActiveTab("register"); setRegisteredSchool(null); }} className={`btn ${activeTab === "register" ? "btn-primary" : "btn-outline"}`} style={{ padding: "8px 16px" }}>Register School</button>
@@ -212,11 +212,11 @@ export default function MarketingPage() {
                 <p style={{ fontSize: "18px", color: "#475569", maxWidth: "650px", margin: "0 auto 30px", lineHeight: 1.6 }}>
                   A secure, multi-tenant SaaS built specifically for Ugandan primary and secondary institutions. Seamlessly generate PLE/CBC report cards, log finances, and automate tuition billing.
                 </p>
-                <div className="flex justify-center gap-2">
-                  <button onClick={() => setActiveTab("register")} className="btn btn-primary hover-scale" style={{ padding: "14px 32px", fontSize: "15px" }}>
+                <div className="flex justify-center gap-2 flex-mobile-col align-center flex-wrap">
+                  <button onClick={() => setActiveTab("register")} className="btn btn-primary hover-scale" style={{ padding: "14px 32px", fontSize: "15px", width: "100%", maxWidth: "300px", justifyContent: "center" }}>
                     Register School Free <ArrowRight size={18} />
                   </button>
-                  <button onClick={() => setActiveTab("login")} className="btn btn-outline hover-scale" style={{ padding: "14px 32px", color: "#1e293b", borderColor: "#cbd5e1", background: "#f8fafc", fontSize: "15px" }}>
+                  <button onClick={() => setActiveTab("login")} className="btn btn-outline hover-scale" style={{ padding: "14px 32px", color: "#1e293b", borderColor: "#cbd5e1", background: "#f8fafc", fontSize: "15px", width: "100%", maxWidth: "300px", justifyContent: "center" }}>
                     Login to Portal <ArrowRight size={16} style={{ marginLeft: "6px" }} />
                   </button>
                 </div>
@@ -261,7 +261,7 @@ export default function MarketingPage() {
               </div>
 
               {/* Showcase Section 1: Report Cards */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "40px", alignItems: "center", marginBottom: "60px", padding: "40px 0", borderTop: "1px solid #e2e8f0" }} className="flex-mobile-col">
+              <div className="grid grid-cols-2 gap-3 align-center" style={{ marginBottom: "60px", padding: "40px 0", borderTop: "1px solid #e2e8f0" }}>
                 <div>
                   <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "1.5px" }}>Academic Analytics</span>
                   <h2 style={{ fontSize: "28px", fontWeight: 800, color: "#0f172a", marginTop: "8px", marginBottom: "16px" }}>Ugandan Standard PLE & Lower Secondary CBC Grading</h2>
@@ -280,7 +280,7 @@ export default function MarketingPage() {
               </div>
 
               {/* Showcase Section 2: Payments */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "40px", alignItems: "center", marginBottom: "60px", padding: "40px 0", borderTop: "1px solid #e2e8f0" }} className="flex-mobile-col">
+              <div className="grid grid-cols-2 gap-3 align-center" style={{ marginBottom: "60px", padding: "40px 0", borderTop: "1px solid #e2e8f0" }}>
                 <div style={{ border: "1px solid #cbd5e1", borderRadius: "12px", overflow: "hidden", boxShadow: "0 10px 20px rgba(0,0,0,0.03)" }} className="hover-scale">
                   <img src="/images/checkout_preview.png" alt="Billing and Payment Options Preview" style={{ width: "100%", height: "auto", display: "block" }} />
                 </div>
@@ -616,7 +616,7 @@ export default function MarketingPage() {
               <p style={{ color: "#64748b", marginTop: "8px" }}>Dedicated to modernizing school administration systems in Uganda.</p>
             </div>
             
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "24px" }} className="flex-mobile-col">
+            <div className="grid grid-cols-3 gap-3">
               <div className="card text-center hover-scale" style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "24px", background: "white", borderColor: "#cbd5e1" }}>
                 <div style={{ width: "80px", height: "80px", borderRadius: "50%", background: "var(--primary-light)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", fontWeight: "bold", color: "var(--primary)", marginBottom: "16px" }}>RO</div>
                 <h4 style={{ color: "#0f172a", marginBottom: "4px" }}>Ronald Okello</h4>

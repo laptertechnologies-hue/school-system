@@ -1,6 +1,14 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { dataService, School, Payment } from "../../lib/services";
+import { 
+  getSchools, 
+  getPayments, 
+  createPayment, 
+  updateSchoolStatus, 
+  checkDatabaseConnection,
+  School, 
+  Payment 
+} from "../../lib/services";
 import { 
   Building2, 
   CheckCircle, 
@@ -10,7 +18,8 @@ import {
   Search, 
   RefreshCw, 
   PlusCircle,
-  FileText
+  FileText,
+  Database
 } from "lucide-react";
 
 export default function SuperAdminDashboard() {
@@ -18,6 +27,7 @@ export default function SuperAdminDashboard() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [dbConnected, setDbConnected] = useState<boolean | null>(null);
   
   // Payment recording form state
   const [selectedSchoolId, setSelectedSchoolId] = useState("");
@@ -29,17 +39,21 @@ export default function SuperAdminDashboard() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const allSchools = await dataService.getSchools();
-      const allPayments = await dataService.getPayments("school-1"); // Mock load
-      
+      // Check database connection
+      const isConnected = await checkDatabaseConnection();
+      setDbConnected(isConnected);
+
+      const allSchools = await getSchools();
       setSchools(allSchools);
       
-      // Let's load payments for all schools by fetching sequentially in mock mode
+      // Load payments for all schools
       const allPaymentsCombined: Payment[] = [];
       for (const s of allSchools) {
-        const sp = await dataService.getPayments(s.id);
+        const sp = await getPayments(s.id);
         allPaymentsCombined.push(...sp);
       }
+      // Sort payments by date descending
+      allPaymentsCombined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setPayments(allPaymentsCombined);
     } catch (err) {
       console.error("Error loading admin data:", err);
@@ -55,7 +69,7 @@ export default function SuperAdminDashboard() {
   const handleToggleStatus = async (schoolId: string, currentStatus: string) => {
     const nextStatus = currentStatus === "ACTIVE" ? "INACTIVE" : "ACTIVE";
     try {
-      await dataService.updateSchoolStatus(schoolId, nextStatus);
+      await updateSchoolStatus(schoolId, nextStatus);
       await loadData(); // Reload
     } catch (err) {
       alert("Failed to update status");
@@ -71,7 +85,7 @@ export default function SuperAdminDashboard() {
     }
 
     try {
-      await dataService.createPayment({
+      await createPayment({
         schoolId: selectedSchoolId,
         amount: parseFloat(amount),
         method,
@@ -82,7 +96,7 @@ export default function SuperAdminDashboard() {
       // Automatically activate/renew school if inactive
       const school = schools.find((s) => s.id === selectedSchoolId);
       if (school && school.status !== "ACTIVE") {
-        await dataService.updateSchoolStatus(selectedSchoolId, "ACTIVE");
+        await updateSchoolStatus(selectedSchoolId, "ACTIVE");
       }
 
       setAmount("");
@@ -107,22 +121,31 @@ export default function SuperAdminDashboard() {
   );
 
   return (
-    <div data-theme="light" style={{ minHeight: "100vh", backgroundColor: "#f8fafc", color: "#1e293b", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+    <div style={{ minHeight: "100vh", backgroundColor: "#ffffff", color: "#1e293b", fontFamily: "var(--font-sans)" }} className="animate-fade-in">
+      {/* Top accent strip */}
+      <div style={{ height: "6px", background: "linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%)" }}></div>
+
       {/* Header bar */}
-      <div style={{ background: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)", color: "white", padding: "20px 0" }}>
-        <div className="container flex justify-between align-center">
+      <div style={{ background: "#ffffff", color: "#1e293b", padding: "20px 0", borderBottom: "1px solid #e2e8f0" }}>
+        <div className="container flex justify-between align-center flex-mobile-col gap-2">
           <div className="flex align-center gap-2">
             <div style={{ background: "var(--primary)", padding: "10px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Building2 size={24} color="white" />
             </div>
             <div>
-              <h1 style={{ fontSize: "20px", fontWeight: 800 }}>SaaS Super Admin Dashboard</h1>
-              <span style={{ fontSize: "11px", opacity: 0.7 }}>Manage School Tenants, Billing & Access</span>
+              <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a" }}>SaaS Super Admin Console</h1>
+              <span style={{ fontSize: "11px", color: "var(--primary)", fontWeight: 700, letterSpacing: "1px", textTransform: "uppercase" }}>Tenant & Billing Logs</span>
             </div>
           </div>
-          <div className="flex align-center gap-2">
-            <a href="/" className="btn btn-outline" style={{ color: "white", borderColor: "rgba(255,255,255,0.2)" }}>Exit to Site</a>
-            <button onClick={loadData} className="btn btn-primary" style={{ padding: "8px" }}>
+          <div className="flex align-center gap-2 flex-mobile-col">
+            {dbConnected !== null && (
+              <span className={`badge ${dbConnected ? "badge-success animate-float-pulse" : "badge-primary"}`} style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 12px" }}>
+                <Database size={13} />
+                {dbConnected ? "PostgreSQL Active" : "Mock File Sandbox"}
+              </span>
+            )}
+            <a href="/" className="btn btn-outline hover-scale" style={{ color: "#1e293b", borderColor: "#cbd5e1", background: "#f8fafc" }}>Exit to Site</a>
+            <button onClick={loadData} className="btn btn-primary hover-scale" style={{ padding: "10px" }}>
               <RefreshCw size={18} />
             </button>
           </div>
@@ -130,59 +153,64 @@ export default function SuperAdminDashboard() {
       </div>
 
       {/* Metrics Banner */}
-      <div style={{ padding: "30px 0" }}>
-        <div className="container">
-          <div className="grid grid-cols-4 gap-2" style={{ marginBottom: "30px" }}>
+      <div style={{ padding: "30px 0", backgroundColor: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+        <div className="container animate-slide-up">
+          <div className="grid grid-cols-4 gap-2">
             
-            <div className="card" style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-              <div style={{ background: "rgba(59, 130, 246, 0.1)", padding: "14px", borderRadius: "12px" }}>
+            <div className="card hover-scale" style={{ display: "flex", alignItems: "center", gap: "16px", backgroundColor: "#ffffff" }}>
+              <div style={{ background: "var(--primary-light)", padding: "14px", borderRadius: "12px" }}>
                 <Building2 size={28} color="var(--primary)" />
               </div>
               <div>
-                <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 600 }}>TOTAL TENANTS</span>
-                <h2 style={{ fontSize: "28px", fontWeight: 800, marginTop: "4px" }}>{totalSchools}</h2>
+                <span style={{ fontSize: "11px", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>Total Tenants</span>
+                <h2 style={{ fontSize: "28px", fontWeight: 800, marginTop: "4px", color: "#0f172a" }}>{totalSchools}</h2>
               </div>
             </div>
 
-            <div className="card" style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-              <div style={{ background: "rgba(16, 185, 129, 0.1)", padding: "14px", borderRadius: "12px" }}>
-                <CheckCircle size={28} color="var(--success)" />
+            <div className="card hover-scale" style={{ display: "flex", alignItems: "center", gap: "16px", backgroundColor: "#ffffff" }}>
+              <div style={{ background: "var(--primary-light)", padding: "14px", borderRadius: "12px" }}>
+                <CheckCircle size={28} color="var(--primary)" />
               </div>
               <div>
-                <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 600 }}>ACTIVE SCHOOLS</span>
-                <h2 style={{ fontSize: "28px", fontWeight: 800, marginTop: "4px" }}>{activeSchools}</h2>
+                <span style={{ fontSize: "11px", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>Active Schools</span>
+                <h2 style={{ fontSize: "28px", fontWeight: 800, marginTop: "4px", color: "#0f172a" }}>{activeSchools}</h2>
               </div>
             </div>
 
-            <div className="card" style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-              <div style={{ background: "rgba(245, 158, 11, 0.1)", padding: "14px", borderRadius: "12px" }}>
-                <Clock size={28} color="var(--warning)" />
+            <div className="card hover-scale" style={{ display: "flex", alignItems: "center", gap: "16px", backgroundColor: "#ffffff" }}>
+              <div style={{ background: "var(--primary-light)", padding: "14px", borderRadius: "12px" }}>
+                <Clock size={28} color="var(--primary)" />
               </div>
               <div>
-                <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 600 }}>PENDING TRIAL APPROVALS</span>
-                <h2 style={{ fontSize: "28px", fontWeight: 800, marginTop: "4px" }}>{pendingSchools}</h2>
+                <span style={{ fontSize: "11px", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>Pending Trials</span>
+                <h2 style={{ fontSize: "28px", fontWeight: 800, marginTop: "4px", color: "#0f172a" }}>{pendingSchools}</h2>
               </div>
             </div>
 
-            <div className="card" style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-              <div style={{ background: "rgba(16, 185, 129, 0.1)", padding: "14px", borderRadius: "12px" }}>
-                <DollarSign size={28} color="var(--success)" />
+            <div className="card hover-scale" style={{ display: "flex", alignItems: "center", gap: "16px", backgroundColor: "#ffffff" }}>
+              <div style={{ background: "var(--primary-light)", padding: "14px", borderRadius: "12px" }}>
+                <DollarSign size={28} color="var(--primary)" />
               </div>
               <div>
-                <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 600 }}>TOTAL REVENUE COLLECTED</span>
-                <h2 style={{ fontSize: "24px", fontWeight: 800, marginTop: "4px" }}>{totalRevenue.toLocaleString()} UGX</h2>
+                <span style={{ fontSize: "11px", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>SaaS Income</span>
+                <h2 style={{ fontSize: "22px", fontWeight: 800, marginTop: "4px", color: "#0f172a" }}>{totalRevenue.toLocaleString()} UGX</h2>
               </div>
             </div>
 
           </div>
+        </div>
+      </div>
 
+      {/* Main Body Grid */}
+      <div style={{ padding: "40px 0" }}>
+        <div className="container">
           <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "24px" }} className="flex-mobile-col">
             
             {/* School tenants list */}
-            <div>
-              <div className="card" style={{ padding: "20px" }}>
+            <div className="animate-slide-up">
+              <div className="card" style={{ padding: "24px", backgroundColor: "#ffffff", borderColor: "#cbd5e1" }}>
                 <div className="flex justify-between align-center flex-wrap gap-2" style={{ marginBottom: "20px" }}>
-                  <h3>Registered School Accounts</h3>
+                  <h3 style={{ fontSize: "18px", color: "#0f172a" }}>Registered School Accounts</h3>
                   <div className="flex align-center" style={{ border: "1px solid #cbd5e1", borderRadius: "8px", background: "white", padding: "4px 10px", width: "260px" }}>
                     <Search size={18} color="#94a3b8" />
                     <input 
@@ -190,13 +218,13 @@ export default function SuperAdminDashboard() {
                       placeholder="Search schools..." 
                       value={search} 
                       onChange={(e) => setSearch(e.target.value)}
-                      style={{ border: "none", outline: "none", fontSize: "13px", padding: "6px", width: "100%" }}
+                      style={{ border: "none", outline: "none", fontSize: "13px", padding: "6px", width: "100%", color: "#1e293b" }}
                     />
                   </div>
                 </div>
 
                 {loading ? (
-                  <p style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>Loading database...</p>
+                  <p style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>Loading database state...</p>
                 ) : (
                   <div className="table-container">
                     <table className="table">
@@ -215,15 +243,15 @@ export default function SuperAdminDashboard() {
                           <tr key={s.id}>
                             <td>
                               <strong>{s.name}</strong>
-                              <div style={{ fontSize: "11px", color: "#64748b" }}>
+                              <div style={{ fontSize: "11px", color: "#64748b", marginTop: "2px" }}>
                                 {s.contactEmail} • {s.contactPhone}
                               </div>
                             </td>
                             <td>
-                              <span style={{ fontFamily: "monospace", color: "var(--primary)" }}>{s.subdomain}.schoolpro.ug</span>
+                              <span style={{ fontFamily: "monospace", color: "var(--primary)", fontWeight: 700 }}>{s.subdomain}.schoolpro.ug</span>
                             </td>
                             <td>
-                              <span className={`badge ${s.packageType === "PREMIUM" ? "badge-success" : "badge-primary"}`}>
+                              <span className={`badge ${s.packageType === "PREMIUM" ? "badge-success" : "badge-primary"}`} style={{ color: "var(--primary)", background: "var(--primary-light)" }}>
                                 {s.packageType}
                               </span>
                             </td>
@@ -234,13 +262,13 @@ export default function SuperAdminDashboard() {
                             </td>
                             <td>
                               <span style={{ fontSize: "12px", color: "#64748b" }}>
-                                {s.expiresAt ? new Date(s.expiresAt).toLocaleDateString() : "N/A"}
+                                {s.expiresAt ? new Date(s.expiresAt).toLocaleDateString() : "Trial Pending"}
                               </span>
                             </td>
                             <td>
                               <button 
                                 onClick={() => handleToggleStatus(s.id, s.status)}
-                                className={`btn ${s.status === "ACTIVE" ? "btn-danger" : "btn-primary"}`} 
+                                className={`btn ${s.status === "ACTIVE" ? "btn-danger" : "btn-primary"} hover-scale`} 
                                 style={{ padding: "6px 12px", fontSize: "11px" }}
                               >
                                 {s.status === "ACTIVE" ? "Deactivate" : "Activate"}
@@ -248,18 +276,68 @@ export default function SuperAdminDashboard() {
                             </td>
                           </tr>
                         ))}
+                        {filteredSchools.length === 0 && (
+                          <tr>
+                            <td colSpan={6} style={{ textAlign: "center", color: "#64748b", fontStyle: "italic", padding: "20px" }}>No schools found matching search criteria.</td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
                 )}
               </div>
-            </div>
 
+              {/* Billing Logs */}
+              <div className="card" style={{ marginTop: "24px", padding: "24px", backgroundColor: "#ffffff", borderColor: "#cbd5e1" }}>
+                <h3 style={{ fontSize: "18px", color: "#0f172a", marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <FileText size={20} color="var(--primary)" /> Subscription Billing Logs
+                </h3>
+                <div className="table-container">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>School Name</th>
+                        <th>Method</th>
+                        <th>Reference</th>
+                        <th>Amount Paid</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {payments.map((p) => {
+                        const sch = schools.find((s) => s.id === p.schoolId);
+                        return (
+                          <tr key={p.id}>
+                            <td>{new Date(p.date).toLocaleDateString()}</td>
+                            <td><strong>{sch?.name || "Unknown School"}</strong></td>
+                            <td>
+                              <span style={{ fontSize: "12px" }}>{p.method}</span>
+                            </td>
+                            <td>
+                              <span style={{ fontFamily: "monospace", fontSize: "11px", color: "#64748b" }}>{p.txRef || "N/A"}</span>
+                            </td>
+                            <td style={{ fontWeight: 700, color: "var(--success)" }}>
+                              +{p.amount.toLocaleString()} UGX
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {payments.length === 0 && (
+                        <tr>
+                          <td colSpan={5} style={{ textAlign: "center", color: "#64748b", fontStyle: "italic", padding: "20px" }}>No billing logs captured yet.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            
             {/* Quick manual billing recording */}
-            <div>
-              <div className="card" style={{ padding: "20px" }}>
-                <h3 style={{ display: "flex", alignContent: "center", gap: "8px", marginBottom: "16px" }}>
-                  <PlusCircle size={20} color="var(--primary)" /> Record School Payment
+            <div className="animate-slide-up">
+              <div className="card" style={{ padding: "24px", backgroundColor: "#ffffff", borderColor: "#cbd5e1" }}>
+                <h3 style={{ display: "flex", alignContent: "center", gap: "8px", marginBottom: "16px", fontSize: "18px", color: "#0f172a" }}>
+                  <PlusCircle size={22} color="var(--primary)" /> Record School Payment
                 </h3>
                 
                 {paymentMsg && (
@@ -320,15 +398,15 @@ export default function SuperAdminDashboard() {
                     />
                   </div>
 
-                  <button type="submit" className="btn btn-primary" style={{ width: "100%", padding: "10px", marginTop: "8px" }}>
+                  <button type="submit" className="btn btn-primary hover-scale" style={{ width: "100%", padding: "12px", marginTop: "8px" }}>
                     Submit Payment & Activate
                   </button>
                 </form>
               </div>
 
               {/* Info panel */}
-              <div className="card" style={{ marginTop: "20px", background: "white", padding: "20px" }}>
-                <h4 style={{ marginBottom: "10px", color: "var(--primary)" }}>Manual Activating Guideline</h4>
+              <div className="card" style={{ marginTop: "20px", background: "#f8fafc", padding: "20px", borderColor: "#cbd5e1" }}>
+                <h4 style={{ marginBottom: "10px", color: "var(--primary)", fontSize: "14px" }}>Manual Activating Guideline</h4>
                 <p style={{ fontSize: "12px", color: "#64748b", lineHeight: 1.4 }}>
                   When schools pay via Mobile Money (or bank transfer), their transactions are recorded here. 
                   Activating a school extends its subscription for 1 Year and triggers welcome setup guides.
@@ -337,7 +415,6 @@ export default function SuperAdminDashboard() {
             </div>
 
           </div>
-
         </div>
       </div>
     </div>

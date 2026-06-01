@@ -78,6 +78,7 @@ model Student {
   type             String    // "DAY", "BOARDING"
   marks            Mark[]
   studentPayments  StudentPayment[]
+  attendances      Attendance[]
 
   @@unique([schoolId, studentNumber])
 }
@@ -176,4 +177,14 @@ model Expense {
   amount       Float
   description  String
   date         DateTime  @default(now())
+}
+
+model Attendance {
+  id        String   @id @default(uuid())
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date      DateTime @default(now())
+  status    String   // "PRESENT", "ABSENT", "SICK"
+  term      Int
+  year      Int
 }

@@ -5,28 +5,28 @@
   /* Font Family */
   --font-sans: 'Plus Jakarta Sans', 'Outfit', system-ui, sans-serif;
 
-  /* Color Palette (HSL for premium flexibility) */
-  --primary-hue: 220;
-  --primary: hsl(var(--primary-hue), 85%, 57%);
-  --primary-hover: hsl(var(--primary-hue), 85%, 48%);
-  --primary-light: hsl(var(--primary-hue), 85%, 95%);
-  --primary-glow: hsla(var(--primary-hue), 85%, 57%, 0.15);
+  /* Color Palette: Clean Direct White (Main) & Light Blue (Secondary Accents) */
+  --primary-hue: 198;
+  --primary: hsl(var(--primary-hue), 93%, 60%); /* Sleek Light Blue */
+  --primary-hover: hsl(var(--primary-hue), 93%, 50%);
+  --primary-light: hsl(var(--primary-hue), 93%, 95%);
+  --primary-glow: hsla(var(--primary-hue), 93%, 60%, 0.18);
 
-  --secondary-hue: 260;
-  --secondary: hsl(var(--secondary-hue), 80%, 60%);
-  --secondary-hover: hsl(var(--secondary-hue), 80%, 50%);
+  --secondary-hue: 200;
+  --secondary: hsl(var(--secondary-hue), 90%, 72%); /* Bright Azure Light Blue */
+  --secondary-hover: hsl(var(--secondary-hue), 90%, 62%);
 
-  --background: hsl(210, 40%, 98%);
-  --foreground: hsl(222, 47%, 11%);
+  --background: hsl(0, 0%, 100%); /* Main background is direct white */
+  --foreground: hsl(222, 47%, 12%);
   
   --card: hsl(0, 0%, 100%);
-  --card-foreground: hsl(222, 47%, 11%);
-  --card-border: hsl(214, 32%, 91%);
-  --card-hover: hsl(210, 40%, 96%);
+  --card-foreground: hsl(222, 47%, 12%);
+  --card-border: hsl(200, 20%, 92%);
+  --card-hover: hsl(198, 93%, 98%); /* subtle blue tint on hover */
 
-  --border: hsl(214, 32%, 91%);
-  --input: hsl(214, 32%, 91%);
-  --input-focus: hsl(var(--primary-hue), 85%, 57%);
+  --border: hsl(200, 20%, 92%);
+  --input: hsl(200, 20%, 96%);
+  --input-focus: hsl(var(--primary-hue), 93%, 60%);
 
   --success: hsl(142, 70%, 45%);
   --success-light: hsl(142, 70%, 95%);
@@ -37,30 +37,31 @@
   --info: hsl(190, 90%, 45%);
   --info-light: hsl(190, 90%, 95%);
 
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
-  --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow: 0 4px 12px rgba(14, 165, 233, 0.05), 0 1px 4px rgba(0, 0, 0, 0.02);
+  --shadow-md: 0 8px 24px rgba(14, 165, 233, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 16px 36px rgba(14, 165, 233, 0.12), 0 4px 16px rgba(0, 0, 0, 0.06);
   --radius: 12px;
 }
 
 [data-theme='dark'] {
-  --background: hsl(222, 47%, 6%);
-  --foreground: hsl(210, 40%, 98%);
+  /* Follow user direct color scheme request: dark theme aligns with clean white styling */
+  --background: hsl(0, 0%, 100%);
+  --foreground: hsl(222, 47%, 12%);
   
-  --card: hsl(222, 47%, 10%);
-  --card-foreground: hsl(210, 40%, 98%);
-  --card-border: hsl(217, 33%, 17%);
-  --card-hover: hsl(222, 47%, 12%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(222, 47%, 12%);
+  --card-border: hsl(200, 20%, 92%);
+  --card-hover: hsl(198, 93%, 98%);
 
-  --border: hsl(217, 33%, 17%);
-  --input: hsl(217, 33%, 17%);
+  --border: hsl(200, 20%, 92%);
+  --input: hsl(200, 20%, 96%);
   
-  --primary-light: hsl(var(--primary-hue), 85%, 15%);
-  --success-light: hsl(142, 70%, 12%);
-  --warning-light: hsl(38, 92%, 12%);
-  --danger-light: hsl(350, 89%, 14%);
-  --info-light: hsl(190, 90%, 12%);
+  --primary-light: hsl(var(--primary-hue), 93%, 95%);
+  --success-light: hsl(142, 70%, 95%);
+  --warning-light: hsl(38, 92%, 95%);
+  --danger-light: hsl(350, 89%, 96%);
+  --info-light: hsl(190, 90%, 95%);
 }
 
 /* Base resets */
@@ -287,12 +288,62 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Custom Animations */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes floatPulse {
+  0% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.5); }
+  70% { box-shadow: 0 0 0 8px rgba(56, 189, 248, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1); opacity: 0.95; }
+  50% { transform: scale(1.02); opacity: 1; }
+}
+
 .animate-fade-in {
-  animation: fadeIn 0.4s ease-out forwards;
+  animation: fadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-float-pulse {
+  border-radius: 50%;
+  animation: floatPulse 2s infinite;
+}
+
+.animate-breathe {
+  animation: breathe 4s ease-in-out infinite;
+}
+
+.hover-scale {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+}
+
+.hover-scale:hover {
+  transform: scale(1.03);
+}
+
+.tab-content-anim {
+  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* Custom Scrollbar */

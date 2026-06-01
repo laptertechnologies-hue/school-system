@@ -40,10 +40,25 @@ export function middleware(req: NextRequest) {
       subdomain = hostParts[0];
     }
   } else {
-    // Custom domain e.g. schoolname.schoolpro.ug -> parts length is 3
-    const hostParts = hostname.split(".");
-    if (hostParts.length > 2 && hostParts[0] !== "www") {
-      subdomain = hostParts[0];
+    // Custom domain check (e.g. schoolname.portal.laptertech.store)
+    const customBase = process.env.NEXT_PUBLIC_BASE_DOMAIN || "portal.laptertech.store";
+    const baseDomains = [customBase, "portal.laptertech.store", "schoolpro.laptertech.store"];
+    
+    const matchingBase = baseDomains.find(base => hostname === base || hostname === `www.${base}`);
+    
+    if (matchingBase) {
+      subdomain = "";
+    } else {
+      const matchingSuffix = baseDomains.find(base => hostname.endsWith(`.${base}`));
+      if (matchingSuffix) {
+        subdomain = hostname.replace(`.${matchingSuffix}`, "").replace("www.", "");
+      } else {
+        // Fallback for standard 2-level custom domains (e.g. schoolname.schoolpro.ug)
+        const hostParts = hostname.split(".");
+        if (hostParts.length > 2 && hostParts[0] !== "www") {
+          subdomain = hostParts[0];
+        }
+      }
     }
   }
 

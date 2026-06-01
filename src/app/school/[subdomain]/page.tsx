@@ -1,6 +1,14 @@
 "use client";
 import React, { useState, useEffect, use } from "react";
-import { dataService, School, User, Class, Stream, Student, Subject, ExamPaper, Mark, Payment, FeeStructure, StudentPayment, Expense } from "../../../lib/services";
+import { 
+  School, User, Class, Stream, Student, Subject, ExamPaper, Mark, Payment, FeeStructure, StudentPayment, Expense,
+  checkDatabaseConnection, getSchoolBySubdomain, getUsers, getClasses, getStreams, getStudents, getSubjects,
+  getExamPapers, getMarks, getFeeStructures, getStudentPayments, getExpenses, getAttendance, authenticateUser,
+  createClass, createStream, createUser, createStudent, createSubject, createExamPaper, addMark,
+  createFeeStructure, recordStudentPayment, createExpense, recordAttendance, promoteStudents,
+  processTeacherSalary, createPayment, getPayments, updateSchoolStatus
+} from "../../../lib/services";
+import { Database, CreditCard, Building2, CheckCircle } from "lucide-react";
 import { 
   GraduationCap, 
   Users, 
@@ -48,11 +56,14 @@ export default function SchoolPortal({ params }: PageProps) {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [exams, setExams] = useState<ExamPaper[]>([]);
   const [marks, setMarks] = useState<Mark[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   
   // Finance state (Premium only)
   const [feeStructures, setFeeStructures] = useState<FeeStructure[]>([]);
   const [studentPayments, setStudentPayments] = useState<StudentPayment[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [dbConnected, setDbConnected] = useState<boolean | null>(null);
 
   // Navigation state inside dashboard
   const [activeTab, setActiveTab] = useState("overview");
@@ -109,12 +120,44 @@ export default function SchoolPortal({ params }: PageProps) {
   const [selectedReportTerm, setSelectedReportTerm] = useState("1");
   const [selectedReportStudent, setSelectedReportStudent] = useState<Student | null>(null);
 
+  // Student Promotion States
+  const [promoteFromClassId, setPromoteFromClassId] = useState("");
+  const [promoteToClassId, setPromoteToClassId] = useState("");
+
+  // Attendance Registry States
+  const [attendanceClassId, setAttendanceClassId] = useState("");
+  const [attendanceStreamId, setAttendanceStreamId] = useState("");
+  const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split("T")[0]);
+  const [attendanceStatuses, setAttendanceStatuses] = useState<{ [studentId: string]: "PRESENT" | "ABSENT" | "SICK" }>({});
+
+  // Payroll States
+  const [payTeacherId, setPayTeacherId] = useState("");
+  const [payMonthName, setPayMonthName] = useState("May");
+  const [paySalaryAmount, setPaySalaryAmount] = useState("");
+
+  // Mobile Money & Card Overlay Simulation States
+  const [showMoMoModal, setShowMoMoModal] = useState(false);
+  const [momoPhone, setMomoPhone] = useState("");
+  const [momoAmount, setMomoAmount] = useState("");
+  const [momoPurpose, setMomoPurpose] = useState<"TUITION" | "PACKAGE">("TUITION");
+  const [momoStudentId, setMomoStudentId] = useState("");
+  const [momoStep, setMomoStep] = useState(0); // 0 = Form, 1 = Prompt, 2 = PIN/OTP, 3 = Verifying, 4 = Success
+  const [momoProvider, setMomoProvider] = useState<"MTN" | "AIRTEL" | "CARD">("MTN");
+  const [cardName, setCardName] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCvv, setCardCvv] = useState("");
+  const [cardOtp, setCardOtp] = useState("");
+
   // Load School on mount
   useEffect(() => {
     async function fetchSchool() {
       setLoading(true);
-      const s = await dataService.getSchoolBySubdomain(subdomain);
+      const s = await getSchoolBySubdomain(subdomain);
       setSchool(s);
+      
+      const isConnected = await checkDatabaseConnection();
+      setDbConnected(isConnected);
       
       // Auto login in demo mode for ease of use
       if (s) {
@@ -134,12 +177,13 @@ export default function SchoolPortal({ params }: PageProps) {
   // Load core school data when logged in
   const loadSchoolData = async (schoolId: string) => {
     try {
-      const cls = await dataService.getClasses(schoolId);
-      const strms = await dataService.getStreams(schoolId);
-      const studs = await dataService.getStudents(schoolId);
-      const subjs = await dataService.getSubjects(schoolId);
-      const exms = await dataService.getExamPapers(schoolId);
-      const mrks = await dataService.getMarks(schoolId);
+      const cls = await getClasses(schoolId);
+      const strms = await getStreams(schoolId);
+      const studs = await getStudents(schoolId);
+      const subjs = await getSubjects(schoolId);
+      const exms = await getExamPapers(schoolId);
+      const mrks = await getMarks(schoolId);
+      const usrs = await getUsers(schoolId);
 
       setClasses(cls);
       setStreams(strms);
@@ -147,6 +191,7 @@ export default function SchoolPortal({ params }: PageProps) {
       setSubjects(subjs);
       setExams(exms);
       setMarks(mrks);
+      setUsers(usrs);
 
       // Pre-fill lists
       if (cls.length > 0) {
@@ -156,6 +201,10 @@ export default function SchoolPortal({ params }: PageProps) {
         setSelectedClassId(cls[0].id);
         setSelectedFeeClassId(cls[0].id);
         setSelectedReportClassId(cls[0].id);
+        
+        setPromoteFromClassId(cls[0].id);
+        setPromoteToClassId(cls[1]?.id || "");
+        setAttendanceClassId(cls[0].id);
       }
 
       // Pre-fill stream mapping
@@ -163,6 +212,7 @@ export default function SchoolPortal({ params }: PageProps) {
       if (classStreams.length > 0) {
         setNewStudentStreamId(classStreams[0].id);
         setSelectedStreamId(classStreams[0].id);
+        setAttendanceStreamId(classStreams[0].id);
       }
 
       if (exms.length > 0) {
@@ -173,10 +223,14 @@ export default function SchoolPortal({ params }: PageProps) {
         setSelectedSubjectId(subjs[0].id);
       }
 
+      const pmts = await getPayments(schoolId);
+      pmts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setPayments(pmts);
+
       if (school?.packageType === "PREMIUM") {
-        setFeeStructures(await dataService.getFeeStructures(schoolId));
-        setStudentPayments(await dataService.getStudentPayments(schoolId));
-        setExpenses(await dataService.getExpenses(schoolId));
+        setFeeStructures(await getFeeStructures(schoolId));
+        setStudentPayments(await getStudentPayments(schoolId));
+        setExpenses(await getExpenses(schoolId));
         if (studs.length > 0) {
           setSelectedPayStudentId(studs[0].id);
         }
@@ -185,6 +239,26 @@ export default function SchoolPortal({ params }: PageProps) {
       console.error("Error loading data:", err);
     }
   };
+
+  const loadAttendance = async (classId: string, streamId: string, dateStr: string) => {
+    if (!school || !classId || !streamId) return;
+    try {
+      const records = await getAttendance(school.id, classId, dateStr);
+      const mapped: { [studentId: string]: "PRESENT" | "ABSENT" | "SICK" } = {};
+      records.forEach(r => {
+        mapped[r.studentId] = r.status as any;
+      });
+      setAttendanceStatuses(mapped);
+    } catch (err) {
+      console.error("Error loading attendance:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (attendanceClassId && attendanceStreamId && attendanceDate) {
+      loadAttendance(attendanceClassId, attendanceStreamId, attendanceDate);
+    }
+  }, [attendanceClassId, attendanceStreamId, attendanceDate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -197,7 +271,7 @@ export default function SchoolPortal({ params }: PageProps) {
       return;
     }
 
-    const user = await dataService.authenticateUser(email, password, subdomain);
+    const user = await authenticateUser(email, password, subdomain);
     if (user) {
       setCurrentUser(user);
       await loadSchoolData(school.id);
@@ -221,7 +295,7 @@ export default function SchoolPortal({ params }: PageProps) {
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newClassName || !school) return;
-    await dataService.createClass(school.id, newClassName, newClassLevel);
+    await createClass(school.id, newClassName, newClassLevel);
     setNewClassName("");
     await loadSchoolData(school.id);
   };
@@ -230,7 +304,7 @@ export default function SchoolPortal({ params }: PageProps) {
   const handleCreateStream = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newStreamName || !newStreamClassId || !school) return;
-    await dataService.createStream(newStreamClassId, newStreamName);
+    await createStream(newStreamClassId, newStreamName);
     setNewStreamName("");
     await loadSchoolData(school.id);
   };
@@ -239,7 +313,7 @@ export default function SchoolPortal({ params }: PageProps) {
   const handleCreateStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTeacherName || !newTeacherEmail || !school) return;
-    await dataService.createUser({
+    await createUser({
       schoolId: school.id,
       name: newTeacherName,
       email: newTeacherEmail,
@@ -249,6 +323,7 @@ export default function SchoolPortal({ params }: PageProps) {
     setNewTeacherName("");
     setNewTeacherEmail("");
     setNewTeacherPassword("password");
+    await loadSchoolData(school.id);
     alert("Staff member user account created!");
   };
 
@@ -256,7 +331,7 @@ export default function SchoolPortal({ params }: PageProps) {
   const handleCreateStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newStudentName || !newStudentNumber || !newStudentClassId || !newStudentStreamId || !school) return;
-    await dataService.createStudent({
+    await createStudent({
       schoolId: school.id,
       classId: newStudentClassId,
       streamId: newStudentStreamId,
@@ -274,7 +349,7 @@ export default function SchoolPortal({ params }: PageProps) {
   const handleCreateSubject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSubjectName || !newSubjectClassId || !school) return;
-    await dataService.createSubject({
+    await createSubject({
       schoolId: school.id,
       classId: newSubjectClassId,
       name: newSubjectName,
@@ -289,7 +364,7 @@ export default function SchoolPortal({ params }: PageProps) {
   const handleCreateExam = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newExamName || !school) return;
-    await dataService.createExamPaper({
+    await createExamPaper({
       schoolId: school.id,
       name: newExamName,
       term: parseInt(newExamTerm),
@@ -346,7 +421,7 @@ export default function SchoolPortal({ params }: PageProps) {
           compGrade = computePLEGrade(rawScore);
         }
 
-        await dataService.addMark({
+        await addMark({
           studentId,
           examPaperId: selectedExamId,
           subjectId: selectedSubjectId,
@@ -369,7 +444,7 @@ export default function SchoolPortal({ params }: PageProps) {
   const handleSaveFee = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedFeeClassId || !tuitionAmount || !boardingAmount || !school) return;
-    await dataService.createFeeStructure({
+    await createFeeStructure({
       schoolId: school.id,
       classId: selectedFeeClassId,
       term: 1, // Mock term 1
@@ -405,7 +480,7 @@ export default function SchoolPortal({ params }: PageProps) {
     const newTotalPaid = alreadyPaid + paidVal;
     const balance = Math.max(0, totalDue - newTotalPaid);
 
-    await dataService.recordStudentPayment({
+    await recordStudentPayment({
       studentId: selectedPayStudentId,
       term: 1,
       year: 2026,
@@ -422,7 +497,7 @@ export default function SchoolPortal({ params }: PageProps) {
   const handleCreateExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!expAmount || !school) return;
-    await dataService.createExpense({
+    await createExpense({
       schoolId: school.id,
       category: expCategory,
       amount: parseFloat(expAmount),
@@ -432,6 +507,171 @@ export default function SchoolPortal({ params }: PageProps) {
     setExpDesc("");
     await loadSchoolData(school.id);
     alert("Expense recorded!");
+  };
+
+  // Save daily student attendance registry
+  const handleSaveAttendance = async () => {
+    if (!attendanceClassId || !attendanceStreamId || !attendanceDate || !school) {
+      alert("Please select class, stream, and date.");
+      return;
+    }
+
+    try {
+      const classStudents = students.filter(s => s.classId === attendanceClassId && s.streamId === attendanceStreamId);
+      for (const st of classStudents) {
+        const status = attendanceStatuses[st.id] || "PRESENT"; // default to present if unchecked
+        await recordAttendance(
+          st.id,
+          new Date(attendanceDate),
+          status,
+          1, // Term 1
+          2026
+        );
+      }
+      alert("Attendance log saved successfully!");
+      await loadAttendance(attendanceClassId, attendanceStreamId, attendanceDate);
+    } catch (err) {
+      alert("Error saving attendance registry.");
+    }
+  };
+
+  // Process batch promotion of students
+  const handlePromoteStudents = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!promoteFromClassId || !promoteToClassId || !school) return;
+    if (promoteFromClassId === promoteToClassId) {
+      alert("Cannot promote students to the same class.");
+      return;
+    }
+
+    const confirmText = `Are you sure you want to promote all students from ${classes.find(c => c.id === promoteFromClassId)?.name} to ${classes.find(c => c.id === promoteToClassId)?.name}? This cannot be undone.`;
+    if (!window.confirm(confirmText)) return;
+
+    try {
+      await promoteStudents(school.id, promoteFromClassId, promoteToClassId);
+      alert("Students promoted successfully!");
+      await loadSchoolData(school.id);
+    } catch (err) {
+      alert("Error processing student promotions.");
+    }
+  };
+
+  // Process Teacher Salary Payout
+  const handleProcessSalary = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!payTeacherId || !paySalaryAmount || !school) return;
+    
+    // In mock/Prisma users is available, but wait! We can load users from the schoolId
+    const schoolUsers = await getUsers(school.id);
+    const teacher = schoolUsers.find(u => u.id === payTeacherId);
+    const amountVal = parseFloat(paySalaryAmount);
+    if (!teacher || isNaN(amountVal)) return;
+
+    try {
+      await processTeacherSalary(
+        school.id,
+        payTeacherId,
+        teacher.name,
+        amountVal,
+        payMonthName
+      );
+      setPaySalaryAmount("");
+      await loadSchoolData(school.id);
+      alert(`Processed wage payment of ${amountVal.toLocaleString()} UGX for ${teacher.name}!`);
+    } catch (err) {
+      alert("Error processing teacher salary payment.");
+    }
+  };
+
+  // Trigger simulated payment transaction steps
+  const handleTriggerMoMoPayment = (amount: number, purpose: "TUITION" | "PACKAGE", studentId: string = "") => {
+    setMomoAmount(String(amount));
+    setMomoPurpose(purpose);
+    setMomoStudentId(studentId);
+    setMomoStep(0); // Input form
+    setMomoPhone("");
+    setCardName("");
+    setCardNumber("");
+    setCardExpiry("");
+    setCardCvv("");
+    setCardOtp("");
+    setMomoProvider("MTN");
+    setShowMoMoModal(true);
+  };
+
+  const executeSimulatedMoMo = async () => {
+    if (momoProvider === "CARD") {
+      if (!cardName || !cardNumber || !cardExpiry || !cardCvv) {
+        alert("Please fill in all credit card details.");
+        return;
+      }
+    } else {
+      if (!momoPhone) {
+        alert("Please enter your mobile phone number.");
+        return;
+      }
+    }
+    if (!school) return;
+    setMomoStep(1); // Processing gateway pull
+    setTimeout(() => {
+      setMomoStep(2); // Prompt OTP/PIN USSD screen
+    }, 2000);
+  };
+
+  const finishSimulatedMoMo = async () => {
+    setMomoStep(3); // Validating txn settlement reference
+    
+    setTimeout(async () => {
+      try {
+        if (!school) {
+          alert("School state is null.");
+          return;
+        }
+        if (momoPurpose === "TUITION" && momoStudentId) {
+          const stud = students.find(s => s.id === momoStudentId);
+          if (stud) {
+            const fs = feeStructures.find(f => f.classId === stud.classId);
+            const totalDue = stud.type === "BOARDING" 
+              ? (fs?.tuitionAmount || 0) + (fs?.boardingAmount || 0)
+              : (fs?.tuitionAmount || 0);
+
+            const prevPayment = studentPayments.find(p => p.studentId === momoStudentId);
+            const alreadyPaid = prevPayment ? prevPayment.amountPaid : 0;
+            const newTotalPaid = alreadyPaid + parseFloat(momoAmount);
+            const balance = Math.max(0, totalDue - newTotalPaid);
+
+            await recordStudentPayment({
+              studentId: momoStudentId,
+              term: 1,
+              year: 2026,
+              amountPaid: newTotalPaid,
+              balance,
+            });
+          }
+        } else if (momoPurpose === "PACKAGE") {
+          // Extend subscription by 1 Year and activate school status
+          await updateSchoolStatus(school.id, "ACTIVE");
+          
+          await createPayment({
+            schoolId: school.id,
+            amount: parseFloat(momoAmount),
+            method: momoProvider === "CARD" ? "CREDIT_CARD" : `${momoProvider}_MONEY`,
+            status: "COMPLETED",
+            txRef: `TX-SaaS-${Math.random().toString(36).substring(2, 9).toUpperCase()}`
+          });
+
+          // Reload local school parameters
+          const updatedSch = await getSchoolBySubdomain(subdomain);
+          if (updatedSch) setSchool(updatedSch);
+        }
+        
+        setMomoStep(4); // Successful transaction
+        await loadSchoolData(school.id);
+      } catch (err) {
+        alert("Transaction failed validation.");
+        setShowMoMoModal(false);
+      }
+    }, 2000);
   };
 
   // Generate PLE Report Card Data
@@ -587,12 +827,22 @@ export default function SchoolPortal({ params }: PageProps) {
       
       {/* Sidebar navigation */}
       <aside style={{ width: "260px", background: "#0f172a", color: "#cbd5e1", display: "flex", flexDirection: "column" }} className="flex-mobile-col">
-        <div style={{ padding: "24px", borderBottom: "1px solid #1e293b", display: "flex", alignItems: "center", gap: "10px" }}>
-          <GraduationCap size={28} color="var(--primary)" />
-          <div>
-            <h3 style={{ color: "white", fontSize: "16px", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>{school.name}</h3>
-            <span style={{ fontSize: "10px", color: "#64748b", textTransform: "uppercase", letterSpacing: "1px" }}>{currentUser.role} Portal</span>
+        <div style={{ padding: "24px", borderBottom: "1px solid #1e293b" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <GraduationCap size={28} color="var(--primary)" />
+            <div>
+              <h3 style={{ color: "white", fontSize: "16px", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>{school.name}</h3>
+              <span style={{ fontSize: "10px", color: "#64748b", textTransform: "uppercase", letterSpacing: "1px" }}>{currentUser.role} Portal</span>
+            </div>
           </div>
+          {dbConnected !== null && (
+            <div style={{ marginTop: "12px" }}>
+              <span className={`badge ${dbConnected ? "badge-success animate-float-pulse" : "badge-primary"}`} style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "4px 8px", fontSize: "10px", border: "none" }}>
+                <Database size={11} />
+                {dbConnected ? "PostgreSQL Active" : "Mock Sandbox"}
+              </span>
+            </div>
+          )}
         </div>
 
         <nav style={{ padding: "20px 10px", flex: 1, display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -618,6 +868,17 @@ export default function SchoolPortal({ params }: PageProps) {
             </button>
           )}
 
+          {/* Subscription & Billing (Admin only) */}
+          {currentUser.role === "ADMIN" && (
+            <button 
+              onClick={() => setActiveTab("billing")} 
+              className={`btn ${activeTab === "billing" ? "btn-primary" : "btn-outline"}`}
+              style={{ justifyContent: "flex-start", border: "none", color: activeTab === "billing" ? "white" : "#94a3b8" }}
+            >
+              <CreditCard size={18} /> Subscription & Billing
+            </button>
+          )}
+
           {/* DOS view */}
           {["ADMIN", "DOS", "HEADTEACHER"].includes(currentUser.role) && (
             <button 
@@ -637,6 +898,17 @@ export default function SchoolPortal({ params }: PageProps) {
               style={{ justifyContent: "flex-start", border: "none", color: activeTab === "marks" ? "white" : "#94a3b8" }}
             >
               <Award size={18} /> Upload Student Marks
+            </button>
+          )}
+
+          {/* Attendance (Teacher, Admin, Head Teacher, DOS) */}
+          {["ADMIN", "TEACHER", "HEADTEACHER", "DOS"].includes(currentUser.role) && (
+            <button 
+              onClick={() => setActiveTab("attendance")} 
+              className={`btn ${activeTab === "attendance" ? "btn-primary" : "btn-outline"}`}
+              style={{ justifyContent: "flex-start", border: "none", color: activeTab === "attendance" ? "white" : "#94a3b8" }}
+            >
+              <UserCheck size={18} /> Student Attendance
             </button>
           )}
 
@@ -1019,6 +1291,40 @@ export default function SchoolPortal({ params }: PageProps) {
                   </div>
                 </div>
                 <button type="submit" className="btn btn-primary">Add Subject</button>
+              </form>
+            </div>
+
+            {/* Student Promotion Tool */}
+            <div className="card" style={{ maxWidth: "600px", marginTop: "24px" }}>
+              <h4 style={{ marginBottom: "16px" }}><Layers size={18} /> Batch Student Promotion Tool</h4>
+              <p style={{ fontSize: "12px", color: "#64748b", marginBottom: "16px" }}>
+                Use this to promote all students from one class level to another (e.g. promoting P6 class to P7 class) at the start of a new academic year.
+              </p>
+              <form onSubmit={handlePromoteStudents} className="flex flex-col gap-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="form-group">
+                    <label className="form-label">Promote From Class</label>
+                    <select 
+                      className="input-field" 
+                      value={promoteFromClassId}
+                      onChange={(e) => setPromoteFromClassId(e.target.value)}
+                    >
+                      {classes.map(c => <option key={c.id} value={c.id}>{c.name} ({c.level})</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Promote To Class</label>
+                    <select 
+                      className="input-field" 
+                      value={promoteToClassId}
+                      onChange={(e) => setPromoteToClassId(e.target.value)}
+                    >
+                      <option value="">-- Choose target class --</option>
+                      {classes.map(c => <option key={c.id} value={c.id}>{c.name} ({c.level})</option>)}
+                    </select>
+                  </div>
+                </div>
+                <button type="submit" className="btn btn-primary">Run Academic Promotion</button>
               </form>
             </div>
 
@@ -1519,6 +1825,25 @@ export default function SchoolPortal({ params }: PageProps) {
                     />
                   </div>
                   <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Record Payment Receipt</button>
+                  <button 
+                    type="button" 
+                    onClick={async () => {
+                      const stud = students.find(s => s.id === selectedPayStudentId);
+                      if (stud) {
+                        const fs = feeStructures.find(f => f.classId === stud.classId);
+                        const totalDue = stud.type === "BOARDING" 
+                          ? (fs?.tuitionAmount || 0) + (fs?.boardingAmount || 0)
+                          : (fs?.tuitionAmount || 0);
+                        const sp = studentPayments.find(p => p.studentId === stud.id);
+                        const balance = sp ? sp.balance : totalDue;
+                        handleTriggerMoMoPayment(balance, "TUITION", stud.id);
+                      }
+                    }} 
+                    className="btn btn-secondary" 
+                    style={{ width: "100%", marginTop: "10px", borderColor: "var(--success)", color: "var(--success)" }}
+                  >
+                    💸 Pay via Mobile Money (Simulated Prompt)
+                  </button>
                 </form>
               </div>
 
@@ -1637,10 +1962,545 @@ export default function SchoolPortal({ params }: PageProps) {
               </div>
 
             </div>
+
+            {/* Process Teacher Salary Payroll Card */}
+            <div className="grid grid-cols-2 gap-3" style={{ marginTop: "24px" }}>
+              <div className="card">
+                <h4>Process Staff Payroll (Salary Payout)</h4>
+                <form onSubmit={handleProcessSalary} style={{ marginTop: "14px" }}>
+                  <div className="form-group">
+                    <label className="form-label">Select Staff Member</label>
+                    <select 
+                      className="input-field" 
+                      value={payTeacherId}
+                      onChange={(e) => setPayTeacherId(e.target.value)}
+                      required
+                    >
+                      <option value="">-- Choose staff --</option>
+                      {/* Filter teachers/users from the school */}
+                      {users.filter(u => u.schoolId === school.id && u.role !== "ADMIN").map(u => (
+                        <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="form-group">
+                      <label className="form-label">Month</label>
+                      <select 
+                        className="input-field"
+                        value={payMonthName}
+                        onChange={(e) => setPayMonthName(e.target.value)}
+                      >
+                        <option value="January">January</option>
+                        <option value="February">February</option>
+                        <option value="March">March</option>
+                        <option value="April">April</option>
+                        <option value="May">May</option>
+                        <option value="June">June</option>
+                        <option value="July">July</option>
+                        <option value="August">August</option>
+                        <option value="September">September</option>
+                        <option value="October">October</option>
+                        <option value="November">November</option>
+                        <option value="December">December</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Net Salary Payout (UGX)</label>
+                      <input 
+                        type="number" 
+                        className="input-field" 
+                        placeholder="e.g. 500000"
+                        value={paySalaryAmount}
+                        onChange={(e) => setPaySalaryAmount(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Pay Salary & Log Expense</button>
+                </form>
+              </div>
+              
+              <div className="card" style={{ background: "white" }}>
+                <h4>Uganda School Accounts Ledger Info</h4>
+                <p style={{ fontSize: "13px", color: "#64748b", lineHeight: 1.5, marginTop: "14px" }}>
+                  Staff payroll logs automatically reduce the school's net balance and are recorded inside the global expenditures ledger under the "Salaries" category. 
+                  <br /><br />
+                  Make sure to set student fee structures at the start of the term so that balances and defaulters lists compute correctly.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 7: STUDENT ATTENDANCE */}
+        {activeTab === "attendance" && (
+          <div>
+            <h2 style={{ marginBottom: "20px" }}>Student Attendance Registry</h2>
+            <p style={{ color: "#64748b", marginBottom: "30px" }}>Log and audit daily pupil presence. Attendance lists are generated per class stream.</p>
+
+            <div className="card" style={{ padding: "20px", marginBottom: "30px" }}>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="form-group">
+                  <label className="form-label">1. Select Class</label>
+                  <select 
+                    className="input-field" 
+                    value={attendanceClassId}
+                    onChange={(e) => {
+                      setAttendanceClassId(e.target.value);
+                      const filteredStreams = streams.filter(s => s.classId === e.target.value);
+                      if (filteredStreams.length > 0) setAttendanceStreamId(filteredStreams[0].id);
+                    }}
+                  >
+                    <option value="">-- Choose class --</option>
+                    {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">2. Select Stream</label>
+                  <select 
+                    className="input-field" 
+                    value={attendanceStreamId} 
+                    onChange={(e) => setAttendanceStreamId(e.target.value)}
+                  >
+                    <option value="">-- Choose stream --</option>
+                    {streams.filter(st => st.classId === attendanceClassId).map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">3. Date</label>
+                  <input 
+                    type="date" 
+                    className="input-field" 
+                    value={attendanceDate}
+                    onChange={(e) => setAttendanceDate(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {attendanceClassId && attendanceStreamId && (
+              <div className="card animate-fade-in">
+                <div className="flex justify-between align-center" style={{ marginBottom: "20px" }}>
+                  <div>
+                    <h3 style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <UserCheck size={22} color="var(--primary)" /> 
+                      Attendance Log: {classes.find(c => c.id === attendanceClassId)?.name} ({streams.find(s => s.id === attendanceStreamId)?.name})
+                    </h3>
+                    <span style={{ fontSize: "12px", color: "#64748b" }}>
+                      Log status for {new Date(attendanceDate).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <button onClick={handleSaveAttendance} className="btn btn-primary">Save Attendance Log</button>
+                </div>
+
+                <div className="table-container">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Student Number</th>
+                        <th>Student Name</th>
+                        <th>Attendance Status</th>
+                        <th>Auditing Summary</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {students.filter(s => s.classId === attendanceClassId && s.streamId === attendanceStreamId).map(st => {
+                        const currentStatus = attendanceStatuses[st.id] || "PRESENT";
+                        return (
+                          <tr key={st.id}>
+                            <td>{st.studentNumber}</td>
+                            <td><strong>{st.name}</strong></td>
+                            <td>
+                              <div className="flex gap-2" style={{ gap: "16px" }}>
+                                <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "13px" }}>
+                                  <input 
+                                    type="radio" 
+                                    name={`att-${st.id}`} 
+                                    checked={currentStatus === "PRESENT"}
+                                    onChange={() => setAttendanceStatuses({ ...attendanceStatuses, [st.id]: "PRESENT" })}
+                                  />
+                                  <span style={{ color: "var(--success)", fontWeight: currentStatus === "PRESENT" ? "bold" : "normal" }}>Present</span>
+                                </label>
+                                <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "13px" }}>
+                                  <input 
+                                    type="radio" 
+                                    name={`att-${st.id}`} 
+                                    checked={currentStatus === "ABSENT"}
+                                    onChange={() => setAttendanceStatuses({ ...attendanceStatuses, [st.id]: "ABSENT" })}
+                                  />
+                                  <span style={{ color: "var(--danger)", fontWeight: currentStatus === "ABSENT" ? "bold" : "normal" }}>Absent</span>
+                                </label>
+                                <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "13px" }}>
+                                  <input 
+                                    type="radio" 
+                                    name={`att-${st.id}`} 
+                                    checked={currentStatus === "SICK"}
+                                    onChange={() => setAttendanceStatuses({ ...attendanceStatuses, [st.id]: "SICK" })}
+                                  />
+                                  <span style={{ color: "var(--warning)", fontWeight: currentStatus === "SICK" ? "bold" : "normal" }}>Sick Leave</span>
+                                </label>
+                              </div>
+                            </td>
+                            <td>
+                              <span className={`badge ${currentStatus === "PRESENT" ? "badge-success" : currentStatus === "SICK" ? "badge-warning" : "badge-danger"}`}>
+                                {currentStatus}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {students.filter(s => s.classId === attendanceClassId && s.streamId === attendanceStreamId).length === 0 && (
+                        <tr>
+                          <td colSpan={4} style={{ textAlign: "center", fontStyle: "italic", padding: "20px", color: "#64748b" }}>
+                            No students registered in this stream.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 8: SUBSCRIPTION BILLING (Admin only) */}
+        {activeTab === "billing" && currentUser.role === "ADMIN" && (
+          <div className="tab-content-anim">
+            <h2 style={{ marginBottom: "20px", color: "#0f172a" }}>Subscription & Billing Details</h2>
+            <p style={{ color: "#64748b", marginBottom: "30px" }}>Manage your school plan subscription, review billing ledger, and process online renewals.</p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }} className="flex-mobile-col">
+              {/* Subscription Status Card */}
+              <div className="card" style={{ backgroundColor: "#ffffff", borderColor: "#cbd5e1" }}>
+                <h4 style={{ marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px", color: "#0f172a" }}>
+                  <Building2 size={20} color="var(--primary)" /> Subscription Status
+                </h4>
+                <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>
+                    <span style={{ color: "#64748b" }}>School Domain:</span>
+                    <strong style={{ fontFamily: "monospace", color: "var(--primary)" }}>{school.subdomain}.schoolpro.ug</strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>
+                    <span style={{ color: "#64748b" }}>Package Tier:</span>
+                    <span className={`badge ${school.packageType === "PREMIUM" ? "badge-success" : "badge-primary"}`} style={{ background: "var(--primary-light)", color: "var(--primary)" }}>
+                      {school.packageType}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>
+                    <span style={{ color: "#64748b" }}>Account Status:</span>
+                    <span className="badge badge-success">{school.status}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>
+                    <span style={{ color: "#64748b" }}>Expiration Date:</span>
+                    <strong>{school.expiresAt ? new Date(school.expiresAt).toLocaleDateString() : "Trial Run"}</strong>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: "24px" }}>
+                  <button 
+                    onClick={() => {
+                      const amount = school.packageType === "PREMIUM" ? 350000 : 150000;
+                      handleTriggerMoMoPayment(amount, "PACKAGE");
+                    }} 
+                    className="btn btn-primary hover-scale" 
+                    style={{ width: "100%", padding: "12px" }}
+                  >
+                    💳 Renew / Extend Subscription (1 Year)
+                  </button>
+                  <p style={{ fontSize: "11px", color: "#64748b", marginTop: "8px", textAlign: "center" }}>
+                    Basic Plan: 150,000 UGX/Term | Premium Plan: 350,000 UGX/Term
+                  </p>
+                </div>
+              </div>
+
+              {/* Billing History Card */}
+              <div className="card" style={{ backgroundColor: "#ffffff", borderColor: "#cbd5e1" }}>
+                <h4 style={{ marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px", color: "#0f172a" }}>
+                  <FileText size={20} color="var(--primary)" /> Subscription Payments History
+                </h4>
+                
+                <div className="table-container">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Method</th>
+                        <th>Reference</th>
+                        <th>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {payments.map(p => (
+                        <tr key={p.id}>
+                          <td>{new Date(p.date).toLocaleDateString()}</td>
+                          <td>{p.method}</td>
+                          <td>
+                            <span style={{ fontFamily: "monospace", fontSize: "11px", color: "#64748b" }}>{p.txRef || "N/A"}</span>
+                          </td>
+                          <td style={{ color: "var(--success)", fontWeight: "bold" }}>
+                            +{p.amount.toLocaleString()} UGX
+                          </td>
+                        </tr>
+                      ))}
+                      {payments.length === 0 && (
+                        <tr>
+                          <td colSpan={4} style={{ textAlign: "center", color: "#64748b", fontStyle: "italic", padding: "16px" }}>
+                            No transaction history available.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
       </main>
+
+      {/* Mobile Money & Card Simulation Modal Overlay */}
+      {showMoMoModal && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0, 0, 0, 0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "20px" }}>
+          <div className="card" style={{ width: "100%", maxWidth: "420px", background: momoProvider === "MTN" ? "#ffcc00" : momoProvider === "AIRTEL" ? "#ef4444" : "#1e3a8a", color: momoProvider === "MTN" ? "#1e293b" : "white", border: "none", padding: "30px", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.5)" }}>
+            
+            {/* Modal Header */}
+            <div className="flex justify-between align-center" style={{ borderBottom: momoProvider === "MTN" ? "1px solid rgba(0,0,0,0.1)" : "1px solid rgba(255,255,255,0.2)", paddingBottom: "12px", marginBottom: "20px" }}>
+              <h3 style={{ fontFamily: "Outfit", fontWeight: 800 }}>
+                {momoProvider === "MTN" ? "MTN MoMo Gateway" : momoProvider === "AIRTEL" ? "Airtel Money Gateway" : "Secure Card Gateway"}
+              </h3>
+              <button onClick={() => setShowMoMoModal(false)} style={{ background: "transparent", border: "none", color: "inherit", fontWeight: "bold", cursor: "pointer", fontSize: "16px" }}>✕</button>
+            </div>
+
+            {/* STEP 0: INPUT FORM */}
+            {momoStep === 0 && (
+              <div>
+                <div style={{ display: "flex", border: "1px solid rgba(0,0,0,0.1)", borderRadius: "8px", background: "rgba(255,255,255,0.2)", marginBottom: "16px", padding: "4px" }}>
+                  <button 
+                    onClick={() => setMomoProvider("MTN")} 
+                    className="btn" 
+                    style={{ flex: 1, padding: "6px 12px", border: "none", background: momoProvider !== "CARD" ? "white" : "transparent", color: momoProvider !== "CARD" ? "#1e293b" : "inherit", fontSize: "12px", borderRadius: "6px", cursor: "pointer" }}
+                  >
+                    Mobile Money
+                  </button>
+                  <button 
+                    onClick={() => setMomoProvider("CARD")} 
+                    className="btn" 
+                    style={{ flex: 1, padding: "6px 12px", border: "none", background: momoProvider === "CARD" ? "white" : "transparent", color: momoProvider === "CARD" ? "#1e293b" : "inherit", fontSize: "12px", borderRadius: "6px", cursor: "pointer" }}
+                  >
+                    Credit/Debit Card
+                  </button>
+                </div>
+
+                {momoProvider !== "CARD" ? (
+                  <div>
+                    <p style={{ fontSize: "14px", marginBottom: "16px", opacity: 0.9 }}>
+                      Enter your Mobile Money registered phone number to initiate the secure payment prompt of <strong>{parseFloat(momoAmount).toLocaleString()} UGX</strong>.
+                    </p>
+                    <div className="form-group">
+                      <label className="form-label" style={{ color: "inherit" }}>Select Service Provider</label>
+                      <select 
+                        className="input-field" 
+                        value={momoProvider} 
+                        onChange={(e) => setMomoProvider(e.target.value as any)}
+                        style={{ background: "white", color: "#1e293b", borderColor: "rgba(0,0,0,0.15)" }}
+                      >
+                        <option value="MTN">MTN Uganda Mobile Money (Yellow)</option>
+                        <option value="AIRTEL">Airtel Uganda Airtel Money (Red)</option>
+                      </select>
+                    </div>
+                    <div className="form-group" style={{ marginBottom: "20px" }}>
+                      <label className="form-label" style={{ color: "inherit" }}>Phone Number</label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        placeholder="e.g. 0772123456" 
+                        value={momoPhone}
+                        onChange={(e) => setMomoPhone(e.target.value)}
+                        style={{ background: "white", color: "#1e293b", borderColor: "rgba(0,0,0,0.15)" }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <p style={{ fontSize: "14px", marginBottom: "16px", opacity: 0.9 }}>
+                      Enter card details to process the transaction of <strong>{parseFloat(momoAmount).toLocaleString()} UGX</strong>.
+                    </p>
+                    <div className="form-group">
+                      <label className="form-label" style={{ color: "inherit" }}>Cardholder Full Name</label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        placeholder="e.g. Kakooza Ronald" 
+                        value={cardName}
+                        onChange={(e) => setCardName(e.target.value)}
+                        style={{ background: "white", color: "#1e293b", borderColor: "rgba(0,0,0,0.15)" }}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label" style={{ color: "inherit" }}>Card Number</label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        placeholder="4000 1234 5678 9010" 
+                        value={cardNumber}
+                        onChange={(e) => setCardNumber(e.target.value)}
+                        style={{ background: "white", color: "#1e293b", borderColor: "rgba(0,0,0,0.15)" }}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2" style={{ marginBottom: "20px" }}>
+                      <div className="form-group">
+                        <label className="form-label" style={{ color: "inherit" }}>Expiry Date</label>
+                        <input 
+                          type="text" 
+                          className="input-field" 
+                          placeholder="MM/YY" 
+                          value={cardExpiry}
+                          onChange={(e) => setCardExpiry(e.target.value)}
+                          style={{ background: "white", color: "#1e293b", borderColor: "rgba(0,0,0,0.15)" }}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label" style={{ color: "inherit" }}>CVV</label>
+                        <input 
+                          type="text" 
+                          className="input-field" 
+                          placeholder="123" 
+                          value={cardCvv}
+                          onChange={(e) => setCardCvv(e.target.value)}
+                          style={{ background: "white", color: "#1e293b", borderColor: "rgba(0,0,0,0.15)" }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <button 
+                  onClick={executeSimulatedMoMo} 
+                  className="btn" 
+                  style={{ width: "100%", background: "#111827", color: "white", border: "none", padding: "10px", borderRadius: "8px", fontWeight: "bold", cursor: "pointer" }}
+                >
+                  {momoProvider === "CARD" ? "Pay via Secure Card Gateway" : "Initiate Secure Pull"}
+                </button>
+              </div>
+            )}
+
+            {/* STEP 1: LOADING DIALING PUSH */}
+            {momoStep === 1 && (
+              <div style={{ textAlign: "center", padding: "20px 0" }}>
+                <h4 style={{ marginBottom: "8px" }}>
+                  {momoProvider === "CARD" ? "Authorizing Card Details..." : "Connecting Gateway..."}
+                </h4>
+                <p style={{ fontSize: "12px", opacity: 0.8 }}>
+                  {momoProvider === "CARD" ? "Contacting card issuer host server. Please wait." : `Initiating API pull transaction to ${momoPhone}. Please wait.`}
+                </p>
+              </div>
+            )}
+
+            {/* STEP 2: SIMULATED USSD PIN / 3D SECURE SCREEN */}
+            {momoStep === 2 && (
+              <div>
+                {momoProvider !== "CARD" ? (
+                  <div style={{ background: "#27272a", color: "#22c55e", fontFamily: "monospace", padding: "16px", borderRadius: "8px", border: "2px solid #3f3f46", fontSize: "14px", marginBottom: "20px" }}>
+                    <p style={{ marginBottom: "8px" }}>[USSD Push Prompt Received]</p>
+                    <p style={{ marginBottom: "16px" }}>
+                      Do you want to pay {school.name} fees of {parseFloat(momoAmount).toLocaleString()} UGX?
+                    </p>
+                    <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
+                      <button 
+                        onClick={finishSimulatedMoMo}
+                        className="btn" 
+                        style={{ flex: 1, background: "#22c55e", color: "black", border: "none", fontSize: "12px", fontWeight: "bold", padding: "8px", borderRadius: "6px", cursor: "pointer" }}
+                      >
+                        1. Accept (Enter PIN)
+                      </button>
+                      <button 
+                        onClick={() => setShowMoMoModal(false)}
+                        className="btn" 
+                        style={{ flex: 1, background: "#ef4444", color: "white", border: "none", fontSize: "12px", padding: "8px", borderRadius: "6px", cursor: "pointer" }}
+                      >
+                        2. Decline
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ background: "#f8fafc", color: "#1e293b", padding: "20px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "13px", marginBottom: "20px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", borderBottom: "1px solid #e2e8f0", paddingBottom: "10px", marginBottom: "12px" }}>
+                      <CreditCard size={18} color="var(--primary)" />
+                      <strong style={{ fontSize: "14px" }}>3D Secure OTP Authentication</strong>
+                    </div>
+                    <p style={{ marginBottom: "14px", lineHeight: "1.4" }}>
+                      A security verification code has been sent to your registered phone. Please enter it below to complete this transaction.
+                    </p>
+                    <div className="form-group" style={{ marginBottom: "16px" }}>
+                      <label className="form-label" style={{ color: "#475569" }}>One-Time Password (OTP)</label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        placeholder="e.g. 123456" 
+                        value={cardOtp}
+                        onChange={(e) => setCardOtp(e.target.value)}
+                        style={{ background: "white", color: "#1e293b", borderColor: "#cbd5e1" }}
+                      />
+                    </div>
+                    <div style={{ display: "flex", gap: "10px" }}>
+                      <button 
+                        onClick={finishSimulatedMoMo}
+                        className="btn btn-primary" 
+                        style={{ flex: 1, padding: "8px", fontSize: "12px", cursor: "pointer" }}
+                      >
+                        Verify OTP
+                      </button>
+                      <button 
+                        onClick={() => setShowMoMoModal(false)}
+                        className="btn btn-outline" 
+                        style={{ flex: 1, padding: "8px", fontSize: "12px", cursor: "pointer" }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* STEP 3: TRANSACTION VALIDATION CHECK */}
+            {momoStep === 3 && (
+              <div style={{ textAlign: "center", padding: "20px 0" }}>
+                <h4 style={{ marginBottom: "8px" }}>Verifying Settlement...</h4>
+                <p style={{ fontSize: "12px", opacity: 0.8 }}>Contacting provider billing hooks to verify transaction success.</p>
+              </div>
+            )}
+
+            {/* STEP 4: SUCCESS */}
+            {momoStep === 4 && (
+              <div style={{ textAlign: "center", padding: "20px 0" }}>
+                <div style={{ background: "rgba(34, 197, 94, 0.15)", color: "#22c55e", padding: "16px", borderRadius: "50%", display: "inline-flex", marginBottom: "16px" }}>
+                  <CheckCircle size={36} />
+                </div>
+                <h3 style={{ marginBottom: "8px" }}>Payment Received!</h3>
+                <p style={{ fontSize: "13px", opacity: 0.9, marginBottom: "20px" }}>
+                  Receipt reference registered. Tuition ledger updated successfully.
+                </p>
+                <button 
+                  onClick={() => setShowMoMoModal(false)} 
+                  className="btn" 
+                  style={{ width: "100%", background: "#111827", color: "white", border: "none", padding: "10px", borderRadius: "8px", fontWeight: "bold", cursor: "pointer" }}
+                >
+                  Close Gateway
+                </button>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }

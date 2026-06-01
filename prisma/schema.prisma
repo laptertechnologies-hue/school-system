@@ -26,6 +26,14 @@ model School {
   payments     Payment[]
   expenses     Expense[]
   feeStructures FeeStructure[]
+
+  // Custom metadata fields
+  logoUrl            String?
+  poBox              String?
+  headTeacher        String?
+  deputyHeadTeacher  String?
+  director           String?
+  themeColor         String?   @default("#38bdf8")
 }
 
 model User {

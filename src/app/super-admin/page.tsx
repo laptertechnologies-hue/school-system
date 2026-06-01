@@ -221,12 +221,6 @@ export default function SuperAdminDashboard() {
             </div>
           </div>
           <div className="flex align-center gap-2 flex-mobile-col">
-            {dbConnected !== null && (
-              <span className={`badge ${dbConnected ? "badge-success animate-float-pulse" : "badge-primary"}`} style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 12px" }}>
-                <Database size={13} />
-                {dbConnected ? "PostgreSQL Active" : "Mock File Sandbox"}
-              </span>
-            )}
             <a href="/" className="btn btn-outline hover-scale" style={{ color: "#1e293b", borderColor: "#cbd5e1", background: "#f8fafc" }}>Exit to Site</a>
             <button onClick={loadData} className="btn btn-primary hover-scale" style={{ padding: "10px" }}>
               <RefreshCw size={18} />

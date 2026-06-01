@@ -16,6 +16,12 @@ export interface School {
   contactPhone: string;
   createdAt: Date;
   expiresAt?: Date | null;
+  logoUrl?: string | null;
+  poBox?: string | null;
+  headTeacher?: string | null;
+  deputyHeadTeacher?: string | null;
+  director?: string | null;
+  themeColor?: string | null;
 }
 
 export interface User {
@@ -276,6 +282,36 @@ export async function updateSchoolStatus(id: string, status: "ACTIVE" | "INACTIV
   if (!school) throw new Error("School not found");
   school.status = status;
   school.expiresAt = expiresAt;
+  saveLocalDB(db);
+  return school;
+}
+
+export async function updateSchoolMetadata(
+  id: string,
+  metadata: {
+    poBox?: string | null;
+    headTeacher?: string | null;
+    deputyHeadTeacher?: string | null;
+    director?: string | null;
+    themeColor?: string | null;
+    logoUrl?: string | null;
+    name?: string;
+    contactPhone?: string;
+  }
+): Promise<School> {
+  if (await hasDB()) {
+    return (await prisma.school.update({
+      where: { id },
+      data: metadata,
+    })) as School;
+  }
+
+  const db = getLocalDB();
+  const school = db.schools.find((s: School) => s.id === id);
+  if (!school) throw new Error("School not found");
+  
+  // Merge metadata
+  Object.assign(school, metadata);
   saveLocalDB(db);
   return school;
 }

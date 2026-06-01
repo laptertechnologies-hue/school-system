@@ -6,7 +6,7 @@ import {
   getExamPapers, getMarks, getFeeStructures, getStudentPayments, getExpenses, getAttendance, authenticateUser,
   createClass, createStream, createUser, createStudent, createSubject, createExamPaper, addMark,
   createFeeStructure, recordStudentPayment, createExpense, recordAttendance, promoteStudents,
-  processTeacherSalary, createPayment, getPayments, updateSchoolStatus
+  processTeacherSalary, createPayment, getPayments, updateSchoolStatus, updateSchoolMetadata
 } from "../../../lib/services";
 import { Database, CreditCard, Building2, CheckCircle } from "lucide-react";
 import { 
@@ -130,6 +130,31 @@ export default function SchoolPortal({ params }: PageProps) {
   const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split("T")[0]);
   const [attendanceStatuses, setAttendanceStatuses] = useState<{ [studentId: string]: "PRESENT" | "ABSENT" | "SICK" }>({});
 
+  // School profile metadata form states
+  const [profileName, setProfileName] = useState("");
+  const [profilePoBox, setProfilePoBox] = useState("");
+  const [profilePhone, setProfilePhone] = useState("");
+  const [profileHeadTeacher, setProfileHeadTeacher] = useState("");
+  const [profileDeputyHeadTeacher, setProfileDeputyHeadTeacher] = useState("");
+  const [profileDirector, setProfileDirector] = useState("");
+  const [profileLogoUrl, setProfileLogoUrl] = useState("");
+  const [profileThemeColor, setProfileThemeColor] = useState("#38bdf8");
+  const [profileSuccessMsg, setProfileSuccessMsg] = useState("");
+
+  // First-time branding setup states
+  const [showFirstTimeSetup, setShowFirstTimeSetup] = useState(false);
+  const [setupAdminEmail, setSetupAdminEmail] = useState("");
+  const [setupAdminPassword, setSetupAdminPassword] = useState("");
+  const [setupName, setSetupName] = useState("");
+  const [setupPoBox, setSetupPoBox] = useState("");
+  const [setupPhone, setSetupPhone] = useState("");
+  const [setupHeadTeacher, setSetupHeadTeacher] = useState("");
+  const [setupDeputyHeadTeacher, setSetupDeputyHeadTeacher] = useState("");
+  const [setupDirector, setSetupDirector] = useState("");
+  const [setupLogoUrl, setSetupLogoUrl] = useState("");
+  const [setupThemeColor, setSetupThemeColor] = useState("#38bdf8");
+  const [setupError, setSetupError] = useState("");
+
   // Payroll States
   const [payTeacherId, setPayTeacherId] = useState("");
   const [payMonthName, setPayMonthName] = useState("May");
@@ -149,12 +174,30 @@ export default function SchoolPortal({ params }: PageProps) {
   const [cardCvv, setCardCvv] = useState("");
   const [cardOtp, setCardOtp] = useState("");
 
-  // Load School on mount
   useEffect(() => {
     async function fetchSchool() {
       setLoading(true);
       const s = await getSchoolBySubdomain(subdomain);
       setSchool(s);
+      if (s) {
+        setProfileName(s.name || "");
+        setProfilePoBox(s.poBox || "");
+        setProfilePhone(s.contactPhone || "");
+        setProfileHeadTeacher(s.headTeacher || "");
+        setProfileDeputyHeadTeacher(s.deputyHeadTeacher || "");
+        setProfileDirector(s.director || "");
+        setProfileLogoUrl(s.logoUrl || "");
+        setProfileThemeColor(s.themeColor || "#38bdf8");
+
+        setSetupName(s.name || "");
+        setSetupPhone(s.contactPhone || "");
+        setSetupPoBox(s.poBox || "");
+        setSetupHeadTeacher(s.headTeacher || "");
+        setSetupDeputyHeadTeacher(s.deputyHeadTeacher || "");
+        setSetupDirector(s.director || "");
+        setSetupLogoUrl(s.logoUrl || "");
+        setSetupThemeColor(s.themeColor || "#38bdf8");
+      }
       
       const isConnected = await checkDatabaseConnection();
       setDbConnected(isConnected);
@@ -289,6 +332,74 @@ export default function SchoolPortal({ params }: PageProps) {
     setCurrentUser(null);
     setEmail("");
     setPassword("");
+  };
+
+  const handleFirstTimeSetup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSetupError("");
+    if (!school) return;
+
+    // Authenticate setup user
+    const user = await authenticateUser(setupAdminEmail, setupAdminPassword, subdomain);
+    if (!user || user.role !== "ADMIN") {
+      setSetupError("Invalid administrator credentials for this school subdomain.");
+      return;
+    }
+
+    try {
+      const updated = await updateSchoolMetadata(school.id, {
+        name: setupName,
+        poBox: setupPoBox,
+        contactPhone: setupPhone,
+        headTeacher: setupHeadTeacher,
+        deputyHeadTeacher: setupDeputyHeadTeacher,
+        director: setupDirector,
+        logoUrl: setupLogoUrl,
+        themeColor: setupThemeColor
+      });
+      setSchool(updated);
+      
+      // Sync profile form states
+      setProfileName(updated.name || "");
+      setProfilePhone(updated.contactPhone || "");
+      setProfilePoBox(updated.poBox || "");
+      setProfileHeadTeacher(updated.headTeacher || "");
+      setProfileDeputyHeadTeacher(updated.deputyHeadTeacher || "");
+      setProfileDirector(updated.director || "");
+      setProfileLogoUrl(updated.logoUrl || "");
+      setProfileThemeColor(updated.themeColor || "#38bdf8");
+
+      alert("School branding and leaders configured successfully!");
+      setShowFirstTimeSetup(false);
+      setSetupAdminEmail("");
+      setSetupAdminPassword("");
+    } catch (err) {
+      setSetupError("Failed to update school metadata.");
+    }
+  };
+
+  // Update school settings and metadata handler
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!school) return;
+    try {
+      setProfileSuccessMsg("");
+      const updated = await updateSchoolMetadata(school.id, {
+        name: profileName,
+        poBox: profilePoBox,
+        contactPhone: profilePhone,
+        headTeacher: profileHeadTeacher,
+        deputyHeadTeacher: profileDeputyHeadTeacher,
+        director: profileDirector,
+        logoUrl: profileLogoUrl,
+        themeColor: profileThemeColor
+      });
+      setSchool(updated);
+      setProfileSuccessMsg("School profile and settings updated successfully!");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update school profile");
+    }
   };
 
   // Create class handler
@@ -753,12 +864,27 @@ export default function SchoolPortal({ params }: PageProps) {
   if (!currentUser) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)", padding: "20px" }}>
+        {school.themeColor && (
+          <style dangerouslySetInnerHTML={{ __html: `
+            :root {
+              --primary: ${school.themeColor} !important;
+              --primary-hover: ${school.themeColor}dd !important;
+              --primary-glow: ${school.themeColor}2e !important;
+            }
+          `}} />
+        )}
         <div className="card animate-fade-in" style={{ width: "100%", maxWidth: "450px", background: "#1e293b", borderColor: "#334155" }}>
           
           <div style={{ textAlign: "center", marginBottom: "30px" }}>
-            <div style={{ background: "rgba(59, 130, 246, 0.15)", padding: "16px", borderRadius: "50%", display: "inline-flex", justifyContent: "center", alignItems: "center", marginBottom: "16px" }}>
-              <GraduationCap size={40} color="var(--primary)" />
-            </div>
+            {school.logoUrl ? (
+              <div style={{ marginBottom: "16px", display: "flex", justifyContent: "center" }}>
+                <img src={school.logoUrl} alt={`${school.name} Logo`} style={{ maxWidth: "80px", maxHeight: "80px", borderRadius: "10px", objectFit: "contain", background: "white", padding: "4px" }} />
+              </div>
+            ) : (
+              <div style={{ background: "rgba(59, 130, 246, 0.15)", padding: "16px", borderRadius: "50%", display: "inline-flex", justifyContent: "center", alignItems: "center", marginBottom: "16px" }}>
+                <GraduationCap size={40} color="var(--primary)" />
+              </div>
+            )}
             <h2 style={{ color: "white" }}>{school.name}</h2>
             <span style={{ fontSize: "11px", color: "var(--secondary)", textTransform: "uppercase", letterSpacing: "1px" }}>School Management System</span>
           </div>
@@ -812,11 +938,195 @@ export default function SchoolPortal({ params }: PageProps) {
             </button>
           </form>
 
+          {/* First-time setup banner/button */}
+          <div style={{ marginTop: "20px", padding: "16px", background: "rgba(56, 189, 248, 0.08)", border: "1px dashed rgba(56, 189, 248, 0.3)", borderRadius: "8px", fontSize: "13px", color: "#e0f2fe", textAlign: "left" }}>
+            <p style={{ margin: 0, marginBottom: "8px", lineHeight: "1.4" }}>
+              <strong>🏫 First-Time Administrator?</strong> Set up your school badge/logo, physical address, phone contacts, leader names, and custom accent colors right here.
+            </p>
+            <button 
+              type="button"
+              onClick={() => {
+                setSetupError("");
+                setShowFirstTimeSetup(true);
+              }}
+              className="btn btn-outline" 
+              style={{ width: "100%", padding: "8px 12px", fontSize: "12px", background: "transparent", color: "var(--primary)", borderColor: "var(--primary)", marginTop: "4px" }}
+            >
+              ⚙️ Configure School Branding & Details
+            </button>
+          </div>
+
           <div style={{ textAlign: "center", marginTop: "24px" }}>
             <a href="/" style={{ fontSize: "13px", color: "#9ca3af" }}>← Back to SchoolPro Main Website</a>
           </div>
 
         </div>
+
+        {/* First-Time Setup Modal Overlay */}
+        {showFirstTimeSetup && (
+          <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15, 23, 42, 0.9)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "20px" }} className="animate-fade-in">
+            <div className="card" style={{ width: "100%", maxWidth: "600px", background: "#1e293b", borderColor: "#334155", color: "white", padding: "30px", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)" }}>
+              
+              <div className="flex justify-between align-center" style={{ borderBottom: "1px solid #334155", paddingBottom: "14px", marginBottom: "20px" }}>
+                <h3 style={{ fontFamily: "Outfit", fontWeight: 800, fontSize: "20px", display: "flex", alignItems: "center", gap: "8px" }}>
+                  🏫 School Portal Initial Setup
+                </h3>
+                <button onClick={() => setShowFirstTimeSetup(false)} style={{ background: "transparent", border: "none", color: "#cbd5e1", fontWeight: "bold", cursor: "pointer", fontSize: "18px" }}>✕</button>
+              </div>
+
+              {setupError && (
+                <div style={{ background: "rgba(244, 63, 94, 0.15)", border: "1px solid rgba(244, 63, 94, 0.3)", borderRadius: "8px", padding: "12px", color: "var(--danger)", fontSize: "13px", marginBottom: "20px" }}>
+                  {setupError}
+                </div>
+              )}
+
+              <form onSubmit={handleFirstTimeSetup}>
+                
+                <div style={{ marginBottom: "16px", padding: "12px", background: "rgba(56, 189, 248, 0.05)", border: "1px solid rgba(56, 189, 248, 0.1)", borderRadius: "6px", fontSize: "12px", color: "#93c5fd" }}>
+                  🔒 Enter your school's Administrator credentials to authorize these updates.
+                </div>
+
+                <div className="grid grid-cols-2 gap-2" style={{ marginBottom: "20px" }}>
+                  <div className="form-group">
+                    <label className="form-label" style={{ color: "#d1d5db" }}>Admin Email</label>
+                    <input 
+                      type="email" 
+                      className="input-field" 
+                      placeholder="e.g. admin@school.ug" 
+                      value={setupAdminEmail} 
+                      onChange={(e) => setSetupAdminEmail(e.target.value)} 
+                      required 
+                      style={{ background: "#0f172a", borderColor: "#374151", color: "white" }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ color: "#d1d5db" }}>Admin Password</label>
+                    <input 
+                      type="password" 
+                      className="input-field" 
+                      placeholder="••••••••" 
+                      value={setupAdminPassword} 
+                      onChange={(e) => setSetupAdminPassword(e.target.value)} 
+                      required 
+                      style={{ background: "#0f172a", borderColor: "#374151", color: "white" }}
+                    />
+                  </div>
+                </div>
+
+                <h4 style={{ color: "var(--primary)", fontSize: "14px", marginBottom: "12px", borderBottom: "1px solid #334155", paddingBottom: "4px", fontWeight: 700 }}>🏫 School Information</h4>
+                <div className="grid grid-cols-2 gap-2" style={{ marginBottom: "12px" }}>
+                  <div className="form-group">
+                    <label className="form-label" style={{ color: "#d1d5db" }}>School Name</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      value={setupName} 
+                      onChange={(e) => setSetupName(e.target.value)} 
+                      required 
+                      style={{ background: "#0f172a", borderColor: "#374151", color: "white" }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ color: "#d1d5db" }}>Contact Phone</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      value={setupPhone} 
+                      onChange={(e) => setSetupPhone(e.target.value)} 
+                      required 
+                      style={{ background: "#0f172a", borderColor: "#374151", color: "white" }}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ marginBottom: "12px" }}>
+                  <label className="form-label" style={{ color: "#d1d5db" }}>P.O. Box & Physical Location</label>
+                  <input 
+                    type="text" 
+                    className="input-field" 
+                    placeholder="e.g. P.O. Box 7523, Kampala, Uganda"
+                    value={setupPoBox} 
+                    onChange={(e) => setSetupPoBox(e.target.value)} 
+                    style={{ background: "#0f172a", borderColor: "#374151", color: "white" }}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2" style={{ marginBottom: "16px" }}>
+                  <div className="form-group">
+                    <label className="form-label" style={{ color: "#d1d5db" }}>School Logo/Badge URL</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      placeholder="e.g. https://example.com/logo.png"
+                      value={setupLogoUrl} 
+                      onChange={(e) => setSetupLogoUrl(e.target.value)} 
+                      style={{ background: "#0f172a", borderColor: "#374151", color: "white" }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ color: "#d1d5db" }}>Portal Accent Theme Color</label>
+                    <div className="flex align-center gap-1">
+                      <input 
+                        type="color" 
+                        value={setupThemeColor} 
+                        onChange={(e) => setSetupThemeColor(e.target.value)} 
+                        style={{ width: "40px", height: "40px", border: "none", cursor: "pointer", padding: 0, borderRadius: "6px" }}
+                      />
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        value={setupThemeColor} 
+                        onChange={(e) => setSetupThemeColor(e.target.value)} 
+                        style={{ flex: 1, background: "#0f172a", borderColor: "#374151", color: "white" }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <h4 style={{ color: "var(--primary)", fontSize: "14px", marginBottom: "12px", borderBottom: "1px solid #334155", paddingBottom: "4px", fontWeight: 700 }}>👥 Administrative Leaders</h4>
+                <div className="grid grid-cols-3 gap-2" style={{ marginBottom: "24px" }}>
+                  <div className="form-group">
+                    <label className="form-label" style={{ color: "#d1d5db" }}>Head Teacher</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      placeholder="Head Teacher Name" 
+                      value={setupHeadTeacher} 
+                      onChange={(e) => setSetupHeadTeacher(e.target.value)} 
+                      style={{ background: "#0f172a", borderColor: "#374151", color: "white", fontSize: "12px" }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ color: "#d1d5db" }}>Deputy Head</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      placeholder="Deputy Head Name" 
+                      value={setupDeputyHeadTeacher} 
+                      onChange={(e) => setSetupDeputyHeadTeacher(e.target.value)} 
+                      style={{ background: "#0f172a", borderColor: "#374151", color: "white", fontSize: "12px" }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ color: "#d1d5db" }}>Director / Owner</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      placeholder="Director Name" 
+                      value={setupDirector} 
+                      onChange={(e) => setSetupDirector(e.target.value)} 
+                      style={{ background: "#0f172a", borderColor: "#374151", color: "white", fontSize: "12px" }}
+                    />
+                  </div>
+                </div>
+
+                <button type="submit" className="btn btn-primary" style={{ width: "100%", padding: "12px", fontWeight: "bold" }}>
+                  Save Profile Customization & Colors
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -824,28 +1134,33 @@ export default function SchoolPortal({ params }: PageProps) {
   // Dashboard layout
   return (
     <div data-theme="light" style={{ minHeight: "100vh", display: "flex", backgroundColor: "#f1f5f9", color: "#1e293b" }}>
+      {school.themeColor && (
+        <style dangerouslySetInnerHTML={{ __html: `
+          :root {
+            --primary: ${school.themeColor} !important;
+            --primary-hover: ${school.themeColor}dd !important;
+            --primary-glow: ${school.themeColor}2e !important;
+          }
+        `}} />
+      )}
       
       {/* Sidebar navigation */}
       <aside style={{ width: "260px", background: "#0f172a", color: "#cbd5e1", display: "flex", flexDirection: "column" }} className="flex-mobile-col">
         <div style={{ padding: "24px", borderBottom: "1px solid #1e293b" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <GraduationCap size={28} color="var(--primary)" />
+            {school.logoUrl ? (
+              <img src={school.logoUrl} alt="Logo" style={{ width: "32px", height: "32px", borderRadius: "6px", objectFit: "contain", background: "white", padding: "2px" }} />
+            ) : (
+              <GraduationCap size={28} color="var(--primary)" />
+            )}
             <div>
               <h3 style={{ color: "white", fontSize: "16px", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>{school.name}</h3>
               <span style={{ fontSize: "10px", color: "#64748b", textTransform: "uppercase", letterSpacing: "1px" }}>{currentUser.role} Portal</span>
             </div>
           </div>
-          {dbConnected !== null && (
-            <div style={{ marginTop: "12px" }}>
-              <span className={`badge ${dbConnected ? "badge-success animate-float-pulse" : "badge-primary"}`} style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "4px 8px", fontSize: "10px", border: "none" }}>
-                <Database size={11} />
-                {dbConnected ? "PostgreSQL Active" : "Mock Sandbox"}
-              </span>
-            </div>
-          )}
         </div>
 
-        <nav style={{ padding: "20px 10px", flex: 1, display: "flex", flexDirection: "column", gap: "6px" }}>
+        <nav style={{ padding: "20px 10px", flex: 1, display: "flex", flexDirection: "column", gap: "6px", overflowY: "auto" }}>
           {/* Universal view */}
           {["ADMIN", "HEADTEACHER", "DIRECTOR", "DOS"].includes(currentUser.role) && (
             <button 
@@ -857,25 +1172,58 @@ export default function SchoolPortal({ params }: PageProps) {
             </button>
           )}
 
-          {/* School Setup (Admin only) */}
+          {/* School Settings (Admin only) */}
           {currentUser.role === "ADMIN" && (
             <button 
-              onClick={() => setActiveTab("setup")} 
-              className={`btn ${activeTab === "setup" ? "btn-primary" : "btn-outline"}`}
-              style={{ justifyContent: "flex-start", border: "none", color: activeTab === "setup" ? "white" : "#94a3b8" }}
+              onClick={() => setActiveTab("settings")} 
+              className={`btn ${activeTab === "settings" ? "btn-primary" : "btn-outline"}`}
+              style={{ justifyContent: "flex-start", border: "none", color: activeTab === "settings" ? "white" : "#94a3b8" }}
             >
-              <Settings size={18} /> School Setup Wizard
+              <Settings size={18} /> School Profile & Theme
             </button>
           )}
 
-          {/* Subscription & Billing (Admin only) */}
+          {/* Class Setup (Admin only) */}
           {currentUser.role === "ADMIN" && (
             <button 
-              onClick={() => setActiveTab("billing")} 
-              className={`btn ${activeTab === "billing" ? "btn-primary" : "btn-outline"}`}
-              style={{ justifyContent: "flex-start", border: "none", color: activeTab === "billing" ? "white" : "#94a3b8" }}
+              onClick={() => setActiveTab("classes")} 
+              className={`btn ${activeTab === "classes" ? "btn-primary" : "btn-outline"}`}
+              style={{ justifyContent: "flex-start", border: "none", color: activeTab === "classes" ? "white" : "#94a3b8" }}
             >
-              <CreditCard size={18} /> Subscription & Billing
+              <Building2 size={18} /> Classes & Subjects
+            </button>
+          )}
+
+          {/* Students Directory (Admin/DOS/Headteacher) */}
+          {["ADMIN", "DOS", "HEADTEACHER", "TEACHER"].includes(currentUser.role) && (
+            <button 
+              onClick={() => setActiveTab("students")} 
+              className={`btn ${activeTab === "students" ? "btn-primary" : "btn-outline"}`}
+              style={{ justifyContent: "flex-start", border: "none", color: activeTab === "students" ? "white" : "#94a3b8" }}
+            >
+              <Users size={18} /> Student Registry
+            </button>
+          )}
+
+          {/* Staff Directory (Admin only) */}
+          {currentUser.role === "ADMIN" && (
+            <button 
+              onClick={() => setActiveTab("staff")} 
+              className={`btn ${activeTab === "staff" ? "btn-primary" : "btn-outline"}`}
+              style={{ justifyContent: "flex-start", border: "none", color: activeTab === "staff" ? "white" : "#94a3b8" }}
+            >
+              <Users size={18} /> Staff Accounts
+            </button>
+          )}
+
+          {/* Academic Promotion (Admin only) */}
+          {currentUser.role === "ADMIN" && (
+            <button 
+              onClick={() => setActiveTab("promotion")} 
+              className={`btn ${activeTab === "promotion" ? "btn-primary" : "btn-outline"}`}
+              style={{ justifyContent: "flex-start", border: "none", color: activeTab === "promotion" ? "white" : "#94a3b8" }}
+            >
+              <Layers size={18} /> Academic Promotion
             </button>
           )}
 
@@ -923,14 +1271,69 @@ export default function SchoolPortal({ params }: PageProps) {
             </button>
           )}
 
-          {/* Finance dashboard (Director only & Premium only) */}
+          {/* Finance dashboard (Director & Admin only & Premium only) */}
           {["ADMIN", "DIRECTOR"].includes(currentUser.role) && school.packageType === "PREMIUM" && (
+            <>
+              <div style={{ fontSize: "11px", color: "#64748b", textTransform: "uppercase", letterSpacing: "1px", margin: "14px 10px 4px", fontWeight: 700 }}>School Accounts</div>
+              
+              <button 
+                onClick={() => setActiveTab("finance_overview")} 
+                className={`btn ${activeTab === "finance_overview" ? "btn-primary" : "btn-outline"}`}
+                style={{ justifyContent: "flex-start", border: "none", color: activeTab === "finance_overview" ? "white" : "#94a3b8", padding: "8px 12px", fontSize: "13px" }}
+              >
+                <ClipboardList size={16} /> Financial Overview
+              </button>
+              
+              <button 
+                onClick={() => setActiveTab("tuition_fees")} 
+                className={`btn ${activeTab === "tuition_fees" ? "btn-primary" : "btn-outline"}`}
+                style={{ justifyContent: "flex-start", border: "none", color: activeTab === "tuition_fees" ? "white" : "#94a3b8", padding: "8px 12px", fontSize: "13px" }}
+              >
+                <Building2 size={16} /> Class Fee Structures
+              </button>
+              
+              <button 
+                onClick={() => setActiveTab("student_billing")} 
+                className={`btn ${activeTab === "student_billing" ? "btn-primary" : "btn-outline"}`}
+                style={{ justifyContent: "flex-start", border: "none", color: activeTab === "student_billing" ? "white" : "#94a3b8", padding: "8px 12px", fontSize: "13px" }}
+              >
+                <DollarSign size={16} /> Tuition Payments
+              </button>
+
+              <button 
+                onClick={() => setActiveTab("defaulters_list")} 
+                className={`btn ${activeTab === "defaulters_list" ? "btn-primary" : "btn-outline"}`}
+                style={{ justifyContent: "flex-start", border: "none", color: activeTab === "defaulters_list" ? "white" : "#94a3b8", padding: "8px 12px", fontSize: "13px" }}
+              >
+                <Users size={16} /> Defaulters Directory
+              </button>
+
+              <button 
+                onClick={() => setActiveTab("expenditures")} 
+                className={`btn ${activeTab === "expenditures" ? "btn-primary" : "btn-outline"}`}
+                style={{ justifyContent: "flex-start", border: "none", color: activeTab === "expenditures" ? "white" : "#94a3b8", padding: "8px 12px", fontSize: "13px" }}
+              >
+                <TrendingUp size={16} /> School Expenditures
+              </button>
+
+              <button 
+                onClick={() => setActiveTab("payroll")} 
+                className={`btn ${activeTab === "payroll" ? "btn-primary" : "btn-outline"}`}
+                style={{ justifyContent: "flex-start", border: "none", color: activeTab === "payroll" ? "white" : "#94a3b8", padding: "8px 12px", fontSize: "13px" }}
+              >
+                <Users size={16} /> Staff Payroll Ledger
+              </button>
+            </>
+          )}
+
+          {/* Subscription & Billing (Admin only) */}
+          {currentUser.role === "ADMIN" && (
             <button 
-              onClick={() => setActiveTab("finance")} 
-              className={`btn ${activeTab === "finance" ? "btn-primary" : "btn-outline"}`}
-              style={{ justifyContent: "flex-start", border: "none", color: activeTab === "finance" ? "white" : "#94a3b8" }}
+              onClick={() => setActiveTab("billing")} 
+              className={`btn ${activeTab === "billing" ? "btn-primary" : "btn-outline"}`}
+              style={{ justifyContent: "flex-start", border: "none", color: activeTab === "billing" ? "white" : "#94a3b8" }}
             >
-              <DollarSign size={18} /> School Accounts
+              <CreditCard size={18} /> Subscription & Billing
             </button>
           )}
         </nav>
@@ -1053,14 +1456,162 @@ export default function SchoolPortal({ params }: PageProps) {
           </div>
         )}
 
-        {/* TAB 2: SETUP WIZARD (Admin only) */}
-        {activeTab === "setup" && (
-          <div>
-            <h2 style={{ marginBottom: "20px" }}>Admin Setup Wizard</h2>
-            <p style={{ color: "#64748b", marginBottom: "30px" }}>Initialize streams, subjects, staff members and import student details.</p>
+        {/* TAB 2: SETTINGS (Admin only) */}
+        {activeTab === "settings" && (
+          <div className="tab-content-anim">
+            <h2 style={{ marginBottom: "10px" }}>School Settings & Customization</h2>
+            <p style={{ color: "#64748b", marginBottom: "30px" }}>Configure your school profile metadata, official contacts, logo badge, and dashboard theme color.</p>
+
+            {profileSuccessMsg && (
+              <div style={{ background: "var(--success-light)", border: "1px solid var(--success)", borderRadius: "8px", padding: "12px", color: "var(--success)", fontSize: "14px", marginBottom: "20px" }}>
+                {profileSuccessMsg}
+              </div>
+            )}
+
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "24px" }} className="flex-mobile-col">
+              <div className="card">
+                <h4 style={{ marginBottom: "20px" }}><Settings size={18} /> Official Profile Metadata</h4>
+                <form onSubmit={handleUpdateProfile}>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="form-group">
+                      <label className="form-label">School Official Name</label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        value={profileName}
+                        onChange={(e) => setProfileName(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Contact Telephone</label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        value={profilePhone}
+                        onChange={(e) => setProfilePhone(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">P.O. Box Location & Physical Address</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      placeholder="e.g. P.O. Box 1234, Kampala, Uganda" 
+                      value={profilePoBox}
+                      onChange={(e) => setProfilePoBox(e.target.value)}
+                    />
+                  </div>
+
+                  <div style={{ height: "1px", background: "#e2e8f0", margin: "20px 0" }}></div>
+
+                  <h4 style={{ marginBottom: "16px", fontSize: "14px", color: "#0f172a" }}>Administrative Leader Names</h4>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="form-group">
+                      <label className="form-label">Head Teacher</label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        value={profileHeadTeacher}
+                        onChange={(e) => setProfileHeadTeacher(e.target.value)}
+                        placeholder="Name of Head Teacher"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Deputy Head Teacher</label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        value={profileDeputyHeadTeacher}
+                        onChange={(e) => setProfileDeputyHeadTeacher(e.target.value)}
+                        placeholder="Name of Deputy"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Director / Owner</label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        value={profileDirector}
+                        onChange={(e) => setProfileDirector(e.target.value)}
+                        placeholder="Name of Director"
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ height: "1px", background: "#e2e8f0", margin: "20px 0" }}></div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="form-group">
+                      <label className="form-label">School Logo Image URL</label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        placeholder="e.g. https://example.com/logo.png" 
+                        value={profileLogoUrl}
+                        onChange={(e) => setProfileLogoUrl(e.target.value)}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Dashboard Accent Theme Color</label>
+                      <div className="flex align-center gap-1">
+                        <input 
+                          type="color" 
+                          value={profileThemeColor}
+                          onChange={(e) => setProfileThemeColor(e.target.value)}
+                          style={{ width: "40px", height: "40px", border: "none", cursor: "pointer", padding: 0, borderRadius: "6px" }}
+                        />
+                        <input 
+                          type="text" 
+                          className="input-field" 
+                          value={profileThemeColor}
+                          onChange={(e) => setProfileThemeColor(e.target.value)}
+                          style={{ flex: 1 }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <button type="submit" className="btn btn-primary" style={{ marginTop: "16px", width: "100%" }}>
+                    Save Profile & Customize Dashboard Accent
+                  </button>
+                </form>
+              </div>
+
+              {/* Preview */}
+              <div className="card text-center" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                <h4 style={{ marginBottom: "16px" }}>Branding Preview</h4>
+                <div style={{ width: "120px", height: "120px", borderRadius: "16px", background: "#f8fafc", border: "1px dashed #cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", marginBottom: "16px" }}>
+                  {profileLogoUrl ? (
+                    <img src={profileLogoUrl} alt="Logo preview" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+                  ) : (
+                    <GraduationCap size={48} color={profileThemeColor} />
+                  )}
+                </div>
+                <h3 style={{ color: "#0f172a", marginBottom: "4px" }}>{profileName || school.name}</h3>
+                <span style={{ fontSize: "12px", color: "var(--primary)", fontWeight: 700 }}>{profilePoBox || "No P.O. Box Address set"}</span>
+                
+                <div style={{ marginTop: "24px", padding: "12px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", width: "100%", textAlign: "left" }}>
+                  <div style={{ fontSize: "11px", color: "#64748b" }}>Admin Team:</div>
+                  <div style={{ fontSize: "12px", color: "#0f172a", marginTop: "4px" }}>👤 **Head:** {profileHeadTeacher || "Not set"}</div>
+                  <div style={{ fontSize: "12px", color: "#0f172a", marginTop: "2px" }}>👤 **Deputy:** {profileDeputyHeadTeacher || "Not set"}</div>
+                  <div style={{ fontSize: "12px", color: "#0f172a", marginTop: "2px" }}>👤 **Director:** {profileDirector || "Not set"}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2B: CLASSES (Admin only) */}
+        {activeTab === "classes" && (
+          <div className="tab-content-anim">
+            <h2 style={{ marginBottom: "10px" }}>Classes, Streams & Subjects</h2>
+            <p style={{ color: "#64748b", marginBottom: "30px" }}>Configure classes, streams, and academic subjects offered by your institution.</p>
 
             <div className="grid grid-cols-2 gap-3" style={{ marginBottom: "30px" }}>
-              
               {/* Add Class */}
               <div className="card">
                 <h4 style={{ marginBottom: "16px" }}><PlusCircle size={18} /> Configure New Class</h4>
@@ -1087,7 +1638,7 @@ export default function SchoolPortal({ params }: PageProps) {
                       <option value="SECONDARY">Secondary Level (New Curriculum CBC)</option>
                     </select>
                   </div>
-                  <button type="submit" className="btn btn-primary">Create Class</button>
+                  <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Create Class</button>
                 </form>
               </div>
 
@@ -1102,6 +1653,7 @@ export default function SchoolPortal({ params }: PageProps) {
                       value={newStreamClassId}
                       onChange={(e) => setNewStreamClassId(e.target.value)}
                     >
+                      <option value="">-- Choose class --</option>
                       {classes.map(c => <option key={c.id} value={c.id}>{c.name} ({c.level})</option>)}
                     </select>
                   </div>
@@ -1116,16 +1668,101 @@ export default function SchoolPortal({ params }: PageProps) {
                       required
                     />
                   </div>
-                  <button type="submit" className="btn btn-primary">Create Stream</button>
+                  <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Create Stream</button>
+                </form>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }} className="flex-mobile-col">
+              {/* Configure Subjects */}
+              <div className="card">
+                <h4 style={{ marginBottom: "16px" }}><PlusCircle size={18} /> Add Subject</h4>
+                <form onSubmit={handleCreateSubject} className="flex flex-col gap-2">
+                  <div className="form-group">
+                    <label className="form-label">Subject Title</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      placeholder="e.g. Mathematics" 
+                      value={newSubjectName}
+                      onChange={(e) => setNewSubjectName(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="form-group">
+                      <label className="form-label">Select Class</label>
+                      <select 
+                        className="input-field" 
+                        value={newSubjectClassId}
+                        onChange={(e) => setNewSubjectClassId(e.target.value)}
+                      >
+                        <option value="">-- Choose class --</option>
+                        {classes.map(c => <option key={c.id} value={c.id}>{c.name} ({c.level})</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Subject Code (e.g. ENG, MTC)</label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        placeholder="e.g. MTC" 
+                        value={newSubjectCode}
+                        onChange={(e) => setNewSubjectCode(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Add Subject</button>
                 </form>
               </div>
 
-            </div>
-
-            <div className="grid grid-cols-2 gap-3" style={{ marginBottom: "30px" }}>
-              
-              {/* Register Student */}
+              {/* Academic Overview List */}
               <div className="card">
+                <h4 style={{ marginBottom: "16px" }}>Existing Curriculums & Classes</h4>
+                <div className="table-container">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Class</th>
+                        <th>Level</th>
+                        <th>Streams</th>
+                        <th>Subjects</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {classes.length === 0 ? (
+                        <tr><td colSpan={4} style={{ textAlign: "center", color: "#64748b" }}>No classes configured yet.</td></tr>
+                      ) : (
+                        classes.map(c => {
+                          const clsStreams = streams.filter(s => s.classId === c.id).map(s => s.name).join(", ");
+                          const clsSubjects = subjects.filter(s => s.classId === c.id).map(s => s.name).join(", ");
+                          return (
+                            <tr key={c.id}>
+                              <td><strong>{c.name}</strong></td>
+                              <td><span className={`badge ${c.level === "SECONDARY" ? "badge-success" : "badge-primary"}`}>{c.level}</span></td>
+                              <td>{clsStreams || <span style={{ color: "#94a3b8", fontSize: "12px" }}>None</span>}</td>
+                              <td>{clsSubjects || <span style={{ color: "#94a3b8", fontSize: "12px" }}>None</span>}</td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2C: STUDENTS (Admin/DOS/Head/Teacher) */}
+        {activeTab === "students" && (
+          <div className="tab-content-anim">
+            <h2 style={{ marginBottom: "10px" }}>Student Registry & Directory</h2>
+            <p style={{ color: "#64748b", marginBottom: "30px" }}>Register new student parameters and manage the current student directory.</p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "24px" }} className="flex-mobile-col">
+              {/* Register Student */}
+              <div className="card" style={{ height: "fit-content" }}>
                 <h4 style={{ marginBottom: "16px" }}><PlusCircle size={18} /> Register Student Details</h4>
                 <form onSubmit={handleCreateStudent}>
                   <div className="form-group">
@@ -1151,6 +1788,7 @@ export default function SchoolPortal({ params }: PageProps) {
                           if (strms.length > 0) setNewStudentStreamId(strms[0].id);
                         }}
                       >
+                        <option value="">-- Choose class --</option>
                         {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                       </select>
                     </div>
@@ -1161,6 +1799,7 @@ export default function SchoolPortal({ params }: PageProps) {
                         value={newStudentStreamId}
                         onChange={(e) => setNewStudentStreamId(e.target.value)}
                       >
+                        <option value="">-- Choose stream --</option>
                         {streams.filter(st => st.classId === newStudentClassId).map(s => (
                           <option key={s.id} value={s.id}>{s.name}</option>
                         ))}
@@ -1196,8 +1835,59 @@ export default function SchoolPortal({ params }: PageProps) {
                 </form>
               </div>
 
-              {/* Create Staff */}
+              {/* Student Directory List */}
               <div className="card">
+                <h4 style={{ marginBottom: "16px" }}>Current Enrolled Students</h4>
+                <div className="table-container">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>ID Number</th>
+                        <th>Student Name</th>
+                        <th>Class</th>
+                        <th>Stream</th>
+                        <th>Type</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {students.length === 0 ? (
+                        <tr><td colSpan={5} style={{ textAlign: "center", color: "#64748b" }}>No students registered yet.</td></tr>
+                      ) : (
+                        students.map(st => {
+                          const cls = classes.find(c => c.id === st.classId)?.name || "N/A";
+                          const strm = streams.find(s => s.id === st.streamId)?.name || "N/A";
+                          return (
+                            <tr key={st.id}>
+                              <td><code>{st.studentNumber}</code></td>
+                              <td><strong>{st.name}</strong></td>
+                              <td>{cls}</td>
+                              <td>{strm}</td>
+                              <td>
+                                <span className={`badge ${st.type === "BOARDING" ? "badge-warning" : "badge-primary"}`}>
+                                  {st.type}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2D: STAFF DIRECTORY (Admin only) */}
+        {activeTab === "staff" && (
+          <div className="tab-content-anim">
+            <h2 style={{ marginBottom: "10px" }}>Staff & User Accounts</h2>
+            <p style={{ color: "#64748b", marginBottom: "30px" }}>Manage accounts and system access roles for teachers, DOS, and administrators.</p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "24px" }} className="flex-mobile-col">
+              {/* Create Staff */}
+              <div className="card" style={{ height: "fit-content" }}>
                 <h4 style={{ marginBottom: "16px" }}><PlusCircle size={18} /> Add Teacher & Staff Accounts</h4>
                 <form onSubmit={handleCreateStaff}>
                   <div className="form-group">
@@ -1251,54 +1941,54 @@ export default function SchoolPortal({ params }: PageProps) {
                 </form>
               </div>
 
-            </div>
-
-            {/* Configure Subjects */}
-            <div className="card" style={{ maxWidth: "600px" }}>
-              <h4 style={{ marginBottom: "16px" }}><PlusCircle size={18} /> Add Subject</h4>
-              <form onSubmit={handleCreateSubject} className="flex flex-col gap-2">
-                <div className="form-group">
-                  <label className="form-label">Subject Title</label>
-                  <input 
-                    type="text" 
-                    className="input-field" 
-                    placeholder="e.g. Mathematics" 
-                    value={newSubjectName}
-                    onChange={(e) => setNewSubjectName(e.target.value)}
-                    required
-                  />
+              {/* Staff Accounts Table */}
+              <div className="card">
+                <h4 style={{ marginBottom: "16px" }}>Registered Staff Accounts</h4>
+                <div className="table-container">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Email Address</th>
+                        <th>Role Access</th>
+                        <th>Joined Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {users.length === 0 ? (
+                        <tr><td colSpan={4} style={{ textAlign: "center", color: "#64748b" }}>No staff accounts registered.</td></tr>
+                      ) : (
+                        users.map(u => (
+                          <tr key={u.id}>
+                            <td><strong>{u.name}</strong></td>
+                            <td><code>{u.email}</code></td>
+                            <td>
+                              <span className={`badge ${u.role === "ADMIN" ? "badge-danger" : u.role === "DOS" ? "badge-success" : u.role === "DIRECTOR" ? "badge-warning" : "badge-primary"}`}>
+                                {u.role}
+                              </span>
+                            </td>
+                            <td>{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "N/A"}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="form-group">
-                    <label className="form-label">Select Class</label>
-                    <select 
-                      className="input-field" 
-                      value={newSubjectClassId}
-                      onChange={(e) => setNewSubjectClassId(e.target.value)}
-                    >
-                      {classes.map(c => <option key={c.id} value={c.id}>{c.name} ({c.level})</option>)}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Subject Code (e.g. ENG, MTC)</label>
-                    <input 
-                      type="text" 
-                      className="input-field" 
-                      placeholder="e.g. MTC" 
-                      value={newSubjectCode}
-                      onChange={(e) => setNewSubjectCode(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <button type="submit" className="btn btn-primary">Add Subject</button>
-              </form>
+              </div>
             </div>
+          </div>
+        )}
 
-            {/* Student Promotion Tool */}
-            <div className="card" style={{ maxWidth: "600px", marginTop: "24px" }}>
+        {/* TAB 2E: ACADEMIC PROMOTION TOOL (Admin only) */}
+        {activeTab === "promotion" && (
+          <div className="tab-content-anim" style={{ maxWidth: "600px" }}>
+            <h2 style={{ marginBottom: "10px" }}>Academic Promotion Tool</h2>
+            <p style={{ color: "#64748b", marginBottom: "30px" }}>Promote entire classes of students to the next level at the start of a new academic year.</p>
+
+            <div className="card">
               <h4 style={{ marginBottom: "16px" }}><Layers size={18} /> Batch Student Promotion Tool</h4>
-              <p style={{ fontSize: "12px", color: "#64748b", marginBottom: "16px" }}>
-                Use this to promote all students from one class level to another (e.g. promoting P6 class to P7 class) at the start of a new academic year.
+              <p style={{ fontSize: "13px", color: "#64748b", marginBottom: "20px", lineHeight: 1.5 }}>
+                Use this to promote all students from one class level to another (e.g. promoting P6 class to P7 class) at the start of a new academic year. This updates all student class IDs in the database in a single batch.
               </p>
               <form onSubmit={handlePromoteStudents} className="flex flex-col gap-2">
                 <div className="grid grid-cols-2 gap-2">
@@ -1309,6 +1999,7 @@ export default function SchoolPortal({ params }: PageProps) {
                       value={promoteFromClassId}
                       onChange={(e) => setPromoteFromClassId(e.target.value)}
                     >
+                      <option value="">-- Choose source class --</option>
                       {classes.map(c => <option key={c.id} value={c.id}>{c.name} ({c.level})</option>)}
                     </select>
                   </div>
@@ -1324,10 +2015,11 @@ export default function SchoolPortal({ params }: PageProps) {
                     </select>
                   </div>
                 </div>
-                <button type="submit" className="btn btn-primary">Run Academic Promotion</button>
+                <button type="submit" className="btn btn-primary" style={{ marginTop: "10px", width: "100%" }}>
+                  Run Academic Promotion
+                </button>
               </form>
             </div>
-
           </div>
         )}
 
@@ -1719,11 +2411,11 @@ export default function SchoolPortal({ params }: PageProps) {
           </div>
         )}
 
-        {/* TAB 6: PREMIUM FINANCE (Director/Admin only) */}
-        {activeTab === "finance" && school.packageType === "PREMIUM" && (
-          <div>
-            <h2 style={{ marginBottom: "20px" }}>School Accounts Ledger</h2>
-            <p style={{ color: "#64748b", marginBottom: "30px" }}>Premium module: manage class tuition structures, log incoming payments, track defaulters, and log school expenses.</p>
+        {/* TAB 6A: FINANCIAL OVERVIEW */}
+        {activeTab === "finance_overview" && school.packageType === "PREMIUM" && (
+          <div className="tab-content-anim">
+            <h2 style={{ marginBottom: "10px" }}>Financial Overview & Accounts Ledger</h2>
+            <p style={{ color: "#64748b", marginBottom: "30px" }}>Monitor overall term cash flows, balance sheets, and review unified transactions timeline.</p>
 
             {/* Account Metrics */}
             <div className="grid grid-cols-3 gap-2" style={{ marginBottom: "35px" }}>
@@ -1755,76 +2447,194 @@ export default function SchoolPortal({ params }: PageProps) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3" style={{ marginBottom: "30px" }}>
-              
-              {/* Fee Structure configuration */}
-              <div className="card">
-                <h4>Set Term Class Fees Structure</h4>
-                <form onSubmit={handleSaveFee} style={{ marginTop: "14px" }}>
+            {/* Unified ledger list */}
+            <div className="card">
+              <h4 style={{ marginBottom: "16px" }}>Unified Ledger Timeline</h4>
+              <div className="table-container">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Type</th>
+                      <th>Category/Details</th>
+                      <th>Description</th>
+                      <th>Transaction Reference</th>
+                      <th>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Combine payments and expenses, sort by date descending */}
+                    {(() => {
+                      const ledgerItems: any[] = [];
+                      studentPayments.forEach(p => {
+                        const stud = students.find(s => s.id === p.studentId);
+                        ledgerItems.push({
+                          date: p.date,
+                          type: "RECEIPT",
+                          category: "Tuition Fee",
+                          description: stud ? `Fee payment by ${stud.name} (${stud.studentNumber})` : "Fee payment",
+                          ref: "REC-T1-2026",
+                          amount: p.amountPaid,
+                          isIncome: true
+                        });
+                      });
+                      expenses.forEach(e => {
+                        ledgerItems.push({
+                          date: e.date,
+                          type: "EXPENSE",
+                          category: e.category,
+                          description: e.description,
+                          ref: "EXP-" + e.id.substring(4, 10).toUpperCase(),
+                          amount: e.amount,
+                          isIncome: false
+                        });
+                      });
+                      ledgerItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                      
+                      if (ledgerItems.length === 0) {
+                        return <tr><td colSpan={6} style={{ textAlign: "center", color: "#64748b" }}>No ledger transactions captured yet.</td></tr>;
+                      }
+
+                      return ledgerItems.map((item, idx) => (
+                        <tr key={idx}>
+                          <td>{new Date(item.date).toLocaleDateString()}</td>
+                          <td>
+                            <span className={`badge ${item.isIncome ? "badge-success" : "badge-danger"}`}>
+                              {item.type}
+                            </span>
+                          </td>
+                          <td><strong>{item.category}</strong></td>
+                          <td>{item.description}</td>
+                          <td><code style={{ fontSize: "11px" }}>{item.ref}</code></td>
+                          <td style={{ fontWeight: 700, color: item.isIncome ? "var(--success)" : "var(--danger)" }}>
+                            {item.isIncome ? "+" : "-"}{item.amount.toLocaleString()} UGX
+                          </td>
+                        </tr>
+                      ));
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 6B: TUITION & FEES STRUCTURE */}
+        {activeTab === "tuition_fees" && school.packageType === "PREMIUM" && (
+          <div className="tab-content-anim">
+            <h2 style={{ marginBottom: "10px" }}>Tuition & Class Fees Configuration</h2>
+            <p style={{ color: "#64748b", marginBottom: "30px" }}>Set standard term tuition rates for day and boarding students by class level.</p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "24px" }} className="flex-mobile-col">
+              <div className="card" style={{ height: "fit-content" }}>
+                <h4 style={{ marginBottom: "16px" }}>Configure Fee Structure</h4>
+                <form onSubmit={handleSaveFee}>
                   <div className="form-group">
                     <label className="form-label">Select Class</label>
                     <select 
                       className="input-field" 
                       value={selectedFeeClassId}
                       onChange={(e) => setSelectedFeeClassId(e.target.value)}
+                      required
                     >
                       {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="form-group">
-                      <label className="form-label">Tuition / Day fee (UGX)</label>
-                      <input 
-                        type="number" 
-                        className="input-field" 
-                        placeholder="e.g. 400000"
-                        value={tuitionAmount}
-                        onChange={(e) => setTuitionAmount(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Extra Boarding fee (UGX)</label>
-                      <input 
-                        type="number" 
-                        className="input-field" 
-                        placeholder="e.g. 750000"
-                        value={boardingAmount}
-                        onChange={(e) => setBoardingAmount(e.target.value)}
-                        required
-                      />
-                    </div>
+                  <div className="form-group">
+                    <label className="form-label">Tuition / Day Student Fee (UGX)</label>
+                    <input 
+                      type="number" 
+                      className="input-field" 
+                      placeholder="e.g. 450000"
+                      value={tuitionAmount}
+                      onChange={(e) => setTuitionAmount(e.target.value)}
+                      required
+                    />
                   </div>
-                  <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Save Fee Structure</button>
+                  <div className="form-group">
+                    <label className="form-label">Extra Boarding Student Fee (UGX)</label>
+                    <input 
+                      type="number" 
+                      className="input-field" 
+                      placeholder="e.g. 700000"
+                      value={boardingAmount}
+                      onChange={(e) => setBoardingAmount(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <button type="submit" className="btn btn-primary" style={{ width: "100%", marginTop: "10px" }}>Save Fee Rules</button>
                 </form>
               </div>
 
-              {/* Record Student Payment */}
               <div className="card">
-                <h4>Record Student Payment Receipt</h4>
-                <form onSubmit={handleRecordStudentPay} style={{ marginTop: "14px" }}>
+                <h4 style={{ marginBottom: "16px" }}>Current Term Fee Structures</h4>
+                <div className="table-container">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Class Level</th>
+                        <th>Day Student Tuition</th>
+                        <th>Boarding Surcharge</th>
+                        <th>Total Boarding Cost</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {feeStructures.map(fs => {
+                        const clName = classes.find(c => c.id === fs.classId)?.name || "Unknown";
+                        return (
+                          <tr key={fs.id}>
+                            <td><strong>{clName}</strong></td>
+                            <td>{fs.tuitionAmount.toLocaleString()} UGX</td>
+                            <td>+{fs.boardingAmount.toLocaleString()} UGX</td>
+                            <td><strong style={{ color: "var(--primary)" }}>{(fs.tuitionAmount + fs.boardingAmount).toLocaleString()} UGX</strong></td>
+                          </tr>
+                        );
+                      })}
+                      {feeStructures.length === 0 && (
+                        <tr><td colSpan={4} style={{ textAlign: "center", color: "#64748b" }}>No structures recorded yet. Set term fees for classes first.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 6C: STUDENT BILLING & PAYMENTS */}
+        {activeTab === "student_billing" && school.packageType === "PREMIUM" && (
+          <div className="tab-content-anim">
+            <h2 style={{ marginBottom: "10px" }}>Record Tuition Payments</h2>
+            <p style={{ color: "#64748b", marginBottom: "30px" }}>Log tuition receipts or trigger simulated payment prompts for Mobile Money and Credit Cards.</p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "24px" }} className="flex-mobile-col">
+              <div className="card" style={{ height: "fit-content" }}>
+                <h4 style={{ marginBottom: "16px" }}>Record Receipt Payment</h4>
+                <form onSubmit={handleRecordStudentPay}>
                   <div className="form-group">
                     <label className="form-label">Select Student</label>
                     <select 
                       className="input-field" 
                       value={selectedPayStudentId}
                       onChange={(e) => setSelectedPayStudentId(e.target.value)}
+                      required
                     >
                       {students.map(s => <option key={s.id} value={s.id}>{s.name} ({s.studentNumber})</option>)}
                     </select>
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Amount Received (UGX)</label>
+                    <label className="form-label">Amount Paid (UGX)</label>
                     <input 
                       type="number" 
                       className="input-field" 
-                      placeholder="e.g. 250000"
+                      placeholder="e.g. 300000"
                       value={payAmountPaid}
                       onChange={(e) => setPayAmountPaid(e.target.value)}
                       required
                     />
                   </div>
-                  <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Record Payment Receipt</button>
+                  <button type="submit" className="btn btn-primary" style={{ width: "100%", marginBottom: "10px" }}>Log Cash Payment Receipt</button>
+                  
                   <button 
                     type="button" 
                     onClick={async () => {
@@ -1840,32 +2650,78 @@ export default function SchoolPortal({ params }: PageProps) {
                       }
                     }} 
                     className="btn btn-secondary" 
-                    style={{ width: "100%", marginTop: "10px", borderColor: "var(--success)", color: "var(--success)" }}
+                    style={{ width: "100%", borderColor: "var(--success)", color: "var(--success)", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
                   >
-                    💸 Pay via Mobile Money (Simulated Prompt)
+                    💸 Pay via Mobile Money (Simulated API)
                   </button>
                 </form>
               </div>
 
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              
-              {/* Defaulters list */}
               <div className="card">
-                <h4>Fee Balances / Defaulters List</h4>
-                <div className="table-container" style={{ marginTop: "14px" }}>
+                <h4 style={{ marginBottom: "16px" }}>Term Collections Logs</h4>
+                <div className="table-container">
                   <table className="table">
                     <thead>
                       <tr>
-                        <th>Student</th>
-                        <th>Total Fee Due</th>
-                        <th>Amount Paid</th>
-                        <th>Outstanding Balance</th>
+                        <th>Date</th>
+                        <th>Student Number</th>
+                        <th>Student Name</th>
+                        <th>Class</th>
+                        <th>Amount Settled</th>
+                        <th>Remaining Balance</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {students.map(st => {
+                      {studentPayments.map(p => {
+                        const stud = students.find(s => s.id === p.studentId);
+                        const cl = classes.find(c => c.id === stud?.classId)?.name || "Unknown";
+                        return (
+                          <tr key={p.id}>
+                            <td>{new Date(p.date).toLocaleDateString()}</td>
+                            <td><code>{stud?.studentNumber}</code></td>
+                            <td><strong>{stud?.name}</strong></td>
+                            <td>{cl}</td>
+                            <td style={{ color: "var(--success)", fontWeight: "bold" }}>+{p.amountPaid.toLocaleString()} UGX</td>
+                            <td>{p.balance > 0 ? `${p.balance.toLocaleString()} UGX` : <span className="badge badge-success">Cleared</span>}</td>
+                          </tr>
+                        );
+                      })}
+                      {studentPayments.length === 0 && (
+                        <tr><td colSpan={6} style={{ textAlign: "center", color: "#64748b" }}>No tuition payments recorded this term.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 6D: FEE DEFAULTERS DIRECTORY */}
+        {activeTab === "defaulters_list" && school.packageType === "PREMIUM" && (
+          <div className="tab-content-anim">
+            <h2 style={{ marginBottom: "10px" }}>Fees Defaulters Directory</h2>
+            <p style={{ color: "#64748b", marginBottom: "30px" }}>Monitor and audit students with outstanding tuition balances for this term.</p>
+
+            <div className="card">
+              <h4 style={{ marginBottom: "16px" }}>Outstanding Balances Ledger</h4>
+              <div className="table-container">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Student Number</th>
+                      <th>Student Name</th>
+                      <th>Class Stream</th>
+                      <th>Residency Type</th>
+                      <th>Total Fee Due</th>
+                      <th>Amount Paid</th>
+                      <th>Deficit Balance</th>
+                      <th>Status Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const defaulters = students.map(st => {
                         const fs = feeStructures.find(f => f.classId === st.classId);
                         const totalDue = st.type === "BOARDING" 
                           ? (fs?.tuitionAmount || 0) + (fs?.boardingAmount || 0)
@@ -1875,76 +2731,114 @@ export default function SchoolPortal({ params }: PageProps) {
                         const totalPaid = sp ? sp.amountPaid : 0;
                         const balance = sp ? sp.balance : totalDue;
 
-                        return (
-                          <tr key={st.id}>
-                            <td>
-                              <strong>{st.name}</strong>
-                              <div style={{ fontSize: "11px", color: "#64748b" }}>No: {st.studentNumber}</div>
-                            </td>
-                            <td>{totalDue.toLocaleString()} UGX</td>
-                            <td>{totalPaid.toLocaleString()} UGX</td>
-                            <td>
-                              <span className={`badge ${balance > 0 ? "badge-danger" : "badge-success"}`}>
-                                {balance > 0 ? `${balance.toLocaleString()} UGX` : "Cleared"}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                        const cl = classes.find(c => c.id === st.classId)?.name || "N/A";
+                        const strm = streams.find(s => s.id === st.streamId)?.name || "N/A";
 
-              {/* Log Expenses */}
-              <div className="card">
-                <h4>Record School Expenditure Outflow</h4>
-                <form onSubmit={handleCreateExpense} style={{ marginTop: "14px", marginBottom: "20px" }}>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="form-group">
-                      <label className="form-label">Category</label>
-                      <select className="input-field" value={expCategory} onChange={(e) => setExpCategory(e.target.value)}>
-                        <option value="Salaries">Staff Wages / Salaries</option>
-                        <option value="Food & Boarding">Food & Boarding Supplies</option>
-                        <option value="Academics">Books, Chalk & Stationery</option>
-                        <option value="Utilities">Water, Power & Repairs</option>
-                        <option value="Other">Miscellaneous</option>
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Expense Amount (UGX)</label>
-                      <input 
-                        type="number" 
-                        className="input-field" 
-                        placeholder="e.g. 150000"
-                        value={expAmount}
-                        onChange={(e) => setExpAmount(e.target.value)}
-                        required
-                      />
-                    </div>
+                        return { st, totalDue, totalPaid, balance, cl, strm };
+                      });
+
+                      if (defaulters.length === 0) {
+                        return <tr><td colSpan={8} style={{ textAlign: "center", color: "#64748b" }}>No registered students available.</td></tr>;
+                      }
+
+                      return defaulters.map(({ st, totalDue, totalPaid, balance, cl, strm }) => (
+                        <tr key={st.id}>
+                          <td><code>{st.studentNumber}</code></td>
+                          <td><strong>{st.name}</strong></td>
+                          <td>{cl} ({strm})</td>
+                          <td>
+                            <span className={`badge ${st.type === "BOARDING" ? "badge-warning" : "badge-primary"}`}>
+                              {st.type}
+                            </span>
+                          </td>
+                          <td>{totalDue.toLocaleString()} UGX</td>
+                          <td>{totalPaid.toLocaleString()} UGX</td>
+                          <td>
+                            <span className={`badge ${balance > 0 ? "badge-danger" : "badge-success"}`}>
+                              {balance > 0 ? `${balance.toLocaleString()} UGX` : "Cleared"}
+                            </span>
+                          </td>
+                          <td>
+                            {balance > 0 ? (
+                              <button 
+                                onClick={() => {
+                                  setSelectedPayStudentId(st.id);
+                                  setActiveTab("student_billing");
+                                }}
+                                className="btn btn-outline"
+                                style={{ padding: "6px 12px", fontSize: "11px", borderColor: "var(--danger)", color: "var(--danger)" }}
+                              >
+                                Collect Fees
+                              </button>
+                            ) : (
+                              <span style={{ color: "var(--success)", fontSize: "12px", fontWeight: "bold" }}>Paid In Full</span>
+                            )}
+                          </td>
+                        </tr>
+                      ));
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 6E: EXPENDITURES & EXPENSES */}
+        {activeTab === "expenditures" && school.packageType === "PREMIUM" && (
+          <div className="tab-content-anim">
+            <h2 style={{ marginBottom: "10px" }}>School Expenditures Outflows</h2>
+            <p style={{ color: "#64748b", marginBottom: "30px" }}>Log utility bills, academic supplies purchases, repairs, and general operational expenses.</p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "24px" }} className="flex-mobile-col">
+              <div className="card" style={{ height: "fit-content" }}>
+                <h4 style={{ marginBottom: "16px" }}>Record Expenditure Outflow</h4>
+                <form onSubmit={handleCreateExpense}>
+                  <div className="form-group">
+                    <label className="form-label">Expense Category</label>
+                    <select className="input-field" value={expCategory} onChange={(e) => setExpCategory(e.target.value)} required>
+                      <option value="Salaries">Staff Wages / Salaries</option>
+                      <option value="Food & Boarding">Food & Boarding Supplies</option>
+                      <option value="Academics">Books, Chalk & Stationery</option>
+                      <option value="Utilities">Water, Power & Repairs</option>
+                      <option value="Other">Miscellaneous</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Expense Amount (UGX)</label>
+                    <input 
+                      type="number" 
+                      className="input-field" 
+                      placeholder="e.g. 180000"
+                      value={expAmount}
+                      onChange={(e) => setExpAmount(e.target.value)}
+                      required
+                    />
                   </div>
                   <div className="form-group">
                     <label className="form-label">Description Notes</label>
                     <input 
                       type="text" 
                       className="input-field" 
-                      placeholder="e.g. Purchase of 4 bags of beans"
+                      placeholder="e.g. Purchase of library chalk"
                       value={expDesc}
                       onChange={(e) => setExpDesc(e.target.value)}
                     />
                   </div>
-                  <button type="submit" className="btn btn-primary">Log Expenditure Outflow</button>
+                  <button type="submit" className="btn btn-primary" style={{ width: "100%", marginTop: "10px" }}>Log Expense Outflow</button>
                 </form>
+              </div>
 
-                {/* Expense table list */}
+              <div className="card">
+                <h4 style={{ marginBottom: "16px" }}>Expenditures History Log</h4>
                 <div className="table-container">
                   <table className="table">
                     <thead>
                       <tr>
                         <th>Date</th>
                         <th>Category</th>
-                        <th>Notes</th>
-                        <th>Amount</th>
+                        <th>Description Details</th>
+                        <th>Outflow Amount</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1953,21 +2847,30 @@ export default function SchoolPortal({ params }: PageProps) {
                           <td>{new Date(e.date).toLocaleDateString()}</td>
                           <td><strong>{e.category}</strong></td>
                           <td>{e.description}</td>
-                          <td style={{ color: "var(--danger)" }}>-{e.amount.toLocaleString()} UGX</td>
+                          <td style={{ color: "var(--danger)", fontWeight: "bold" }}>-{e.amount.toLocaleString()} UGX</td>
                         </tr>
                       ))}
+                      {expenses.length === 0 && (
+                        <tr><td colSpan={4} style={{ textAlign: "center", color: "#64748b" }}>No expenditure logs recorded.</td></tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
               </div>
-
             </div>
+          </div>
+        )}
 
-            {/* Process Teacher Salary Payroll Card */}
-            <div className="grid grid-cols-2 gap-3" style={{ marginTop: "24px" }}>
-              <div className="card">
-                <h4>Process Staff Payroll (Salary Payout)</h4>
-                <form onSubmit={handleProcessSalary} style={{ marginTop: "14px" }}>
+        {/* TAB 6F: STAFF PAYROLL */}
+        {activeTab === "payroll" && school.packageType === "PREMIUM" && (
+          <div className="tab-content-anim">
+            <h2 style={{ marginBottom: "10px" }}>Staff Payroll & Salaries</h2>
+            <p style={{ color: "#64748b", marginBottom: "30px" }}>Disburse and record monthly wages for teachers, DOS, and administrative staff members.</p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "24px" }} className="flex-mobile-col">
+              <div className="card" style={{ height: "fit-content" }}>
+                <h4 style={{ marginBottom: "16px" }}>Process Salary Payout</h4>
+                <form onSubmit={handleProcessSalary}>
                   <div className="form-group">
                     <label className="form-label">Select Staff Member</label>
                     <select 
@@ -1977,15 +2880,14 @@ export default function SchoolPortal({ params }: PageProps) {
                       required
                     >
                       <option value="">-- Choose staff --</option>
-                      {/* Filter teachers/users from the school */}
                       {users.filter(u => u.schoolId === school.id && u.role !== "ADMIN").map(u => (
                         <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
                       ))}
                     </select>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-2" style={{ marginBottom: "12px" }}>
                     <div className="form-group">
-                      <label className="form-label">Month</label>
+                      <label className="form-label">Salary Month</label>
                       <select 
                         className="input-field"
                         value={payMonthName}
@@ -2006,28 +2908,48 @@ export default function SchoolPortal({ params }: PageProps) {
                       </select>
                     </div>
                     <div className="form-group">
-                      <label className="form-label">Net Salary Payout (UGX)</label>
+                      <label className="form-label">Net Payout (UGX)</label>
                       <input 
                         type="number" 
                         className="input-field" 
-                        placeholder="e.g. 500000"
+                        placeholder="e.g. 600000"
                         value={paySalaryAmount}
                         onChange={(e) => setPaySalaryAmount(e.target.value)}
                         required
                       />
                     </div>
                   </div>
-                  <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Pay Salary & Log Expense</button>
+                  <button type="submit" className="btn btn-primary" style={{ width: "100%", marginTop: "10px" }}>Disburse Wages & Log Expense</button>
                 </form>
               </div>
-              
-              <div className="card" style={{ background: "white" }}>
-                <h4>Uganda School Accounts Ledger Info</h4>
-                <p style={{ fontSize: "13px", color: "#64748b", lineHeight: 1.5, marginTop: "14px" }}>
-                  Staff payroll logs automatically reduce the school's net balance and are recorded inside the global expenditures ledger under the "Salaries" category. 
-                  <br /><br />
-                  Make sure to set student fee structures at the start of the term so that balances and defaulters lists compute correctly.
-                </p>
+
+              <div className="card">
+                <h4 style={{ marginBottom: "16px" }}>Processed Salary History</h4>
+                <div className="table-container">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Date Processed</th>
+                        <th>Month</th>
+                        <th>Details Notes</th>
+                        <th>Salary Paid Out</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {expenses.filter(e => e.category === "Salaries").map(e => (
+                        <tr key={e.id}>
+                          <td>{new Date(e.date).toLocaleDateString()}</td>
+                          <td><strong>{e.description.includes("(") ? e.description.substring(e.description.indexOf("(")+1, e.description.indexOf(")")) : "N/A"}</strong></td>
+                          <td>{e.description}</td>
+                          <td style={{ color: "var(--danger)", fontWeight: "bold" }}>-{e.amount.toLocaleString()} UGX</td>
+                        </tr>
+                      ))}
+                      {expenses.filter(e => e.category === "Salaries").length === 0 && (
+                        <tr><td colSpan={4} style={{ textAlign: "center", color: "#64748b" }}>No payroll wage records processed this term.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>

@@ -317,7 +317,6 @@ export async function createSchool(data: Omit<School, "id" | "createdAt" | "stat
       for (const streamName of streamsToCreate) {
         await prisma.stream.create({
           data: {
-            schoolId,
             classId: cls.id,
             name: streamName,
           }

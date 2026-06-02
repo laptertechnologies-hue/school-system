@@ -373,7 +373,8 @@ h1, h2, h3, h4, h5, h6 {
     visibility: hidden !important;
   }
 
-  #printable-report, #printable-report * {
+  #printable-report, #printable-report *,
+  .bulk-printable-reports, .bulk-printable-reports * {
     visibility: visible !important;
   }
 
@@ -407,7 +408,7 @@ h1, h2, h3, h4, h5, h6 {
   }
 
   /* Target the report card itself */
-  #printable-report {
+  #printable-report, .bulk-report-card {
     display: block !important;
     position: relative !important;
     width: 100% !important;
@@ -421,6 +422,16 @@ h1, h2, h3, h4, h5, h6 {
     box-shadow: none !important;
     page-break-inside: avoid !important;
     visibility: visible !important;
+  }
+
+  .page-break {
+    page-break-after: always !important;
+    break-after: page !important;
+    display: block !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
   }
 
   /* Ensure table rows do not break page boundaries awkwardly */

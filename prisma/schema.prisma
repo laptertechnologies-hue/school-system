@@ -13,6 +13,7 @@ model School {
   subdomain    String    @unique
   packageType  String    // "BASIC" (report cards), "PREMIUM" (report cards + finance)
   status       String    @default("PENDING") // PENDING, ACTIVE, INACTIVE
+  schoolType   String    @default("COMBINED") // "PRIMARY", "SECONDARY", "COMBINED"
   studentRange String
   contactEmail String
   contactPhone String

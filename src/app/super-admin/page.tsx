@@ -152,6 +152,7 @@ export default function SuperAdminDashboard() {
         name: randomName,
         subdomain: randomSub,
         packageType: Math.random() > 0.5 ? "PREMIUM" : "BASIC",
+        schoolType: "COMBINED",
         studentRange: "200-500",
         contactEmail: `head@${randomSub}.ug`,
         contactPhone: "+256 772 " + Math.floor(Math.random() * 900000 + 100000),

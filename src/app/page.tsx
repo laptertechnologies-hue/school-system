@@ -34,6 +34,7 @@ export default function MarketingPage() {
   const [schoolName, setSchoolName] = useState("");
   const [subdomain, setSubdomain] = useState("");
   const [packageType, setPackageType] = useState<"BASIC" | "PREMIUM">("PREMIUM");
+  const [schoolType, setSchoolType] = useState<"PRIMARY" | "SECONDARY" | "COMBINED">("COMBINED");
   const [studentRange, setStudentRange] = useState("200-500");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -148,6 +149,7 @@ export default function MarketingPage() {
         name: schoolName,
         subdomain,
         packageType,
+        schoolType,
         studentRange,
         contactEmail: email,
         contactPhone: phone,
@@ -491,6 +493,19 @@ export default function MarketingPage() {
                       >
                         <option value="BASIC">Basic Plan (150,000 UGX / Term)</option>
                         <option value="PREMIUM">Premium Plan (350,000 UGX / Term)</option>
+                      </select>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">School Level / Type</label>
+                      <select 
+                        className="input-field" 
+                        value={schoolType} 
+                        onChange={(e) => setSchoolType(e.target.value as "PRIMARY" | "SECONDARY" | "COMBINED")}
+                      >
+                        <option value="PRIMARY">Primary School (P1 - P7)</option>
+                        <option value="SECONDARY">Secondary School (S1 - S6)</option>
+                        <option value="COMBINED">Combined (Primary & Secondary)</option>
                       </select>
                     </div>
 

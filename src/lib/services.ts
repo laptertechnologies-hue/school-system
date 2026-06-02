@@ -11,6 +11,7 @@ export interface School {
   subdomain: string;
   packageType: "BASIC" | "PREMIUM";
   status: "PENDING" | "ACTIVE" | "INACTIVE";
+  schoolType: "PRIMARY" | "SECONDARY" | "COMBINED";
   studentRange: string;
   contactEmail: string;
   contactPhone: string;
@@ -273,30 +274,106 @@ export async function getSchoolBySubdomain(subdomain: string): Promise<School | 
 }
 
 export async function createSchool(data: Omit<School, "id" | "createdAt" | "status">): Promise<School> {
+  let createdSchool: School;
+
   if (await hasDB()) {
-    return (await prisma.school.create({
+    createdSchool = (await prisma.school.create({
       data: {
         name: data.name,
         subdomain: data.subdomain,
         packageType: data.packageType,
+        schoolType: data.schoolType,
         studentRange: data.studentRange,
         contactEmail: data.contactEmail,
         contactPhone: data.contactPhone,
       },
     })) as School;
+
+    // Seeding default classes & streams based on schoolType
+    const schoolId = createdSchool.id;
+    const classesToSeed: { name: string; level: "PRIMARY" | "SECONDARY" }[] = [];
+
+    if (data.schoolType === "PRIMARY" || data.schoolType === "COMBINED") {
+      ["P1", "P2", "P3", "P4", "P5", "P6", "P7"].forEach(name => {
+        classesToSeed.push({ name, level: "PRIMARY" });
+      });
+    }
+    if (data.schoolType === "SECONDARY" || data.schoolType === "COMBINED") {
+      ["S1", "S2", "S3", "S4", "S5", "S6"].forEach(name => {
+        classesToSeed.push({ name, level: "SECONDARY" });
+      });
+    }
+
+    for (const c of classesToSeed) {
+      const cls = await prisma.class.create({
+        data: {
+          schoolId,
+          name: c.name,
+          level: c.level,
+        }
+      });
+      // Add default streams for each class
+      const streamsToCreate = c.level === "PRIMARY" ? ["Blue", "Gold"] : ["A", "B"];
+      for (const streamName of streamsToCreate) {
+        await prisma.stream.create({
+          data: {
+            schoolId,
+            classId: cls.id,
+            name: streamName,
+          }
+        });
+      }
+    }
+
+    return createdSchool;
   }
 
-  const newSchool: School = {
+  const schoolId = "school-" + uuid();
+  createdSchool = {
     ...data,
-    id: "school-" + uuid(),
+    id: schoolId,
     status: "PENDING",
     createdAt: new Date(),
   };
 
   const db = getLocalDB();
-  db.schools.push(newSchool);
+  db.schools.push(createdSchool);
+
+  // Seeding default classes & streams in Mock JSON DB
+  const classesToSeed: { name: string; level: "PRIMARY" | "SECONDARY" }[] = [];
+  if (data.schoolType === "PRIMARY" || data.schoolType === "COMBINED") {
+    ["P1", "P2", "P3", "P4", "P5", "P6", "P7"].forEach(name => {
+      classesToSeed.push({ name, level: "PRIMARY" });
+    });
+  }
+  if (data.schoolType === "SECONDARY" || data.schoolType === "COMBINED") {
+    ["S1", "S2", "S3", "S4", "S5", "S6"].forEach(name => {
+      classesToSeed.push({ name, level: "SECONDARY" });
+    });
+  }
+
+  classesToSeed.forEach(c => {
+    const classId = "class-" + uuid();
+    db.classes.push({
+      id: classId,
+      schoolId,
+      name: c.name,
+      level: c.level,
+    });
+
+    const streamsToCreate = c.level === "PRIMARY" ? ["Blue", "Gold"] : ["A", "B"];
+    streamsToCreate.forEach(streamName => {
+      db.streams.push({
+        id: "stream-" + uuid(),
+        schoolId,
+        classId,
+        name: streamName,
+      });
+    });
+  });
+
   saveLocalDB(db);
-  return newSchool;
+  return createdSchool;
 }
 
 export async function updateSchoolStatus(id: string, status: "ACTIVE" | "INACTIVE"): Promise<School> {
@@ -363,6 +440,7 @@ export async function updateSchoolMetadata(
     logoUrl?: string | null;
     name?: string;
     contactPhone?: string;
+    schoolType?: "PRIMARY" | "SECONDARY" | "COMBINED";
     reportTitle?: string | null;
     reportMotto?: string | null;
     reportShowBadge?: boolean;
@@ -482,6 +560,79 @@ export async function deleteUser(id: string): Promise<boolean> {
   const filtered = db.users.filter((u: User) => u.id !== id);
   if (filtered.length !== db.users.length) {
     db.users = filtered;
+    saveLocalDB(db);
+    return true;
+  }
+  return false;
+}
+
+export async function resetUserPassword(schoolId: string, email: string, newPasswordHash: string): Promise<boolean> {
+  if (await hasDB()) {
+    const user = await prisma.user.findFirst({
+      where: { schoolId, email }
+    });
+    if (!user) return false;
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash: newPasswordHash }
+    });
+    return true;
+  }
+  const db = getLocalDB();
+  const user = db.users.find((u: User) => u.schoolId === schoolId && u.email === email);
+  if (!user) return false;
+  user.passwordHash = newPasswordHash;
+  saveLocalDB(db);
+  return true;
+}
+
+export async function getTeacherSubjects(schoolId: string): Promise<TeacherSubject[]> {
+  if (await hasDB()) {
+    return (await prisma.teacherSubject.findMany({
+      where: { class: { schoolId } }
+    })) as TeacherSubject[];
+  }
+  const db = getLocalDB();
+  if (!db.teacherSubjects) {
+    db.teacherSubjects = [];
+    saveLocalDB(db);
+  }
+  const classIds = db.classes.filter((c: Class) => c.schoolId === schoolId).map((c: Class) => c.id);
+  return db.teacherSubjects.filter((ts: TeacherSubject) => classIds.includes(ts.classId));
+}
+
+export async function createTeacherSubject(data: Omit<TeacherSubject, "id">): Promise<TeacherSubject> {
+  if (await hasDB()) {
+    return (await prisma.teacherSubject.create({
+      data: {
+        teacherId: data.teacherId,
+        subjectId: data.subjectId,
+        classId: data.classId,
+        streamId: data.streamId
+      }
+    })) as TeacherSubject;
+  }
+  const db = getLocalDB();
+  if (!db.teacherSubjects) db.teacherSubjects = [];
+  const newTS: TeacherSubject = {
+    ...data,
+    id: "ts-" + uuid()
+  };
+  db.teacherSubjects.push(newTS);
+  saveLocalDB(db);
+  return newTS;
+}
+
+export async function deleteTeacherSubject(id: string): Promise<boolean> {
+  if (await hasDB()) {
+    await prisma.teacherSubject.delete({ where: { id } });
+    return true;
+  }
+  const db = getLocalDB();
+  if (!db.teacherSubjects) db.teacherSubjects = [];
+  const filtered = db.teacherSubjects.filter((ts: TeacherSubject) => ts.id !== id);
+  if (filtered.length !== db.teacherSubjects.length) {
+    db.teacherSubjects = filtered;
     saveLocalDB(db);
     return true;
   }

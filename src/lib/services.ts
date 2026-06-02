@@ -318,6 +318,40 @@ export async function updateSchoolStatus(id: string, status: "ACTIVE" | "INACTIV
   return school;
 }
 
+export async function updateSchoolSubscription(
+  id: string, 
+  data: { 
+    packageType?: "BASIC" | "PREMIUM"; 
+    status?: "PENDING" | "ACTIVE" | "INACTIVE"; 
+    expiresAt?: Date | null;
+  }
+): Promise<School> {
+  const updateData: any = {};
+  if (data.packageType !== undefined) updateData.packageType = data.packageType;
+  if (data.status !== undefined) updateData.status = data.status;
+  if (data.expiresAt !== undefined) updateData.expiresAt = data.expiresAt;
+
+  if (await hasDB()) {
+    return (await prisma.school.update({
+      where: { id },
+      data: updateData,
+    })) as School;
+  }
+
+  const db = getLocalDB();
+  const school = db.schools.find((s: School) => s.id === id);
+  if (!school) throw new Error("School not found");
+  
+  if (data.packageType !== undefined) school.packageType = data.packageType;
+  if (data.status !== undefined) school.status = data.status;
+  if (data.expiresAt !== undefined) {
+    school.expiresAt = data.expiresAt ? new Date(data.expiresAt) : null;
+  }
+  
+  saveLocalDB(db);
+  return school;
+}
+
 export async function updateSchoolMetadata(
   id: string,
   metadata: {

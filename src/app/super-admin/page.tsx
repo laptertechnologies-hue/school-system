@@ -4,7 +4,10 @@ import {
   getSchools, 
   getPayments, 
   createPayment, 
+  createUser,
+  createSchool,
   updateSchoolStatus, 
+  updateSchoolSubscription,
   checkDatabaseConnection,
   authenticateUser,
   School, 
@@ -42,6 +45,17 @@ export default function SuperAdminDashboard() {
   const [method, setMethod] = useState("MOBILE_MONEY");
   const [txRef, setTxRef] = useState("");
   const [paymentMsg, setPaymentMsg] = useState("");
+
+  // Subscription Edit Modal States
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedEditSchool, setSelectedEditSchool] = useState<School | null>(null);
+  const [editPackageType, setEditPackageType] = useState<"BASIC" | "PREMIUM">("BASIC");
+  const [editStatus, setEditStatus] = useState<"PENDING" | "ACTIVE" | "INACTIVE">("PENDING");
+  const [editExpiresAt, setEditExpiresAt] = useState("");
+
+  // Filters State
+  const [activeFilterTab, setActiveFilterTab] = useState<"ALL" | "ACTIVE_PAX" | "TRIALS" | "EXPIRED">("ALL");
+  const [packageFilter, setPackageFilter] = useState<"ALL" | "BASIC" | "PREMIUM">("ALL");
 
   const loadData = async () => {
     setLoading(true);
@@ -100,6 +114,64 @@ export default function SuperAdminDashboard() {
     }
   };
 
+  const handleOpenEditModal = (school: School) => {
+    setSelectedEditSchool(school);
+    setEditPackageType(school.packageType);
+    setEditStatus(school.status);
+    setEditExpiresAt(
+      school.expiresAt ? new Date(school.expiresAt).toISOString().split("T")[0] : ""
+    );
+    setShowEditModal(true);
+  };
+
+  const handleSaveSubscription = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEditSchool) return;
+
+    try {
+      const expDate = editExpiresAt ? new Date(editExpiresAt) : null;
+      await updateSchoolSubscription(selectedEditSchool.id, {
+        packageType: editPackageType,
+        status: editStatus,
+        expiresAt: expDate,
+      });
+
+      setShowEditModal(false);
+      await loadData();
+    } catch (err: any) {
+      alert("Failed to save subscription: " + (err.message || err));
+    }
+  };
+
+  const handleSimulateTrial = async () => {
+    try {
+      const randomSub = "trial" + Math.floor(Math.random() * 9000 + 1000);
+      const randomName = "Sandbox Academy " + Math.floor(Math.random() * 100 + 1);
+      
+      const sch = await createSchool({
+        name: randomName,
+        subdomain: randomSub,
+        packageType: Math.random() > 0.5 ? "PREMIUM" : "BASIC",
+        studentRange: "200-500",
+        contactEmail: `head@${randomSub}.ug`,
+        contactPhone: "+256 772 " + Math.floor(Math.random() * 900000 + 100000),
+      });
+
+      await createUser({
+        schoolId: sch.id,
+        name: "Trial Administrator",
+        email: `admin@${randomSub}.ug`,
+        passwordHash: "password",
+        role: "ADMIN"
+      });
+
+      await loadData();
+      alert(`Provisioned sandbox school "${randomName}" with subdomain "${randomSub}" under pending trial status.`);
+    } catch (err: any) {
+      alert("Failed to simulate trial: " + (err.message || err));
+    }
+  };
+
   const handleAddPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     setPaymentMsg("");
@@ -134,15 +206,53 @@ export default function SuperAdminDashboard() {
 
   // Metrics
   const totalSchools = schools.length;
-  const activeSchools = schools.filter((s) => s.status === "ACTIVE").length;
-  const pendingSchools = schools.filter((s) => s.status === "PENDING").length;
+  
+  // Active Paid Subscriptions: status is ACTIVE and subscription has not expired
+  const activePaidSchoolsCount = schools.filter(
+    (s) => s.status === "ACTIVE" && s.expiresAt && new Date(s.expiresAt).getTime() > Date.now()
+  ).length;
+
+  // Active Trial Subscriptions: status is PENDING or status is ACTIVE but expiresAt is null or no payments recorded
+  const trialSchoolsCount = schools.filter(
+    (s) => s.status === "PENDING" || (s.status === "ACTIVE" && !s.expiresAt)
+  ).length;
+
+  // Expired / Inactive: status is INACTIVE or expiresAt is past
+  const expiredSchoolsCount = schools.filter(
+    (s) => s.status === "INACTIVE" || (s.expiresAt && new Date(s.expiresAt).getTime() <= Date.now())
+  ).length;
+
   const totalRevenue = payments.reduce((sum, p) => sum + (p.status === "COMPLETED" ? p.amount : 0), 0);
 
-  const filteredSchools = schools.filter((s) => 
-    s.name.toLowerCase().includes(search.toLowerCase()) || 
-    s.subdomain.toLowerCase().includes(search.toLowerCase()) ||
-    s.contactEmail.toLowerCase().includes(search.toLowerCase())
-  );
+  // Filter school list
+  const filteredSchools = schools.filter((s) => {
+    // 1. Search filter
+    const matchesSearch = 
+      s.name.toLowerCase().includes(search.toLowerCase()) || 
+      s.subdomain.toLowerCase().includes(search.toLowerCase()) ||
+      s.contactEmail.toLowerCase().includes(search.toLowerCase());
+    
+    if (!matchesSearch) return false;
+
+    // 2. Tab filter
+    if (activeFilterTab === "ACTIVE_PAX") {
+      const isActive = s.status === "ACTIVE" && s.expiresAt && new Date(s.expiresAt).getTime() > Date.now();
+      if (!isActive) return false;
+    } else if (activeFilterTab === "TRIALS") {
+      const isTrial = s.status === "PENDING" || (s.status === "ACTIVE" && !s.expiresAt);
+      if (!isTrial) return false;
+    } else if (activeFilterTab === "EXPIRED") {
+      const isExpired = s.status === "INACTIVE" || (s.expiresAt && new Date(s.expiresAt).getTime() <= Date.now());
+      if (!isExpired) return false;
+    }
+
+    // 3. Package filter
+    if (packageFilter !== "ALL") {
+      if (s.packageType !== packageFilter) return false;
+    }
+
+    return true;
+  });
 
   if (!currentUser) {
     return (
@@ -232,9 +342,9 @@ export default function SuperAdminDashboard() {
       {/* Metrics Banner */}
       <div style={{ padding: "30px 0", backgroundColor: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
         <div className="container animate-slide-up">
-          <div className="grid grid-cols-4 gap-2">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
             
-            <div className="card hover-scale" style={{ display: "flex", alignItems: "center", gap: "16px", backgroundColor: "#ffffff" }}>
+            <div className="card hover-scale" style={{ display: "flex", alignItems: "center", gap: "16px", backgroundColor: "#ffffff", padding: "20px" }}>
               <div style={{ background: "var(--primary-light)", padding: "14px", borderRadius: "12px" }}>
                 <Building2 size={28} color="var(--primary)" />
               </div>
@@ -244,33 +354,43 @@ export default function SuperAdminDashboard() {
               </div>
             </div>
 
-            <div className="card hover-scale" style={{ display: "flex", alignItems: "center", gap: "16px", backgroundColor: "#ffffff" }}>
-              <div style={{ background: "var(--primary-light)", padding: "14px", borderRadius: "12px" }}>
-                <CheckCircle size={28} color="var(--primary)" />
+            <div className="card hover-scale" style={{ display: "flex", alignItems: "center", gap: "16px", backgroundColor: "#ffffff", padding: "20px" }}>
+              <div style={{ background: "rgba(34, 197, 94, 0.15)", padding: "14px", borderRadius: "12px" }}>
+                <CheckCircle size={28} color="#22c55e" />
               </div>
               <div>
-                <span style={{ fontSize: "11px", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>Active Schools</span>
-                <h2 style={{ fontSize: "28px", fontWeight: 800, marginTop: "4px", color: "#0f172a" }}>{activeSchools}</h2>
+                <span style={{ fontSize: "11px", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>Paid Active</span>
+                <h2 style={{ fontSize: "28px", fontWeight: 800, marginTop: "4px", color: "#0f172a" }}>{activePaidSchoolsCount}</h2>
               </div>
             </div>
 
-            <div className="card hover-scale" style={{ display: "flex", alignItems: "center", gap: "16px", backgroundColor: "#ffffff" }}>
-              <div style={{ background: "var(--primary-light)", padding: "14px", borderRadius: "12px" }}>
-                <Clock size={28} color="var(--primary)" />
+            <div className="card hover-scale" style={{ display: "flex", alignItems: "center", gap: "16px", backgroundColor: "#ffffff", padding: "20px" }}>
+              <div style={{ background: "rgba(245, 158, 11, 0.15)", padding: "14px", borderRadius: "12px" }}>
+                <Clock size={28} color="#f59e0b" />
               </div>
               <div>
-                <span style={{ fontSize: "11px", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>Pending Trials</span>
-                <h2 style={{ fontSize: "28px", fontWeight: 800, marginTop: "4px", color: "#0f172a" }}>{pendingSchools}</h2>
+                <span style={{ fontSize: "11px", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>Active Trials</span>
+                <h2 style={{ fontSize: "28px", fontWeight: 800, marginTop: "4px", color: "#0f172a" }}>{trialSchoolsCount}</h2>
               </div>
             </div>
 
-            <div className="card hover-scale" style={{ display: "flex", alignItems: "center", gap: "16px", backgroundColor: "#ffffff" }}>
+            <div className="card hover-scale" style={{ display: "flex", alignItems: "center", gap: "16px", backgroundColor: "#ffffff", padding: "20px" }}>
+              <div style={{ background: "rgba(239, 68, 68, 0.15)", padding: "14px", borderRadius: "12px" }}>
+                <XCircle size={28} color="#ef4444" />
+              </div>
+              <div>
+                <span style={{ fontSize: "11px", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>Expired / Inactive</span>
+                <h2 style={{ fontSize: "28px", fontWeight: 800, marginTop: "4px", color: "#0f172a" }}>{expiredSchoolsCount}</h2>
+              </div>
+            </div>
+
+            <div className="card hover-scale" style={{ display: "flex", alignItems: "center", gap: "16px", backgroundColor: "#ffffff", padding: "20px" }}>
               <div style={{ background: "var(--primary-light)", padding: "14px", borderRadius: "12px" }}>
                 <DollarSign size={28} color="var(--primary)" />
               </div>
               <div>
-                <span style={{ fontSize: "11px", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>SaaS Income</span>
-                <h2 style={{ fontSize: "22px", fontWeight: 800, marginTop: "4px", color: "#0f172a" }}>{totalRevenue.toLocaleString()} UGX</h2>
+                <span style={{ fontSize: "11px", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>SaaS Revenue</span>
+                <h2 style={{ fontSize: "20px", fontWeight: 800, marginTop: "4px", color: "#0f172a" }}>{totalRevenue.toLocaleString()} UGX</h2>
               </div>
             </div>
 
@@ -286,18 +406,67 @@ export default function SuperAdminDashboard() {
             {/* School tenants list */}
             <div className="animate-slide-up">
               <div className="card" style={{ padding: "24px", backgroundColor: "#ffffff", borderColor: "#cbd5e1" }}>
-                <div className="flex justify-between align-center flex-wrap gap-2" style={{ marginBottom: "20px" }}>
-                  <h3 style={{ fontSize: "18px", color: "#0f172a" }}>Registered School Accounts</h3>
-                  <div className="flex align-center" style={{ border: "1px solid #cbd5e1", borderRadius: "8px", background: "white", padding: "4px 10px", width: "260px" }}>
-                    <Search size={18} color="#94a3b8" />
-                    <input 
-                      type="text" 
-                      placeholder="Search schools..." 
-                      value={search} 
-                      onChange={(e) => setSearch(e.target.value)}
-                      style={{ border: "none", outline: "none", fontSize: "13px", padding: "6px", width: "100%", color: "#1e293b" }}
-                    />
+                <div className="flex justify-between align-center flex-wrap gap-2" style={{ marginBottom: "20px", borderBottom: "1px solid #e2e8f0", paddingBottom: "16px" }}>
+                  <div>
+                    <h3 style={{ fontSize: "18px", color: "#0f172a", marginBottom: "4px" }}>Registered School Accounts</h3>
+                    <p style={{ fontSize: "12px", color: "#64748b" }}>Manage school directories, modify terms/subscriptions, and review trial count status.</p>
                   </div>
+                  <div className="flex align-center gap-2 flex-wrap">
+                    {/* Package Filter Dropdown */}
+                    <select
+                      value={packageFilter}
+                      onChange={(e) => setPackageFilter(e.target.value as any)}
+                      className="input-field"
+                      style={{ width: "140px", padding: "6px 10px", fontSize: "13px", background: "white", color: "#1e293b", borderColor: "#cbd5e1", marginBottom: 0 }}
+                    >
+                      <option value="ALL">All Packages</option>
+                      <option value="BASIC">Basic Package</option>
+                      <option value="PREMIUM">Premium Package</option>
+                    </select>
+
+                    <div className="flex align-center" style={{ border: "1px solid #cbd5e1", borderRadius: "8px", background: "white", padding: "4px 10px", width: "220px" }}>
+                      <Search size={16} color="#94a3b8" />
+                      <input 
+                        type="text" 
+                        placeholder="Search name, domain, mail..." 
+                        value={search} 
+                        onChange={(e) => setSearch(e.target.value)}
+                        style={{ border: "none", outline: "none", fontSize: "13px", padding: "4px 6px", width: "100%", color: "#1e293b" }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sub-tab navigation */}
+                <div className="flex gap-1 flex-wrap" style={{ marginBottom: "20px", borderBottom: "1px solid #f1f5f9", paddingBottom: "10px" }}>
+                  <button 
+                    onClick={() => setActiveFilterTab("ALL")}
+                    className={`btn ${activeFilterTab === "ALL" ? "btn-primary" : "btn-outline"}`}
+                    style={{ padding: "6px 14px", fontSize: "12px" }}
+                  >
+                    All Accounts ({totalSchools})
+                  </button>
+                  <button 
+                    onClick={() => setActiveFilterTab("ACTIVE_PAX")}
+                    className={`btn ${activeFilterTab === "ACTIVE_PAX" ? "btn-primary" : "btn-outline"}`}
+                    style={{ padding: "6px 14px", fontSize: "12px" }}
+                  >
+                    Paid Active ({activePaidSchoolsCount})
+                  </button>
+                  <button 
+                    onClick={() => setActiveFilterTab("TRIALS")}
+                    className={`btn ${activeFilterTab === "TRIALS" ? "btn-primary" : "btn-outline"}`}
+                    style={{ padding: "6px 14px", fontSize: "12px" }}
+                  >
+                    Trials ({trialSchoolsCount})
+                  </button>
+                  <button 
+                    onClick={() => setActiveFilterTab("EXPIRED")}
+                    className={`btn ${activeFilterTab === "EXPIRED" ? "btn-primary" : "btn-outline"}`}
+                    style={{ padding: "6px 14px", fontSize: "12px" }}
+                  >
+                    Expired / Inactive ({expiredSchoolsCount})
+                  </button>
                 </div>
 
                 {loading ? (
@@ -339,17 +508,43 @@ export default function SuperAdminDashboard() {
                             </td>
                             <td>
                               <span style={{ fontSize: "12px", color: "#64748b" }}>
-                                {s.expiresAt ? new Date(s.expiresAt).toLocaleDateString() : "Trial Pending"}
+                                {s.expiresAt ? (
+                                  <>
+                                    {new Date(s.expiresAt).toLocaleDateString()}<br/>
+                                    {new Date(s.expiresAt).getTime() > Date.now() ? (
+                                      <span style={{ fontSize: "10px", color: "#16a34a", fontWeight: "bold" }}>
+                                        ({Math.ceil((new Date(s.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))} days left)
+                                      </span>
+                                    ) : (
+                                      <span style={{ fontSize: "10px", color: "#dc2626", fontWeight: "bold" }}>
+                                        (Expired {Math.abs(Math.floor((new Date(s.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} days ago)
+                                      </span>
+                                    )}
+                                  </>
+                                ) : (
+                                  <span style={{ fontSize: "11px", color: "#d97706", fontWeight: "bold" }}>
+                                    Active Trial
+                                  </span>
+                                )}
                               </span>
                             </td>
                             <td>
-                              <button 
-                                onClick={() => handleToggleStatus(s.id, s.status)}
-                                className={`btn ${s.status === "ACTIVE" ? "btn-danger" : "btn-primary"} hover-scale`} 
-                                style={{ padding: "6px 12px", fontSize: "11px" }}
-                              >
-                                {s.status === "ACTIVE" ? "Deactivate" : "Activate"}
-                              </button>
+                              <div className="flex gap-1" style={{ display: "flex", gap: "6px" }}>
+                                <button 
+                                  onClick={() => handleOpenEditModal(s)}
+                                  className="btn btn-outline hover-scale" 
+                                  style={{ padding: "6px 10px", fontSize: "11px", color: "var(--primary)", borderColor: "var(--primary)", height: "auto" }}
+                                >
+                                  Manage
+                                </button>
+                                <button 
+                                  onClick={() => handleToggleStatus(s.id, s.status)}
+                                  className={`btn ${s.status === "ACTIVE" ? "btn-danger" : "btn-primary"} hover-scale`} 
+                                  style={{ padding: "6px 10px", fontSize: "11px", height: "auto" }}
+                                >
+                                  {s.status === "ACTIVE" ? "Deactivate" : "Activate"}
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -489,11 +684,108 @@ export default function SuperAdminDashboard() {
                   Activating a school extends its subscription for 1 Year and triggers welcome setup guides.
                 </p>
               </div>
+
+              {/* Sandbox Simulator */}
+              <div className="card" style={{ marginTop: "20px", background: "#fffbeb", padding: "20px", border: "1px solid #fef3c7" }}>
+                <h4 style={{ marginBottom: "10px", color: "#b45309", fontSize: "14px", display: "flex", alignItems: "center", gap: "6px" }}>
+                  ⚡ Sandbox Demo Simulator
+                </h4>
+                <p style={{ fontSize: "12px", color: "#78350f", lineHeight: 1.4, marginBottom: "16px" }}>
+                  Instantly provision mock active trial schools to test SaaS stats counters, trial limits, sub-tabs, and filters without manual DB entries.
+                </p>
+                <button 
+                  onClick={handleSimulateTrial}
+                  className="btn hover-scale" 
+                  style={{ width: "100%", background: "#d97706", color: "white", border: "none", padding: "10px", borderRadius: "8px", fontSize: "13px", fontWeight: "bold", cursor: "pointer" }}
+                >
+                  + Simulate Random Trial School
+                </button>
+              </div>
             </div>
 
           </div>
         </div>
       </div>
+
+      {/* Subscription Edit Modal Overlay */}
+      {showEditModal && selectedEditSchool && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1050, padding: "20px" }}>
+          <div className="card shadow-lg" style={{ width: "100%", maxWidth: "450px", background: "white", padding: "30px", border: "1px solid #cbd5e1" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #e2e8f0", paddingBottom: "12px", marginBottom: "20px" }}>
+              <h3 style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>Edit Subscription</h3>
+              <button 
+                onClick={() => setShowEditModal(false)} 
+                style={{ background: "transparent", border: "none", color: "#64748b", cursor: "pointer", fontSize: "16px" }}
+              >✕</button>
+            </div>
+
+            <form onSubmit={handleSaveSubscription}>
+              <div style={{ marginBottom: "16px", background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid #cbd5e1" }}>
+                <strong style={{ fontSize: "14px", color: "#0f172a" }}>{selectedEditSchool.name}</strong>
+                <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>
+                  Subdomain: {selectedEditSchool.subdomain}.portal.laptertech.store
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Package Plan</label>
+                <select 
+                  className="input-field"
+                  value={editPackageType}
+                  onChange={(e) => setEditPackageType(e.target.value as any)}
+                  required
+                >
+                  <option value="BASIC">Basic Plan (150,000 UGX / Term)</option>
+                  <option value="PREMIUM">Premium Plan (350,000 UGX / Term)</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Account Status</label>
+                <select 
+                  className="input-field"
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value as any)}
+                  required
+                >
+                  <option value="PENDING">Pending Trial</option>
+                  <option value="ACTIVE">Active Subscription</option>
+                  <option value="INACTIVE">Deactivated / Suspended</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Subscription Expiry Date</label>
+                <input 
+                  type="date"
+                  className="input-field"
+                  value={editExpiresAt}
+                  onChange={(e) => setEditExpiresAt(e.target.value)}
+                />
+                <span style={{ fontSize: "11px", color: "#64748b" }}>Leave blank for no expiration date (active trial mode).</span>
+              </div>
+
+              <div className="flex gap-2" style={{ display: "flex", gap: "8px", marginTop: "24px" }}>
+                <button 
+                  type="submit" 
+                  className="btn btn-primary" 
+                  style={{ flex: 1, padding: "10px" }}
+                >
+                  Save Changes
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setShowEditModal(false)} 
+                  className="btn btn-outline" 
+                  style={{ flex: 1, padding: "10px", color: "#1e293b", borderColor: "#cbd5e1" }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

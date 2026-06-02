@@ -319,8 +319,7 @@ export default function MarketingPage() {
                             </div>
                           )}
                         </div>
-                        <h4 style={{ color: "#0f172a", fontSize: "15px", fontWeight: 700, marginBottom: "4px" }}>{s.name}</h4>
-                        <span style={{ fontSize: "12px", color: "var(--primary)", fontWeight: 600 }}>{s.subdomain}.portal.laptertech.store</span>
+                        <h4 style={{ color: "#0f172a", fontSize: "15px", fontWeight: 700, marginBottom: "0px" }}>{s.name}</h4>
                       </div>
                     ))}
                   </div>

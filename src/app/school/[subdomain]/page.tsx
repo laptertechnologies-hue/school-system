@@ -1,14 +1,14 @@
 "use client";
 import React, { useState, useEffect, use } from "react";
 import { 
-  School, User, Class, Stream, Student, Subject, ExamPaper, Mark, Payment, FeeStructure, StudentPayment, Expense,
+  School, User, Class, Stream, Student, Subject, ExamPaper, Mark, Payment, FeeStructure, StudentPayment, Expense, GradeRange,
   checkDatabaseConnection, getSchoolBySubdomain, getUsers, getClasses, getStreams, getStudents, getSubjects,
   getExamPapers, getMarks, getFeeStructures, getStudentPayments, getExpenses, getAttendance, authenticateUser,
   createClass, createStream, createUser, createStudent, createSubject, createExamPaper, addMark,
   createFeeStructure, recordStudentPayment, createExpense, recordAttendance, promoteStudents,
   processTeacherSalary, createPayment, getPayments, updateSchoolStatus, updateSchoolMetadata,
   initiateMarzpayCollection, checkMarzpayCollectionStatus, sendSmsBroadcast,
-  updateStudent, deleteStudent, updateUser, deleteUser
+  updateStudent, deleteStudent, updateUser, deleteUser, getGradeRanges, saveGradeRanges
 } from "../../../lib/services";
 import { Database, CreditCard, Building2, CheckCircle, MessageSquare, Sliders } from "lucide-react";
 import { 
@@ -34,6 +34,38 @@ import {
   Menu,
   X
 } from "lucide-react";
+
+const computeGradeFromRanges = (score: number, systemType: "PRIMARY" | "SECONDARY", ranges: GradeRange[]) => {
+  const filtered = ranges.filter(r => r.systemType === systemType);
+  // Sort minMark descending to find the correct bracket
+  const sorted = [...filtered].sort((a, b) => b.minMark - a.minMark);
+  const match = sorted.find(r => score >= r.minMark && score <= r.maxMark);
+  if (match) {
+    return {
+      grade: match.grade,
+      level: match.achievementLevel,
+      descriptor: match.descriptor
+    };
+  }
+  // Fallback to defaults if no match found or ranges empty
+  if (systemType === "SECONDARY") {
+    if (score >= 80) return { grade: "A", level: "Exceptional", descriptor: "Highly proficient in subject skills" };
+    if (score >= 70) return { grade: "B", level: "Outstanding", descriptor: "Consistently demonstrates subject skills" };
+    if (score >= 55) return { grade: "C", level: "Satisfactory", descriptor: "Demonstrates basic subject skills" };
+    if (score >= 40) return { grade: "D", level: "Basic", descriptor: "Beginning to develop subject skills" };
+    return { grade: "E", level: "Elementary", descriptor: "Needs guidance to develop skills" };
+  } else {
+    if (score >= 90) return { grade: "1", level: "Distinction", descriptor: "Outstanding performance" };
+    if (score >= 80) return { grade: "2", level: "Distinction", descriptor: "Very good performance" };
+    if (score >= 70) return { grade: "3", level: "Credit", descriptor: "Good performance" };
+    if (score >= 60) return { grade: "4", level: "Credit", descriptor: "Fairly good performance" };
+    if (score >= 55) return { grade: "5", level: "Credit", descriptor: "Average performance" };
+    if (score >= 50) return { grade: "6", level: "Credit", descriptor: "Satisfactory performance" };
+    if (score >= 45) return { grade: "7", level: "Pass", descriptor: "Pass level performance" };
+    if (score >= 40) return { grade: "8", level: "Pass", descriptor: "Weak pass performance" };
+    return { grade: "9", level: "Fail", descriptor: "Failure level performance" };
+  }
+};
 
 interface PageProps {
   params: Promise<{ subdomain: string }>;
@@ -90,6 +122,7 @@ export default function SchoolPortal({ params }: PageProps) {
   const [newStudentStreamId, setNewStudentStreamId] = useState("");
   const [newStudentType, setNewStudentType] = useState<"DAY" | "BOARDING">("DAY");
   const [newStudentPhoto, setNewStudentPhoto] = useState("");
+  const [newStudentLin, setNewStudentLin] = useState("");
 
   const [newTeacherPhoto, setNewTeacherPhoto] = useState("");
   const [newTeacherStaffNumber, setNewTeacherStaffNumber] = useState("");
@@ -107,6 +140,7 @@ export default function SchoolPortal({ params }: PageProps) {
   const [editStudentStreamId, setEditStudentStreamId] = useState("");
   const [editStudentType, setEditStudentType] = useState<"DAY" | "BOARDING">("DAY");
   const [editStudentPhoto, setEditStudentPhoto] = useState("");
+  const [editStudentLin, setEditStudentLin] = useState("");
 
   // Modals view/edit states for Staff
   const [selectedViewStaff, setSelectedViewStaff] = useState<User | null>(null);
@@ -145,7 +179,21 @@ export default function SchoolPortal({ params }: PageProps) {
   const [selectedStreamId, setSelectedStreamId] = useState("");
   const [selectedSubjectId, setSelectedSubjectId] = useState("");
   const [inputScores, setInputScores] = useState<{ [studentId: string]: string }>({});
+  const [inputU1, setInputU1] = useState<{ [studentId: string]: string }>({});
+  const [inputU2, setInputU2] = useState<{ [studentId: string]: string }>({});
+  const [inputU3, setInputU3] = useState<{ [studentId: string]: string }>({});
+  const [inputHPG, setInputHPG] = useState<{ [studentId: string]: string }>({});
+  const [inputEOY, setInputEOY] = useState<{ [studentId: string]: string }>({});
   const [inputComments, setInputComments] = useState<{ [studentId: string]: string }>({});
+
+  // Grade Range Customizer States
+  const [gradeRanges, setGradeRanges] = useState<GradeRange[]>([]);
+  const [selectedScaleType, setSelectedScaleType] = useState<"PRIMARY" | "SECONDARY">("SECONDARY");
+  const [scaleRanges, setScaleRanges] = useState<GradeRange[]>([]);
+
+  // Next term fees customization states
+  const [designerNextTermFeesDay, setDesignerNextTermFeesDay] = useState<number>(150000);
+  const [designerNextTermFeesBoarding, setDesignerNextTermFeesBoarding] = useState<number>(350000);
 
   // Finance form states
   const [selectedFeeClassId, setSelectedFeeClassId] = useState("");
@@ -218,6 +266,9 @@ export default function SchoolPortal({ params }: PageProps) {
   const [cardCvv, setCardCvv] = useState("");
   const [cardOtp, setCardOtp] = useState("");
   const [momoTxUuid, setMomoTxUuid] = useState("");
+  const [momoSplitAmounts, setMomoSplitAmounts] = useState<number[]>([]);
+  const [momoSplitIndex, setMomoSplitIndex] = useState<number>(0);
+  const [momoCompletedSplits, setMomoCompletedSplits] = useState<{ amount: number; uuid: string }[]>([]);
 
   // SMS Broadcaster States
   const [smsCredits, setSmsCredits] = useState(500);
@@ -272,6 +323,37 @@ export default function SchoolPortal({ params }: PageProps) {
         setDesignerShowStudentPhoto(s.reportShowStudentPhoto !== false);
         setDesignerHeaderColor(s.reportHeaderColor || "#1e3a8a");
         setDesignerBorderType(s.reportBorderType || "double");
+
+        // Load custom grade ranges or pre-populate defaults
+        const ranges = await getGradeRanges(s.id);
+        if (ranges.length === 0) {
+          const defaultRanges = [
+            // SECONDARY (CBC Scale)
+            { systemType: "SECONDARY" as const, grade: "A", minMark: 80, maxMark: 100, achievementLevel: "Exceptional", descriptor: "Highly proficient in subject skills" },
+            { systemType: "SECONDARY" as const, grade: "B", minMark: 70, maxMark: 79.99, achievementLevel: "Outstanding", descriptor: "Consistently demonstrates subject skills" },
+            { systemType: "SECONDARY" as const, grade: "C", minMark: 55, maxMark: 69.99, achievementLevel: "Satisfactory", descriptor: "Demonstrates basic subject skills" },
+            { systemType: "SECONDARY" as const, grade: "D", minMark: 40, maxMark: 54.99, achievementLevel: "Basic", descriptor: "Beginning to develop subject skills" },
+            { systemType: "SECONDARY" as const, grade: "E", minMark: 0, maxMark: 39.99, achievementLevel: "Elementary", descriptor: "Needs guidance to develop skills" },
+            // PRIMARY (PLE Scale)
+            { systemType: "PRIMARY" as const, grade: "1", minMark: 90, maxMark: 100, achievementLevel: "Distinction", descriptor: "Outstanding performance" },
+            { systemType: "PRIMARY" as const, grade: "2", minMark: 80, maxMark: 89.99, achievementLevel: "Distinction", descriptor: "Very good performance" },
+            { systemType: "PRIMARY" as const, grade: "3", minMark: 70, maxMark: 79.99, achievementLevel: "Credit", descriptor: "Good performance" },
+            { systemType: "PRIMARY" as const, grade: "4", minMark: 60, maxMark: 69.99, achievementLevel: "Credit", descriptor: "Fairly good performance" },
+            { systemType: "PRIMARY" as const, grade: "5", minMark: 55, maxMark: 59.99, achievementLevel: "Credit", descriptor: "Average performance" },
+            { systemType: "PRIMARY" as const, grade: "6", minMark: 50, maxMark: 54.99, achievementLevel: "Credit", descriptor: "Satisfactory performance" },
+            { systemType: "PRIMARY" as const, grade: "7", minMark: 45, maxMark: 49.99, achievementLevel: "Pass", descriptor: "Pass level performance" },
+            { systemType: "PRIMARY" as const, grade: "8", minMark: 40, maxMark: 44.99, achievementLevel: "Pass", descriptor: "Weak pass performance" },
+            { systemType: "PRIMARY" as const, grade: "9", minMark: 0, maxMark: 39.99, achievementLevel: "Fail", descriptor: "Failure level performance" }
+          ];
+          const saved = await saveGradeRanges(s.id, defaultRanges);
+          setGradeRanges(saved);
+        } else {
+          setGradeRanges(ranges);
+        }
+
+        // Initialize design next term fees:
+        setDesignerNextTermFeesDay(s.reportNextTermFeesDay || 150000);
+        setDesignerNextTermFeesBoarding(s.reportNextTermFeesBoarding || 350000);
       }
       
       const isConnected = await checkDatabaseConnection();
@@ -310,6 +392,7 @@ export default function SchoolPortal({ params }: PageProps) {
       setExams(exms);
       setMarks(mrks);
       setUsers(usrs);
+      setGradeRanges(await getGradeRanges(schoolId));
 
       // Pre-populate dynamic Student/Staff ID Numbers
       const activeSchool = school || (await getSchoolBySubdomain(subdomain));
@@ -395,6 +478,49 @@ export default function SchoolPortal({ params }: PageProps) {
       loadAttendance(attendanceClassId, attendanceStreamId, attendanceDate);
     }
   }, [attendanceClassId, attendanceStreamId, attendanceDate]);
+
+  useEffect(() => {
+    if (!selectedExamId || !selectedSubjectId || !selectedClassId || !selectedStreamId) {
+      setInputScores({});
+      setInputU1({});
+      setInputU2({});
+      setInputU3({});
+      setInputHPG({});
+      setInputEOY({});
+      setInputComments({});
+      return;
+    }
+    
+    const relevantStudents = students.filter(st => st.classId === selectedClassId && st.streamId === selectedStreamId);
+    const newScores: { [key: string]: string } = {};
+    const newU1: { [key: string]: string } = {};
+    const newU2: { [key: string]: string } = {};
+    const newU3: { [key: string]: string } = {};
+    const newHPG: { [key: string]: string } = {};
+    const newEOY: { [key: string]: string } = {};
+    const newComments: { [key: string]: string } = {};
+
+    relevantStudents.forEach(st => {
+      const m = marks.find(mk => mk.studentId === st.id && mk.examPaperId === selectedExamId && mk.subjectId === selectedSubjectId);
+      if (m) {
+        newScores[st.id] = String(m.score);
+        newU1[st.id] = m.u1 !== null && m.u1 !== undefined ? String(m.u1) : "";
+        newU2[st.id] = m.u2 !== null && m.u2 !== undefined ? String(m.u2) : "";
+        newU3[st.id] = m.u3 !== null && m.u3 !== undefined ? String(m.u3) : "";
+        newHPG[st.id] = m.hpg !== null && m.hpg !== undefined ? String(m.hpg) : "";
+        newEOY[st.id] = m.eoy !== null && m.eoy !== undefined ? String(m.eoy) : "";
+        newComments[st.id] = m.comments || "";
+      }
+    });
+
+    setInputScores(newScores);
+    setInputU1(newU1);
+    setInputU2(newU2);
+    setInputU3(newU3);
+    setInputHPG(newHPG);
+    setInputEOY(newEOY);
+    setInputComments(newComments);
+  }, [selectedExamId, selectedSubjectId, selectedClassId, selectedStreamId, marks, students]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -546,10 +672,12 @@ export default function SchoolPortal({ params }: PageProps) {
       studentNumber: newStudentNumber,
       type: newStudentType,
       photo: newStudentPhoto || null,
+      lin: newStudentLin || null,
     });
     setNewStudentName("");
     setNewStudentNumber("");
     setNewStudentPhoto("");
+    setNewStudentLin("");
     await loadSchoolData(school.id);
     alert("Student registered successfully!");
   };
@@ -575,6 +703,7 @@ export default function SchoolPortal({ params }: PageProps) {
         const name = parts[0];
         let studentNumber = parts[1] || "";
         let typeStr = parts[2] || "DAY";
+        let lin = parts[3] || "";
         if (!studentNumber) {
           existingCount++;
           const initials = school.name.split(/\s+/).map(w => w[0]).join("").toUpperCase().replace(/[^A-Z]/g, "") || subdomain.toUpperCase();
@@ -592,6 +721,7 @@ export default function SchoolPortal({ params }: PageProps) {
           studentNumber,
           type: residencyType,
           photo: null,
+          lin: lin || null,
         });
         successCount++;
       }
@@ -690,26 +820,25 @@ export default function SchoolPortal({ params }: PageProps) {
     alert("Exam Paper scheduled!");
   };
 
-  // Compute PLE Grade (1 to 9) from raw numeric score
-  const computePLEGrade = (score: number): string => {
-    if (score >= 90) return "1"; // D1
-    if (score >= 80) return "2"; // D2
-    if (score >= 70) return "3"; // C3
-    if (score >= 60) return "4"; // C4
-    if (score >= 55) return "5"; // C5
-    if (score >= 50) return "6"; // C6
-    if (score >= 45) return "7"; // P7
-    if (score >= 40) return "8"; // P8
-    return "9"; // F9
-  };
-
-  // Compute CBC competence letter (A, B, C, D, E)
-  const computeCBCGrade = (score: number): string => {
-    if (score >= 80) return "A";
-    if (score >= 70) return "B";
-    if (score >= 55) return "C";
-    if (score >= 40) return "D";
-    return "E";
+  // Get student's rank/position in their class for a specific exam
+  const getStudentRankInClass = (studentId: string, classId: string, examPaperId: string) => {
+    const classStudents = students.filter(s => s.classId === classId);
+    const studentScores = classStudents.map(st => {
+      const stMarks = marks.filter(m => m.studentId === st.id && m.examPaperId === examPaperId);
+      if (stMarks.length === 0) return { studentId: st.id, total: -1, count: 0 };
+      const sum = stMarks.reduce((acc, m) => acc + m.score, 0);
+      return { studentId: st.id, total: sum, count: stMarks.length };
+    });
+    
+    const gradedStudents = studentScores.filter(s => s.count > 0);
+    gradedStudents.sort((a, b) => b.total - a.total);
+    
+    const rankIndex = gradedStudents.findIndex(s => s.studentId === studentId);
+    if (rankIndex === -1) return "N/A";
+    return {
+      position: rankIndex + 1,
+      totalCount: gradedStudents.length
+    };
   };
 
   // Save marks for a class
@@ -722,33 +851,92 @@ export default function SchoolPortal({ params }: PageProps) {
     const currentExam = exams.find(ex => ex.id === selectedExamId);
     if (!currentExam) return;
 
+    const relevantStudents = students.filter(st => st.classId === selectedClassId && st.streamId === selectedStreamId);
+
     try {
-      for (const studentId of Object.keys(inputScores)) {
-        const rawScore = parseFloat(inputScores[studentId]);
-        if (isNaN(rawScore) || rawScore < 0 || rawScore > currentExam.maxMarks) continue;
+      for (const st of relevantStudents) {
+        const studentId = st.id;
+        const comment = inputComments[studentId] || "";
 
-        let compGrade = "";
         if (currentExam.isNewCurriculum) {
-          compGrade = computeCBCGrade(rawScore);
-        } else {
-          compGrade = computePLEGrade(rawScore);
-        }
+          const u1Str = inputU1[studentId];
+          const u2Str = inputU2[studentId];
+          const u3Str = inputU3[studentId];
+          const hpgStr = inputHPG[studentId];
+          const eoyStr = inputEOY[studentId];
 
-        await addMark({
-          studentId,
-          examPaperId: selectedExamId,
-          subjectId: selectedSubjectId,
-          score: rawScore,
-          competencyGrade: compGrade,
-          comments: inputComments[studentId] || "Good attempt",
-          createdById: currentUser.id,
-        });
+          // If all fields are empty, don't save anything
+          if (!u1Str && !u2Str && !u3Str && !hpgStr && !eoyStr) continue;
+
+          const u1Val = u1Str ? parseFloat(u1Str) : null;
+          const u2Val = u2Str ? parseFloat(u2Str) : null;
+          const u3Val = u3Str ? parseFloat(u3Str) : null;
+          const hpgVal = hpgStr ? parseFloat(hpgStr) : null;
+          const eoyVal = eoyStr ? parseFloat(eoyStr) : null;
+
+          // Validation
+          if (u1Val !== null && (isNaN(u1Val) || u1Val < 0 || u1Val > 3)) continue;
+          if (u2Val !== null && (isNaN(u2Val) || u2Val < 0 || u2Val > 3)) continue;
+          if (u3Val !== null && (isNaN(u3Val) || u3Val < 0 || u3Val > 3)) continue;
+          if (hpgVal !== null && (isNaN(hpgVal) || hpgVal < 0 || hpgVal > 3)) continue;
+          if (eoyVal !== null && (isNaN(eoyVal) || eoyVal < 0 || eoyVal > 80)) continue;
+
+          const formativeSum = (u1Val || 0) + (u2Val || 0) + (u3Val || 0) + (hpgVal || 0);
+          const avgFormative = formativeSum / 4;
+          const caScore = (avgFormative / 3) * 20;
+          const finalTotal = caScore + (eoyVal || 0);
+
+          const gradeObj = computeGradeFromRanges(finalTotal, "SECONDARY", gradeRanges);
+          const compGrade = gradeObj.grade;
+          const finalComment = comment || gradeObj.descriptor || "Satisfactory progress";
+
+          await addMark({
+            studentId,
+            examPaperId: selectedExamId,
+            subjectId: selectedSubjectId,
+            score: finalTotal,
+            competencyGrade: compGrade,
+            comments: finalComment,
+            createdById: currentUser.id,
+            u1: u1Val,
+            u2: u2Val,
+            u3: u3Val,
+            hpg: hpgVal,
+            eoy: eoyVal
+          });
+        } else {
+          const scoreStr = inputScores[studentId];
+          if (!scoreStr) continue;
+
+          const rawScore = parseFloat(scoreStr);
+          if (isNaN(rawScore) || rawScore < 0 || rawScore > currentExam.maxMarks) continue;
+
+          const gradeObj = computeGradeFromRanges(rawScore, "PRIMARY", gradeRanges);
+          const compGrade = gradeObj.grade;
+          const finalComment = comment || gradeObj.descriptor || "Good effort";
+
+          await addMark({
+            studentId,
+            examPaperId: selectedExamId,
+            subjectId: selectedSubjectId,
+            score: rawScore,
+            competencyGrade: compGrade,
+            comments: finalComment,
+            createdById: currentUser.id,
+          });
+        }
       }
       alert("Marks saved successfully!");
       await loadSchoolData(school!.id);
       setInputScores({});
+      setInputU1({});
+      setInputU2({});
+      setInputU3({});
+      setInputHPG({});
+      setInputEOY({});
       setInputComments({});
     } catch (err) {
+      console.error(err);
       alert("Error saving marks");
     }
   };
@@ -934,6 +1122,22 @@ export default function SchoolPortal({ params }: PageProps) {
     setCardOtp("");
     setMomoProvider("MTN");
     setShowMoMoModal(true);
+
+    // Split payment tracking (max 200k per transaction)
+    const maxLimit = 200000;
+    const splits: number[] = [];
+    let tempAmount = amount;
+    while (tempAmount > maxLimit) {
+      splits.push(maxLimit);
+      tempAmount -= maxLimit;
+    }
+    if (tempAmount > 0) {
+      splits.push(tempAmount);
+    }
+    setMomoSplitAmounts(splits);
+    setMomoSplitIndex(0);
+    setMomoCompletedSplits([]);
+    setMomoTxUuid("");
   };
 
   const executeSimulatedMoMo = async () => {
@@ -950,13 +1154,17 @@ export default function SchoolPortal({ params }: PageProps) {
       return;
     }
 
+    // Determine the current split amount to pay in this transaction
+    const currentSplitAmount = momoSplitAmounts[momoSplitIndex] || amountVal;
+
     setMomoStep(1); // Connecting gateway
     try {
       const res = await initiateMarzpayCollection(
-        amountVal,
+        currentSplitAmount,
         momoProvider === "CARD" ? "card" : "mobile_money",
         momoProvider === "CARD" ? undefined : momoPhone,
-        momoPurpose === "PACKAGE" ? `Plan Renewal for ${school.name}` : `Tuition Payment for Student ID ${momoStudentId}`
+        (momoPurpose === "PACKAGE" ? `Plan Renewal for ${school.name}` : `Tuition Payment for Student ID ${momoStudentId}`) +
+        (momoSplitAmounts.length > 1 ? ` (Part ${momoSplitIndex + 1}/${momoSplitAmounts.length})` : "")
       );
 
       if (res && res.status === "success") {
@@ -984,6 +1192,7 @@ export default function SchoolPortal({ params }: PageProps) {
   };
 
   const checkPaymentStatus = async () => {
+    if (!school) return;
     if (!momoTxUuid) {
       alert("No transaction reference found.");
       return;
@@ -992,47 +1201,94 @@ export default function SchoolPortal({ params }: PageProps) {
     try {
       const res = await checkMarzpayCollectionStatus(momoTxUuid);
       if (res && res.status === "success") {
-        // Complete the payment locally!
-        try {
-          if (!school) return;
-          if (momoPurpose === "TUITION" && momoStudentId) {
-            const stud = students.find(s => s.id === momoStudentId);
-            if (stud) {
-              const fs = feeStructures.find(f => f.classId === stud.classId);
-              const totalDue = stud.type === "BOARDING" 
-                ? (fs?.tuitionAmount || 0) + (fs?.boardingAmount || 0)
-                : (fs?.tuitionAmount || 0);
-
-              const prevPayment = studentPayments.find(p => p.studentId === momoStudentId);
-              const alreadyPaid = prevPayment ? prevPayment.amountPaid : 0;
-              const newTotalPaid = alreadyPaid + parseFloat(momoAmount);
-              const balance = Math.max(0, totalDue - newTotalPaid);
-
-              await recordStudentPayment({
-                studentId: momoStudentId,
-                term: 1,
-                year: 2026,
-                amountPaid: newTotalPaid,
-                balance,
-              });
+        // Complete the current split payment locally or trigger next split!
+        const completedAmount = momoSplitAmounts[momoSplitIndex] || parseFloat(momoAmount);
+        
+        if (momoSplitIndex < momoSplitAmounts.length - 1) {
+          // Record this split
+          const newCompleted = [...momoCompletedSplits, { amount: completedAmount, uuid: momoTxUuid }];
+          setMomoCompletedSplits(newCompleted);
+          
+          // Move to next split index
+          const nextIdx = momoSplitIndex + 1;
+          setMomoSplitIndex(nextIdx);
+          
+          // Initiate the next split payment
+          setMomoStep(1); // Connecting gateway
+          try {
+            const nextAmount = momoSplitAmounts[nextIdx];
+            const nextRes = await initiateMarzpayCollection(
+              nextAmount,
+              momoProvider === "CARD" ? "card" : "mobile_money",
+              momoProvider === "CARD" ? undefined : momoPhone,
+              (momoPurpose === "PACKAGE" ? `Plan Renewal for ${school.name}` : `Tuition Payment for Student ID ${momoStudentId}`) +
+              ` (Part ${nextIdx + 1}/${momoSplitAmounts.length})`
+            );
+            
+            if (nextRes && nextRes.status === "success") {
+              setMomoTxUuid(nextRes.uuid);
+              if (momoProvider === "CARD") {
+                if (nextRes.redirect_url) {
+                  window.location.href = nextRes.redirect_url;
+                } else {
+                  alert(`Card redirect URL not provided by gateway for Part ${nextIdx + 1}.`);
+                  setMomoStep(0);
+                }
+              } else {
+                setMomoStep(2); // Waiting for Approval
+                alert(`Part ${nextIdx} payment succeeded! We are now sending a push prompt for Part ${nextIdx + 1} (${nextAmount.toLocaleString()} UGX) to your phone. Please approve it.`);
+              }
+            } else {
+              alert(nextRes?.message || `Failed to initiate Part ${nextIdx + 1} of payment.`);
+              setMomoStep(0);
             }
-          } else if (momoPurpose === "PACKAGE") {
-            await updateSchoolStatus(school.id, "ACTIVE");
-            await createPayment({
-              schoolId: school.id,
-              amount: parseFloat(momoAmount),
-              method: momoProvider === "CARD" ? "CARD" : "MOBILE_MONEY",
-              status: "COMPLETED",
-              txRef: `TX-MARZ-${momoTxUuid.substring(0, 8).toUpperCase()}`
-            });
-            const updatedSch = await getSchoolBySubdomain(subdomain);
-            if (updatedSch) setSchool(updatedSch);
+          } catch (err: any) {
+            alert(`Error initiating Part ${nextIdx + 1} of payment: ` + (err.message || err));
+            setMomoStep(0);
           }
-          setMomoStep(4); // Success!
-          await loadSchoolData(school.id);
-        } catch (err: any) {
-          alert("Error updating transaction records: " + (err.message || err));
-          setMomoStep(2);
+        } else {
+          // All splits completed! Complete the payment locally!
+          try {
+            if (!school) return;
+            if (momoPurpose === "TUITION" && momoStudentId) {
+              const stud = students.find(s => s.id === momoStudentId);
+              if (stud) {
+                const fs = feeStructures.find(f => f.classId === stud.classId);
+                const totalDue = stud.type === "BOARDING" 
+                  ? (fs?.tuitionAmount || 0) + (fs?.boardingAmount || 0)
+                  : (fs?.tuitionAmount || 0);
+
+                const prevPayment = studentPayments.find(p => p.studentId === momoStudentId);
+                const alreadyPaid = prevPayment ? prevPayment.amountPaid : 0;
+                const newTotalPaid = alreadyPaid + parseFloat(momoAmount);
+                const balance = Math.max(0, totalDue - newTotalPaid);
+
+                await recordStudentPayment({
+                  studentId: momoStudentId,
+                  term: 1,
+                  year: 2026,
+                  amountPaid: newTotalPaid,
+                  balance,
+                });
+              }
+            } else if (momoPurpose === "PACKAGE") {
+              await updateSchoolStatus(school.id, "ACTIVE");
+              await createPayment({
+                schoolId: school.id,
+                amount: parseFloat(momoAmount),
+                method: momoProvider === "CARD" ? "CARD" : "MOBILE_MONEY",
+                status: "COMPLETED",
+                txRef: `TX-MARZ-${momoTxUuid.substring(0, 8).toUpperCase()}`
+              });
+              const updatedSch = await getSchoolBySubdomain(subdomain);
+              if (updatedSch) setSchool(updatedSch);
+            }
+            setMomoStep(4); // Success!
+            await loadSchoolData(school.id);
+          } catch (err: any) {
+            alert("Error updating transaction records: " + (err.message || err));
+            setMomoStep(2);
+          }
         }
       } else if (res && res.status === "failed") {
         alert("Payment failed or was declined by user.");
@@ -2353,6 +2609,16 @@ export default function SchoolPortal({ params }: PageProps) {
                       </select>
                     </div>
                   </div>
+                  <div className="form-group">
+                    <label className="form-label">Learner Identification Number (LIN)</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      placeholder="e.g. LIN-12345678" 
+                      value={newStudentLin}
+                      onChange={(e) => setNewStudentLin(e.target.value)}
+                    />
+                  </div>
                   <div className="form-group" style={{ marginBottom: "16px" }}>
                     <label className="form-label">Student Portrait Photo (Required)</label>
                     <input 
@@ -2453,6 +2719,7 @@ export default function SchoolPortal({ params }: PageProps) {
                                       setEditStudentStreamId(st.streamId);
                                       setEditStudentType(st.type);
                                       setEditStudentPhoto(st.photo || "");
+                                      setEditStudentLin(st.lin || "");
                                       setShowEditStudentModal(true);
                                     }}
                                     className="btn btn-outline" 
@@ -4349,7 +4616,16 @@ export default function SchoolPortal({ params }: PageProps) {
                 {momoProvider !== "CARD" ? (
                   <div>
                     <p style={{ fontSize: "14px", marginBottom: "16px", opacity: 0.9 }}>
-                      Enter your Mobile Money registered phone number to initiate the secure payment prompt of <strong>{parseFloat(momoAmount).toLocaleString()} UGX</strong>.
+                      {momoSplitAmounts.length > 1 ? (
+                        <>
+                          Enter your Mobile Money registered phone number to initiate the secure payment of <strong>{parseFloat(momoAmount).toLocaleString()} UGX</strong>.<br/>
+                          <span style={{ fontSize: "12px", opacity: 0.85, fontWeight: "normal", display: "inline-block", marginTop: "4px" }}>
+                            ⚠️ Due to gateway limits, this payment will be split into <strong>{momoSplitAmounts.length} transactions</strong> of max 200,000 UGX each.
+                          </span>
+                        </>
+                      ) : (
+                        `Enter your Mobile Money registered phone number to initiate the secure payment prompt of ${parseFloat(momoAmount).toLocaleString()} UGX.`
+                      )}
                     </p>
                     <div className="form-group">
                       <label className="form-label" style={{ color: "inherit" }}>Select Service Provider</label>
@@ -4378,7 +4654,16 @@ export default function SchoolPortal({ params }: PageProps) {
                 ) : (
                   <div>
                     <p style={{ fontSize: "14px", marginBottom: "16px", opacity: 0.9 }}>
-                      Enter card details to process the transaction of <strong>{parseFloat(momoAmount).toLocaleString()} UGX</strong>.
+                      {momoSplitAmounts.length > 1 ? (
+                        <>
+                          Enter card details to process the transaction of <strong>{parseFloat(momoAmount).toLocaleString()} UGX</strong>.<br/>
+                          <span style={{ fontSize: "12px", opacity: 0.85, fontWeight: "normal", display: "inline-block", marginTop: "4px" }}>
+                            ⚠️ Due to gateway limits, this payment will be split into <strong>{momoSplitAmounts.length} transactions</strong> of max 200,000 UGX each.
+                          </span>
+                        </>
+                      ) : (
+                        `Enter card details to process the transaction of ${parseFloat(momoAmount).toLocaleString()} UGX.`
+                      )}
                     </p>
                     <div className="form-group">
                       <label className="form-label" style={{ color: "inherit" }}>Cardholder Full Name</label>
@@ -4456,9 +4741,16 @@ export default function SchoolPortal({ params }: PageProps) {
               <div>
                 {momoProvider !== "CARD" ? (
                   <div style={{ background: "#27272a", color: "#22c55e", fontFamily: "monospace", padding: "16px", borderRadius: "8px", border: "2px solid #3f3f46", fontSize: "14px", marginBottom: "20px" }}>
-                    <p style={{ marginBottom: "8px" }}>[USSD Push Prompt Sent]</p>
-                    <p style={{ marginBottom: "16px" }}>
-                      A mobile money push collection request of {parseFloat(momoAmount).toLocaleString()} UGX has been sent to your phone. Please approve the transaction by entering your PIN and click "Check Status" below.
+                    <p style={{ marginBottom: "12px" }}>[USSD Push Prompt Sent]</p>
+                    <p style={{ marginBottom: "16px", lineHeight: "1.4" }}>
+                      {momoSplitAmounts.length > 1 ? (
+                        <>
+                          A mobile money push collection request for <strong>Part {momoSplitIndex + 1} of {momoSplitAmounts.length} ({momoSplitAmounts[momoSplitIndex]?.toLocaleString()} UGX)</strong> has been sent to your phone (total payment: {parseFloat(momoAmount).toLocaleString()} UGX).<br/><br/>
+                          Please approve it by entering your PIN and click "Check Status" below.
+                        </>
+                      ) : (
+                        `A mobile money push collection request of ${parseFloat(momoAmount).toLocaleString()} UGX has been sent to your phone. Please approve the transaction by entering your PIN and click "Check Status" below.`
+                      )}
                     </p>
                     <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "12px" }}>
                       <button 
@@ -4484,7 +4776,13 @@ export default function SchoolPortal({ params }: PageProps) {
                       <strong style={{ fontSize: "14px" }}>Card Transaction Status</strong>
                     </div>
                     <p style={{ marginBottom: "14px", lineHeight: "1.4" }}>
-                      If you have completed the payment on the secure card gateway, you can click verify below.
+                      {momoSplitAmounts.length > 1 ? (
+                        <>
+                          If you have completed the payment of <strong>Part {momoSplitIndex + 1} of {momoSplitAmounts.length} ({momoSplitAmounts[momoSplitIndex]?.toLocaleString()} UGX)</strong> on the secure card gateway, you can click verify below.
+                        </>
+                      ) : (
+                        "If you have completed the payment on the secure card gateway, you can click verify below."
+                      )}
                     </p>
                     <div style={{ display: "flex", gap: "10px" }}>
                       <button 
@@ -4568,6 +4866,7 @@ export default function SchoolPortal({ params }: PageProps) {
             <div style={{ display: "flex", flexDirection: "column", gap: "12px", background: "#f8fafc", padding: "16px", borderRadius: "8px", border: "1px solid var(--border)", fontSize: "14px" }}>
               <div><strong>Class:</strong> {classes.find(c => c.id === selectedViewStudent.classId)?.name || "N/A"}</div>
               <div><strong>Stream:</strong> {streams.find(s => s.id === selectedViewStudent.streamId)?.name || "N/A"}</div>
+              <div><strong>LIN (Learner ID):</strong> {selectedViewStudent.lin || "Not Registered"}</div>
               <div>
                 <strong>Attendance Type:</strong> &nbsp;
                 <span className={`badge ${selectedViewStudent.type === "BOARDING" ? "badge-warning" : "badge-primary"}`}>
@@ -4601,7 +4900,8 @@ export default function SchoolPortal({ params }: PageProps) {
                 classId: editStudentClassId,
                 streamId: editStudentStreamId,
                 type: editStudentType,
-                photo: editStudentPhoto || null
+                photo: editStudentPhoto || null,
+                lin: editStudentLin || null
               });
               setShowEditStudentModal(false);
               await loadSchoolData(school!.id);
@@ -4669,6 +4969,17 @@ export default function SchoolPortal({ params }: PageProps) {
                     <option value="BOARDING">Boarding Student</option>
                   </select>
                 </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Learner Identification Number (LIN)</label>
+                <input 
+                  type="text" 
+                  className="input-field" 
+                  placeholder="e.g. LIN-12345678" 
+                  value={editStudentLin}
+                  onChange={(e) => setEditStudentLin(e.target.value)}
+                />
               </div>
 
               <div className="form-group">

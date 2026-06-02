@@ -32,6 +32,8 @@ export interface School {
   reportShowStudentPhoto?: boolean | null;
   reportHeaderColor?: string | null;
   reportBorderType?: string | null;
+  reportNextTermFeesDay?: number | null;
+  reportNextTermFeesBoarding?: number | null;
 }
 
 export interface User {
@@ -68,6 +70,7 @@ export interface Student {
   studentNumber: string;
   type: "DAY" | "BOARDING";
   photo?: string | null;
+  lin?: string | null;
 }
 
 export interface Subject {
@@ -106,6 +109,22 @@ export interface Mark {
   comments?: string;
   createdAt: Date;
   createdById: string;
+  u1?: number | null;
+  u2?: number | null;
+  u3?: number | null;
+  hpg?: number | null;
+  eoy?: number | null;
+}
+
+export interface GradeRange {
+  id: string;
+  schoolId: string;
+  systemType: "PRIMARY" | "SECONDARY";
+  grade: string;
+  minMark: number;
+  maxMark: number;
+  achievementLevel: string;
+  descriptor: string;
 }
 
 export interface Payment {
@@ -320,6 +339,8 @@ export async function updateSchoolMetadata(
     reportShowStudentPhoto?: boolean | null;
     reportHeaderColor?: string | null;
     reportBorderType?: string | null;
+    reportNextTermFeesDay?: number | null;
+    reportNextTermFeesBoarding?: number | null;
   }
 ): Promise<School> {
   if (await hasDB()) {
@@ -583,7 +604,17 @@ export async function addMark(data: Omit<Mark, "id" | "createdAt">): Promise<Mar
     if (oldMark) {
       return (await prisma.mark.update({
         where: { id: oldMark.id },
-        data: { score: data.score, competencyGrade: data.competencyGrade, comments: data.comments, createdById: data.createdById }
+        data: { 
+          score: data.score, 
+          competencyGrade: data.competencyGrade, 
+          comments: data.comments, 
+          createdById: data.createdById,
+          u1: data.u1 || null,
+          u2: data.u2 || null,
+          u3: data.u3 || null,
+          hpg: data.hpg || null,
+          eoy: data.eoy || null
+        }
       })) as Mark;
     }
     return (await prisma.mark.create({
@@ -595,6 +626,11 @@ export async function addMark(data: Omit<Mark, "id" | "createdAt">): Promise<Mar
         competencyGrade: data.competencyGrade,
         comments: data.comments,
         createdById: data.createdById,
+        u1: data.u1 || null,
+        u2: data.u2 || null,
+        u3: data.u3 || null,
+        hpg: data.hpg || null,
+        eoy: data.eoy || null
       },
     })) as Mark;
   }
@@ -935,4 +971,41 @@ export async function sendSmsBroadcast(schoolId: string, group: string, message:
       message: err.message
     };
   }
+}
+
+// --- Grade Ranges Custom Settings ---
+export async function getGradeRanges(schoolId: string): Promise<GradeRange[]> {
+  if (await hasDB()) {
+    const dbRanges = await prisma.gradeRange.findMany({
+      where: { schoolId },
+      orderBy: [{ systemType: "asc" }, { minMark: "desc" }]
+    });
+    return dbRanges as GradeRange[];
+  }
+  const db = getLocalDB();
+  if (!db.gradeRanges) {
+    db.gradeRanges = [];
+    saveLocalDB(db);
+  }
+  return db.gradeRanges.filter((r: GradeRange) => r.schoolId === schoolId);
+}
+
+export async function saveGradeRanges(schoolId: string, ranges: Omit<GradeRange, "id" | "schoolId">[]): Promise<GradeRange[]> {
+  if (await hasDB()) {
+    await prisma.gradeRange.deleteMany({ where: { schoolId } });
+    await prisma.gradeRange.createMany({
+      data: ranges.map(r => ({ ...r, schoolId }))
+    });
+    return (await prisma.gradeRange.findMany({
+      where: { schoolId },
+      orderBy: [{ systemType: "asc" }, { minMark: "desc" }]
+    })) as GradeRange[];
+  }
+  const db = getLocalDB();
+  if (!db.gradeRanges) db.gradeRanges = [];
+  db.gradeRanges = db.gradeRanges.filter((r: GradeRange) => r.schoolId !== schoolId);
+  const newRanges = ranges.map(r => ({ ...r, schoolId, id: "grade-" + uuid() }));
+  db.gradeRanges.push(...newRanges);
+  saveLocalDB(db);
+  return newRanges;
 }

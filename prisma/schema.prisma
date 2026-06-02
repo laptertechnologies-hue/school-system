@@ -46,6 +46,9 @@ model School {
   reportShowStudentPhoto Boolean? @default(true)
   reportHeaderColor   String?   @default("#1e3a8a")
   reportBorderType    String?   @default("double")
+  reportNextTermFeesDay Float?  @default(150000)
+  reportNextTermFeesBoarding Float? @default(350000)
+  gradeRanges         GradeRange[]
 }
 
 model User {
@@ -99,6 +102,7 @@ model Student {
   studentNumber    String    // Unique inside the school
   type             String    // "DAY", "BOARDING"
   photo            String?
+  lin              String?
   marks            Mark[]
   studentPayments  StudentPayment[]
   attendances      Attendance[]
@@ -153,6 +157,11 @@ model Mark {
   score           Float     // Numeric score out of examPaper.maxMarks
   competencyGrade String?   // A, B, C, D, E (For secondary CBC) or computed PLE Aggregate grade (1-8)
   comments        String?
+  u1              Float?
+  u2              Float?
+  u3              Float?
+  hpg             Float?
+  eoy             Float?
   createdAt       DateTime  @default(now())
   createdById     String
   createdBy       User      @relation("MarkCreator", fields: [createdById], references: [id])
@@ -210,4 +219,16 @@ model Attendance {
   status    String   // "PRESENT", "ABSENT", "SICK"
   term      Int
   year      Int
+}
+
+model GradeRange {
+  id               String   @id @default(uuid())
+  schoolId         String
+  school           School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  systemType       String   // "PRIMARY" or "SECONDARY"
+  grade            String
+  minMark          Float
+  maxMark          Float
+  achievementLevel String
+  descriptor       String   @default("")
 }

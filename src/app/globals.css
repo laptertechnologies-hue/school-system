@@ -365,24 +365,78 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Print Styles for Report Cards */
 @media print {
+  .no-print {
+    display: none !important;
+  }
+
   body * {
     visibility: hidden !important;
   }
+
   #printable-report, #printable-report * {
     visibility: visible !important;
   }
-  #printable-report {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
+
+  /* Reset outer layouts to collapse empty space during print */
+  body, 
+  .dashboard-layout, 
+  .main-workspace, 
+  .grid,
+  .main-workspace > div {
+    display: block !important;
+    position: static !important;
     width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
     border: none !important;
     box-shadow: none !important;
+    background: white !important;
+    overflow: visible !important;
+  }
+
+  /* Make sure the card holding the preview has no padding or border in print */
+  .main-workspace .card {
+    border: none !important;
+    box-shadow: none !important;
     background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    height: auto !important;
+  }
+
+  /* Target the report card itself */
+  #printable-report {
+    display: block !important;
+    position: relative !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 40px !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    background: white !important;
+    color: black !important;
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
+    visibility: visible !important;
+  }
+
+  /* Ensure table rows do not break page boundaries awkwardly */
+  table {
+    page-break-inside: auto !important;
+    width: 100% !important;
+  }
+  tr {
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
+  }
+  thead {
+    display: table-header-group !important;
   }
 }
+
 
 /* Mobile Sidebar Responsive Styles */
 @media (max-width: 768px) {

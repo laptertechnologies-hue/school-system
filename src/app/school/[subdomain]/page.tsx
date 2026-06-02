@@ -1321,7 +1321,7 @@ export default function SchoolPortal({ params }: PageProps) {
       {/* Sidebar navigation */}
       <aside 
         style={{ width: "260px", background: "linear-gradient(180deg, var(--primary) 0%, var(--primary-hover) 100%)", color: "white", display: "flex", flexDirection: "column", height: "100vh", position: "sticky", top: 0 }} 
-        className={`sidebar-nav flex-mobile-col ${sidebarOpen ? "open" : ""}`}
+        className={`sidebar-nav flex-mobile-col no-print ${sidebarOpen ? "open" : ""}`}
       >
         <div style={{ padding: "24px", borderBottom: "1px solid rgba(255, 255, 255, 0.15)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -1569,7 +1569,7 @@ export default function SchoolPortal({ params }: PageProps) {
       <div className="workspace-container" style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
         
         {/* Mobile Header Bar */}
-        <div className="mobile-header" style={{ display: "none" }}>
+        <div className="mobile-header no-print" style={{ display: "none" }}>
           <button 
             onClick={() => setSidebarOpen(true)} 
             className="btn btn-outline" 
@@ -2707,13 +2707,13 @@ export default function SchoolPortal({ params }: PageProps) {
         {/* TAB 5: REPORT CARDS */}
         {activeTab === "reports" && (
           <div>
-            <h2 style={{ marginBottom: "20px" }}>Student Report Cards</h2>
-            <p style={{ color: "#64748b", marginBottom: "30px" }}>Select a class to generate report cards. Click on a student to preview and print their official report.</p>
+            <h2 className="no-print" style={{ marginBottom: "20px" }}>Student Report Cards</h2>
+            <p className="no-print" style={{ color: "#64748b", marginBottom: "30px" }}>Select a class to generate report cards. Click on a student to preview and print their official report.</p>
 
             <div className="grid grid-cols-3 gap-3">
               
               {/* Select Panel */}
-              <div className="card">
+              <div className="card no-print">
                 <h4 style={{ marginBottom: "16px" }}>Filter Students</h4>
                 <div className="form-group">
                   <label className="form-label">Select Class</label>
@@ -2759,7 +2759,7 @@ export default function SchoolPortal({ params }: PageProps) {
                 {selectedReportStudent ? (
                   <div>
                     {/* Header Controls */}
-                    <div className="flex justify-between align-center" style={{ marginBottom: "24px", borderBottom: "1px solid var(--border)", paddingBottom: "16px" }}>
+                    <div className="flex justify-between align-center no-print" style={{ marginBottom: "24px", borderBottom: "1px solid var(--border)", paddingBottom: "16px" }}>
                       <h3>Preview Report Card</h3>
                       <button onClick={triggerPrint} className="btn btn-primary">
                         <Printer size={16} /> Print/Save PDF

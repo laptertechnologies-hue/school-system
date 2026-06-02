@@ -406,8 +406,8 @@ export default function MarketingPage() {
                     <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="var(--primary)" /> Lower Secondary CBC Tracking</li>
                     <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="var(--primary)" /> Automated Report Card PDFs</li>
                     <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="var(--primary)" /> Create accounts for all teachers (No Limit)</li>
-                    <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="var(--primary)" /> School Financial Management</li>
-                    <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="var(--primary)" /> Parent Billing & Ledger</li>
+                    <li style={{ color: "#94a3b8", textDecoration: "line-through", display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="#cbd5e1" /> School Financial Management</li>
+                    <li style={{ color: "#94a3b8", textDecoration: "line-through", display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="#cbd5e1" /> Parent Billing & Ledger</li>
                   </ul>
                   <button onClick={() => { setPackageType("BASIC"); setActiveTab("register"); }} className="btn btn-outline hover-scale" style={{ width: "100%", marginTop: "20px", color: "var(--primary)", borderColor: "var(--primary)" }}>Choose Basic Plan</button>
                 </div>

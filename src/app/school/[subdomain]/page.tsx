@@ -7,7 +7,8 @@ import {
   createClass, createStream, createUser, createStudent, createSubject, createExamPaper, addMark,
   createFeeStructure, recordStudentPayment, createExpense, recordAttendance, promoteStudents,
   processTeacherSalary, createPayment, getPayments, updateSchoolStatus, updateSchoolMetadata,
-  initiateMarzpayCollection, checkMarzpayCollectionStatus, sendSmsBroadcast
+  initiateMarzpayCollection, checkMarzpayCollectionStatus, sendSmsBroadcast,
+  updateStudent, deleteStudent, updateUser, deleteUser
 } from "../../../lib/services";
 import { Database, CreditCard, Building2, CheckCircle, MessageSquare, Sliders } from "lucide-react";
 import { 
@@ -88,6 +89,37 @@ export default function SchoolPortal({ params }: PageProps) {
   const [newStudentClassId, setNewStudentClassId] = useState("");
   const [newStudentStreamId, setNewStudentStreamId] = useState("");
   const [newStudentType, setNewStudentType] = useState<"DAY" | "BOARDING">("DAY");
+  const [newStudentPhoto, setNewStudentPhoto] = useState("");
+
+  const [newTeacherPhoto, setNewTeacherPhoto] = useState("");
+  const [newTeacherStaffNumber, setNewTeacherStaffNumber] = useState("");
+
+  // Modals view/edit states for Students
+  const [selectedViewStudent, setSelectedViewStudent] = useState<Student | null>(null);
+  const [showViewStudentModal, setShowViewStudentModal] = useState(false);
+  const [selectedEditStudent, setSelectedEditStudent] = useState<Student | null>(null);
+  const [showEditStudentModal, setShowEditStudentModal] = useState(false);
+
+  // Edit student inputs
+  const [editStudentName, setEditStudentName] = useState("");
+  const [editStudentNumber, setEditStudentNumber] = useState("");
+  const [editStudentClassId, setEditStudentClassId] = useState("");
+  const [editStudentStreamId, setEditStudentStreamId] = useState("");
+  const [editStudentType, setEditStudentType] = useState<"DAY" | "BOARDING">("DAY");
+  const [editStudentPhoto, setEditStudentPhoto] = useState("");
+
+  // Modals view/edit states for Staff
+  const [selectedViewStaff, setSelectedViewStaff] = useState<User | null>(null);
+  const [showViewStaffModal, setShowViewStaffModal] = useState(false);
+  const [selectedEditStaff, setSelectedEditStaff] = useState<User | null>(null);
+  const [showEditStaffModal, setShowEditStaffModal] = useState(false);
+
+  // Edit staff inputs
+  const [editStaffName, setEditStaffName] = useState("");
+  const [editStaffEmail, setEditStaffEmail] = useState("");
+  const [editStaffRole, setEditStaffRole] = useState<"ADMIN" | "TEACHER" | "DOS" | "HEADTEACHER" | "DIRECTOR">("TEACHER");
+  const [editStaffNumber, setEditStaffNumber] = useState("");
+  const [editStaffPhoto, setEditStaffPhoto] = useState("");
 
   const [newSubjectName, setNewSubjectName] = useState("");
   const [newSubjectClassId, setNewSubjectClassId] = useState("");
@@ -262,6 +294,19 @@ export default function SchoolPortal({ params }: PageProps) {
       setExams(exms);
       setMarks(mrks);
       setUsers(usrs);
+
+      // Pre-populate dynamic Student/Staff ID Numbers
+      const activeSchool = school || (await getSchoolBySubdomain(subdomain));
+      if (activeSchool) {
+        const initials = activeSchool.name.split(" ").map(w => w[0]).join("").toUpperCase().replace(/[^A-Z]/g, "") || subdomain.toUpperCase();
+        
+        const nextStudentNum = `${initials}-STU-${(studs.length + 1).toString().padStart(4, "0")}`;
+        setNewStudentNumber(nextStudentNum);
+
+        const staffCount = usrs.filter(u => u.role !== "ADMIN").length;
+        const nextStaffNum = `${initials}-STF-${(staffCount + 1).toString().padStart(4, "0")}`;
+        setNewTeacherStaffNumber(nextStaffNum);
+      }
 
       // Pre-fill lists
       if (cls.length > 0) {
@@ -457,10 +502,13 @@ export default function SchoolPortal({ params }: PageProps) {
       email: newTeacherEmail,
       passwordHash: newTeacherPassword,
       role: newTeacherRole,
+      photo: newTeacherPhoto || null,
+      staffNumber: newTeacherStaffNumber || null,
     });
     setNewTeacherName("");
     setNewTeacherEmail("");
     setNewTeacherPassword("password");
+    setNewTeacherPhoto("");
     await loadSchoolData(school.id);
     alert("Staff member user account created!");
   };
@@ -476,9 +524,11 @@ export default function SchoolPortal({ params }: PageProps) {
       name: newStudentName,
       studentNumber: newStudentNumber,
       type: newStudentType,
+      photo: newStudentPhoto || null,
     });
     setNewStudentName("");
     setNewStudentNumber("");
+    setNewStudentPhoto("");
     await loadSchoolData(school.id);
     alert("Student registered successfully!");
   };
@@ -2041,7 +2091,7 @@ export default function SchoolPortal({ params }: PageProps) {
                       <input 
                         type="text" 
                         className="input-field" 
-                        placeholder="GH-2026-X" 
+                        placeholder="e.g. STU-2026-0001" 
                         value={newStudentNumber}
                         onChange={(e) => setNewStudentNumber(e.target.value)}
                         required
@@ -2059,6 +2109,38 @@ export default function SchoolPortal({ params }: PageProps) {
                       </select>
                     </div>
                   </div>
+                  <div className="form-group" style={{ marginBottom: "16px" }}>
+                    <label className="form-label">Student Portrait Photo (Required)</label>
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      className="input-field" 
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          if (file.size > 1024 * 1024) {
+                            alert("Photo size should be less than 1MB to store directly in the database.");
+                            return;
+                          }
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setNewStudentPhoto(reader.result as string);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      required
+                      style={{ padding: "8px" }}
+                    />
+                    {newStudentPhoto && (
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "8px" }}>
+                        <div style={{ width: "50px", height: "50px", borderRadius: "8px", overflow: "hidden", border: "1px solid var(--border)" }}>
+                          <img src={newStudentPhoto} alt="Student Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        </div>
+                        <span style={{ fontSize: "11px", color: "var(--success)" }}>✓ Image ready</span>
+                      </div>
+                    )}
+                  </div>
                   <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Register Student</button>
                 </form>
               </div>
@@ -2070,22 +2152,33 @@ export default function SchoolPortal({ params }: PageProps) {
                   <table className="table">
                     <thead>
                       <tr>
+                        <th>Photo</th>
                         <th>ID Number</th>
                         <th>Student Name</th>
                         <th>Class</th>
                         <th>Stream</th>
                         <th>Type</th>
+                        <th style={{ textAlign: "right" }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {students.length === 0 ? (
-                        <tr><td colSpan={5} style={{ textAlign: "center", color: "#64748b" }}>No students registered yet.</td></tr>
+                        <tr><td colSpan={7} style={{ textAlign: "center", color: "#64748b" }}>No students registered yet.</td></tr>
                       ) : (
                         students.map(st => {
                           const cls = classes.find(c => c.id === st.classId)?.name || "N/A";
                           const strm = streams.find(s => s.id === st.streamId)?.name || "N/A";
                           return (
                             <tr key={st.id}>
+                              <td>
+                                <div style={{ width: "36px", height: "36px", borderRadius: "50%", overflow: "hidden", background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--border)" }}>
+                                  {st.photo ? (
+                                    <img src={st.photo} alt={st.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                  ) : (
+                                    <Users size={16} color="#94a3b8" />
+                                  )}
+                                </div>
+                              </td>
                               <td><code>{st.studentNumber}</code></td>
                               <td><strong>{st.name}</strong></td>
                               <td>{cls}</td>
@@ -2094,6 +2187,48 @@ export default function SchoolPortal({ params }: PageProps) {
                                 <span className={`badge ${st.type === "BOARDING" ? "badge-warning" : "badge-primary"}`}>
                                   {st.type}
                                 </span>
+                              </td>
+                              <td>
+                                <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+                                  <button 
+                                    onClick={() => {
+                                      setSelectedViewStudent(st);
+                                      setShowViewStudentModal(true);
+                                    }}
+                                    className="btn btn-outline" 
+                                    style={{ padding: "4px 8px", fontSize: "11px" }}
+                                  >
+                                    View
+                                  </button>
+                                  <button 
+                                    onClick={() => {
+                                      setSelectedEditStudent(st);
+                                      setEditStudentName(st.name);
+                                      setEditStudentNumber(st.studentNumber);
+                                      setEditStudentClassId(st.classId);
+                                      setEditStudentStreamId(st.streamId);
+                                      setEditStudentType(st.type);
+                                      setEditStudentPhoto(st.photo || "");
+                                      setShowEditStudentModal(true);
+                                    }}
+                                    className="btn btn-outline" 
+                                    style={{ padding: "4px 8px", fontSize: "11px", color: "var(--primary)", borderColor: "var(--primary)" }}
+                                  >
+                                    Edit
+                                  </button>
+                                  <button 
+                                    onClick={async () => {
+                                      if (confirm(`Are you sure you want to delete student "${st.name}"?`)) {
+                                        await deleteStudent(st.id);
+                                        await loadSchoolData(school!.id);
+                                      }
+                                    }}
+                                    className="btn btn-outline" 
+                                    style={{ padding: "4px 8px", fontSize: "11px", color: "var(--danger)", borderColor: "var(--danger)" }}
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );
@@ -2165,6 +2300,48 @@ export default function SchoolPortal({ params }: PageProps) {
                       </select>
                     </div>
                   </div>
+                  <div className="form-group" style={{ marginTop: "12px" }}>
+                    <label className="form-label">Staff ID Number</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      placeholder="e.g. STF-2026-0001" 
+                      value={newTeacherStaffNumber}
+                      onChange={(e) => setNewTeacherStaffNumber(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: "16px" }}>
+                    <label className="form-label">Staff Portrait Photo</label>
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      className="input-field" 
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          if (file.size > 1024 * 1024) {
+                            alert("Photo size should be less than 1MB to store directly in the database.");
+                            return;
+                          }
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setNewTeacherPhoto(reader.result as string);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      style={{ padding: "8px" }}
+                    />
+                    {newTeacherPhoto && (
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "8px" }}>
+                        <div style={{ width: "50px", height: "50px", borderRadius: "8px", overflow: "hidden", border: "1px solid var(--border)" }}>
+                          <img src={newTeacherPhoto} alt="Staff Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        </div>
+                        <span style={{ fontSize: "11px", color: "var(--success)" }}>✓ Image ready</span>
+                      </div>
+                    )}
+                  </div>
                   <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Create User Credentials</button>
                 </form>
               </div>
@@ -2176,18 +2353,31 @@ export default function SchoolPortal({ params }: PageProps) {
                   <table className="table">
                     <thead>
                       <tr>
+                        <th>Photo</th>
+                        <th>Staff ID</th>
                         <th>Name</th>
                         <th>Email Address</th>
                         <th>Role Access</th>
                         <th>Joined Date</th>
+                        <th style={{ textAlign: "right" }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {users.length === 0 ? (
-                        <tr><td colSpan={4} style={{ textAlign: "center", color: "#64748b" }}>No staff accounts registered.</td></tr>
+                        <tr><td colSpan={7} style={{ textAlign: "center", color: "#64748b" }}>No staff accounts registered.</td></tr>
                       ) : (
                         users.map(u => (
                           <tr key={u.id}>
+                            <td>
+                              <div style={{ width: "36px", height: "36px", borderRadius: "50%", overflow: "hidden", background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--border)" }}>
+                                {u.photo ? (
+                                  <img src={u.photo} alt={u.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                ) : (
+                                  <Users size={16} color="#94a3b8" />
+                                )}
+                              </div>
+                            </td>
+                            <td><code>{u.staffNumber || "N/A"}</code></td>
                             <td><strong>{u.name}</strong></td>
                             <td><code>{u.email}</code></td>
                             <td>
@@ -2196,6 +2386,51 @@ export default function SchoolPortal({ params }: PageProps) {
                               </span>
                             </td>
                             <td>{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "N/A"}</td>
+                            <td>
+                              <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+                                <button 
+                                  onClick={() => {
+                                    setSelectedViewStaff(u);
+                                    setShowViewStaffModal(true);
+                                  }}
+                                  className="btn btn-outline" 
+                                  style={{ padding: "4px 8px", fontSize: "11px" }}
+                                >
+                                  View
+                                </button>
+                                <button 
+                                  onClick={() => {
+                                    setSelectedEditStaff(u);
+                                    setEditStaffName(u.name);
+                                    setEditStaffEmail(u.email);
+                                    setEditStaffRole(u.role);
+                                    setEditStaffNumber(u.staffNumber || "");
+                                    setEditStaffPhoto(u.photo || "");
+                                    setShowEditStaffModal(true);
+                                  }}
+                                  className="btn btn-outline" 
+                                  style={{ padding: "4px 8px", fontSize: "11px", color: "var(--primary)", borderColor: "var(--primary)" }}
+                                >
+                                  Edit
+                                </button>
+                                <button 
+                                  onClick={async () => {
+                                    if (u.role === "ADMIN") {
+                                      alert("Super Administrator accounts cannot be deleted directly.");
+                                      return;
+                                    }
+                                    if (confirm(`Are you sure you want to delete staff account "${u.name}"?`)) {
+                                      await deleteUser(u.id);
+                                      await loadSchoolData(school!.id);
+                                    }
+                                  }}
+                                  className="btn btn-outline" 
+                                  style={{ padding: "4px 8px", fontSize: "11px", color: "var(--danger)", borderColor: "var(--danger)" }}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
                           </tr>
                         ))
                       )}
@@ -3967,6 +4202,335 @@ export default function SchoolPortal({ params }: PageProps) {
               </div>
             )}
 
+          </div>
+        </div>
+      )}
+
+      {/* 1. View Student Modal */}
+      {showViewStudentModal && selectedViewStudent && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1050, padding: "20px" }}>
+          <div className="card" style={{ width: "100%", maxWidth: "450px", background: "white", padding: "30px", boxShadow: "var(--shadow-lg)", position: "relative" }}>
+            <button 
+              onClick={() => setShowViewStudentModal(false)} 
+              style={{ position: "absolute", top: "20px", right: "20px", background: "transparent", border: "none", color: "#64748b", cursor: "pointer", fontSize: "18px" }}
+            >✕</button>
+            <h3 style={{ marginBottom: "20px", borderBottom: "1px solid var(--border)", paddingBottom: "10px" }}>Student Profile</h3>
+            
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "16px", marginBottom: "20px" }}>
+              <div style={{ width: "120px", height: "120px", borderRadius: "50%", overflow: "hidden", border: "3px solid var(--primary-light)", boxShadow: "var(--shadow)" }}>
+                {selectedViewStudent.photo ? (
+                  <img src={selectedViewStudent.photo} alt={selectedViewStudent.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                  <div style={{ width: "100%", height: "100%", background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Users size={48} color="#94a3b8" />
+                  </div>
+                )}
+              </div>
+              <div style={{ textAlign: "center" }}>
+                <h4 style={{ fontSize: "20px", color: "#0f172a", marginBottom: "4px" }}>{selectedViewStudent.name}</h4>
+                <code style={{ fontSize: "14px", color: "var(--primary)", fontWeight: 700 }}>{selectedViewStudent.studentNumber}</code>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", background: "#f8fafc", padding: "16px", borderRadius: "8px", border: "1px solid var(--border)", fontSize: "14px" }}>
+              <div><strong>Class:</strong> {classes.find(c => c.id === selectedViewStudent.classId)?.name || "N/A"}</div>
+              <div><strong>Stream:</strong> {streams.find(s => s.id === selectedViewStudent.streamId)?.name || "N/A"}</div>
+              <div>
+                <strong>Attendance Type:</strong> &nbsp;
+                <span className={`badge ${selectedViewStudent.type === "BOARDING" ? "badge-warning" : "badge-primary"}`}>
+                  {selectedViewStudent.type}
+                </span>
+              </div>
+            </div>
+
+            <button 
+              onClick={() => setShowViewStudentModal(false)}
+              className="btn btn-outline" 
+              style={{ width: "100%", marginTop: "24px" }}
+            >
+              Close Profile
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Edit Student Modal */}
+      {showEditStudentModal && selectedEditStudent && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1050, padding: "20px" }}>
+          <div className="card" style={{ width: "100%", maxWidth: "450px", background: "white", padding: "30px", boxShadow: "var(--shadow-lg)" }}>
+            <h3 style={{ marginBottom: "20px", borderBottom: "1px solid var(--border)", paddingBottom: "10px" }}>Edit Student Record</h3>
+            
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              await updateStudent(selectedEditStudent.id, {
+                name: editStudentName,
+                studentNumber: editStudentNumber,
+                classId: editStudentClassId,
+                streamId: editStudentStreamId,
+                type: editStudentType,
+                photo: editStudentPhoto || null
+              });
+              setShowEditStudentModal(false);
+              await loadSchoolData(school!.id);
+              alert("Student details updated successfully!");
+            }}>
+              <div className="form-group">
+                <label className="form-label">Student Full Name</label>
+                <input 
+                  type="text" 
+                  className="input-field" 
+                  value={editStudentName}
+                  onChange={(e) => setEditStudentName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="form-group">
+                  <label className="form-label">Select Class</label>
+                  <select 
+                    className="input-field" 
+                    value={editStudentClassId}
+                    onChange={(e) => {
+                      setEditStudentClassId(e.target.value);
+                      const strms = streams.filter(s => s.classId === e.target.value);
+                      if (strms.length > 0) setEditStudentStreamId(strms[0].id);
+                    }}
+                  >
+                    {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Select Stream</label>
+                  <select 
+                    className="input-field" 
+                    value={editStudentStreamId}
+                    onChange={(e) => setEditStudentStreamId(e.target.value)}
+                  >
+                    {streams.filter(st => st.classId === editStudentClassId).map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="form-group">
+                  <label className="form-label">Student ID Number</label>
+                  <input 
+                    type="text" 
+                    className="input-field" 
+                    value={editStudentNumber}
+                    onChange={(e) => setEditStudentNumber(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Attendance Type</label>
+                  <select 
+                    className="input-field" 
+                    value={editStudentType}
+                    onChange={(e) => setEditStudentType(e.target.value as any)}
+                  >
+                    <option value="DAY">Day Student</option>
+                    <option value="BOARDING">Boarding Student</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Update Portrait Photo</label>
+                <input 
+                  type="file" 
+                  accept="image/*"
+                  className="input-field" 
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      if (file.size > 1024 * 1024) {
+                        alert("Photo size should be less than 1MB.");
+                        return;
+                      }
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        setEditStudentPhoto(reader.result as string);
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                  style={{ padding: "8px" }}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: "10px", marginTop: "24px" }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Save Changes</button>
+                <button 
+                  type="button" 
+                  onClick={() => setShowEditStudentModal(false)}
+                  className="btn btn-outline" 
+                  style={{ flex: 1 }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 3. View Staff Modal */}
+      {showViewStaffModal && selectedViewStaff && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1050, padding: "20px" }}>
+          <div className="card" style={{ width: "100%", maxWidth: "450px", background: "white", padding: "30px", boxShadow: "var(--shadow-lg)", position: "relative" }}>
+            <button 
+              onClick={() => setShowViewStaffModal(false)} 
+              style={{ position: "absolute", top: "20px", right: "20px", background: "transparent", border: "none", color: "#64748b", cursor: "pointer", fontSize: "18px" }}
+            >✕</button>
+            <h3 style={{ marginBottom: "20px", borderBottom: "1px solid var(--border)", paddingBottom: "10px" }}>Staff Profile</h3>
+            
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "16px", marginBottom: "20px" }}>
+              <div style={{ width: "120px", height: "120px", borderRadius: "50%", overflow: "hidden", border: "3px solid var(--primary-light)", boxShadow: "var(--shadow)" }}>
+                {selectedViewStaff.photo ? (
+                  <img src={selectedViewStaff.photo} alt={selectedViewStaff.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                  <div style={{ width: "100%", height: "100%", background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Users size={48} color="#94a3b8" />
+                  </div>
+                )}
+              </div>
+              <div style={{ textAlign: "center" }}>
+                <h4 style={{ fontSize: "20px", color: "#0f172a", marginBottom: "4px" }}>{selectedViewStaff.name}</h4>
+                <code style={{ fontSize: "14px", color: "var(--primary)", fontWeight: 700 }}>{selectedViewStaff.staffNumber || "No ID set"}</code>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", background: "#f8fafc", padding: "16px", borderRadius: "8px", border: "1px solid var(--border)", fontSize: "14px" }}>
+              <div><strong>Email Address:</strong> <code>{selectedViewStaff.email}</code></div>
+              <div>
+                <strong>Administrative Role:</strong> &nbsp;
+                <span className={`badge ${selectedViewStaff.role === "ADMIN" ? "badge-danger" : selectedViewStaff.role === "DOS" ? "badge-success" : selectedViewStaff.role === "DIRECTOR" ? "badge-warning" : "badge-primary"}`}>
+                  {selectedViewStaff.role}
+                </span>
+              </div>
+              <div><strong>Joined Date:</strong> {selectedViewStaff.createdAt ? new Date(selectedViewStaff.createdAt).toLocaleDateString() : "N/A"}</div>
+            </div>
+
+            <button 
+              onClick={() => setShowViewStaffModal(false)}
+              className="btn btn-outline" 
+              style={{ width: "100%", marginTop: "24px" }}
+            >
+              Close Profile
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Edit Staff Modal */}
+      {showEditStaffModal && selectedEditStaff && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1050, padding: "20px" }}>
+          <div className="card" style={{ width: "100%", maxWidth: "450px", background: "white", padding: "30px", boxShadow: "var(--shadow-lg)" }}>
+            <h3 style={{ marginBottom: "20px", borderBottom: "1px solid var(--border)", paddingBottom: "10px" }}>Edit Staff Account</h3>
+            
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              await updateUser(selectedEditStaff.id, {
+                name: editStaffName,
+                email: editStaffEmail,
+                role: editStaffRole,
+                staffNumber: editStaffNumber,
+                photo: editStaffPhoto || null
+              });
+              setShowEditStaffModal(false);
+              await loadSchoolData(school!.id);
+              alert("Staff account details updated successfully!");
+            }}>
+              <div className="form-group">
+                <label className="form-label">Staff Name</label>
+                <input 
+                  type="text" 
+                  className="input-field" 
+                  value={editStaffName}
+                  onChange={(e) => setEditStaffName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Email Address</label>
+                <input 
+                  type="email" 
+                  className="input-field" 
+                  value={editStaffEmail}
+                  onChange={(e) => setEditStaffEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="form-group">
+                  <label className="form-label">Staff ID Number</label>
+                  <input 
+                    type="text" 
+                    className="input-field" 
+                    value={editStaffNumber}
+                    onChange={(e) => setEditStaffNumber(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Administrative Role</label>
+                  <select 
+                    className="input-field" 
+                    value={editStaffRole}
+                    onChange={(e) => setEditStaffRole(e.target.value as any)}
+                    disabled={selectedEditStaff.role === "ADMIN"}
+                  >
+                    <option value="TEACHER">Subject Teacher</option>
+                    <option value="DOS">Director of Studies (DOS)</option>
+                    <option value="HEADTEACHER">Head Teacher</option>
+                    <option value="DIRECTOR">Director (Financial View)</option>
+                    {selectedEditStaff.role === "ADMIN" && <option value="ADMIN">Super Admin</option>}
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Update Portrait Photo</label>
+                <input 
+                  type="file" 
+                  accept="image/*"
+                  className="input-field" 
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      if (file.size > 1024 * 1024) {
+                        alert("Photo size should be less than 1MB.");
+                        return;
+                      }
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        setEditStaffPhoto(reader.result as string);
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                  style={{ padding: "8px" }}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: "10px", marginTop: "24px" }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Save Changes</button>
+                <button 
+                  type="button" 
+                  onClick={() => setShowEditStaffModal(false)}
+                  className="btn btn-outline" 
+                  style={{ flex: 1 }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

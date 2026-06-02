@@ -53,6 +53,8 @@ model User {
   passwordHash String
   role         String    // "ADMIN", "HEADTEACHER", "DIRECTOR", "DOS", "TEACHER"
   createdAt    DateTime  @default(now())
+  photo        String?
+  staffNumber  String?
   marksCreated Mark[]    @relation("MarkCreator")
   teacherSubjects TeacherSubject[]
 
@@ -92,6 +94,7 @@ model Student {
   name             String
   studentNumber    String    // Unique inside the school
   type             String    // "DAY", "BOARDING"
+  photo            String?
   marks            Mark[]
   studentPayments  StudentPayment[]
   attendances      Attendance[]

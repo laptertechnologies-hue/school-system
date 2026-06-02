@@ -38,6 +38,8 @@ export interface User {
   passwordHash: string;
   role: "ADMIN" | "HEADTEACHER" | "DIRECTOR" | "DOS" | "TEACHER";
   createdAt: Date;
+  photo?: string | null;
+  staffNumber?: string | null;
 }
 
 export interface Class {
@@ -61,6 +63,7 @@ export interface Student {
   name: string;
   studentNumber: string;
   type: "DAY" | "BOARDING";
+  photo?: string | null;
 }
 
 export interface Subject {
@@ -372,6 +375,8 @@ export async function createUser(data: Omit<User, "id" | "createdAt">): Promise<
         email: data.email,
         passwordHash: data.passwordHash,
         role: data.role,
+        photo: data.photo || null,
+        staffNumber: data.staffNumber || null,
       },
     })) as User;
   }
@@ -386,6 +391,38 @@ export async function createUser(data: Omit<User, "id" | "createdAt">): Promise<
   db.users.push(newUser);
   saveLocalDB(db);
   return newUser;
+}
+
+export async function updateUser(id: string, data: Partial<Omit<User, "id" | "createdAt" | "schoolId">>): Promise<User> {
+  if (await hasDB()) {
+    return (await prisma.user.update({
+      where: { id },
+      data
+    })) as User;
+  }
+  const db = getLocalDB();
+  const idx = db.users.findIndex((u: User) => u.id === id);
+  if (idx !== -1) {
+    db.users[idx] = { ...db.users[idx], ...data };
+    saveLocalDB(db);
+    return db.users[idx];
+  }
+  throw new Error("User not found");
+}
+
+export async function deleteUser(id: string): Promise<boolean> {
+  if (await hasDB()) {
+    await prisma.user.delete({ where: { id } });
+    return true;
+  }
+  const db = getLocalDB();
+  const filtered = db.users.filter((u: User) => u.id !== id);
+  if (filtered.length !== db.users.length) {
+    db.users = filtered;
+    saveLocalDB(db);
+    return true;
+  }
+  return false;
 }
 
 // --- Classes & Streams ---
@@ -446,6 +483,38 @@ export async function createStudent(data: Omit<Student, "id">): Promise<Student>
   db.students.push(newStudent);
   saveLocalDB(db);
   return newStudent;
+}
+
+export async function updateStudent(id: string, data: Partial<Omit<Student, "id" | "schoolId">>): Promise<Student> {
+  if (await hasDB()) {
+    return (await prisma.student.update({
+      where: { id },
+      data
+    })) as Student;
+  }
+  const db = getLocalDB();
+  const idx = db.students.findIndex((s: Student) => s.id === id);
+  if (idx !== -1) {
+    db.students[idx] = { ...db.students[idx], ...data };
+    saveLocalDB(db);
+    return db.students[idx];
+  }
+  throw new Error("Student not found");
+}
+
+export async function deleteStudent(id: string): Promise<boolean> {
+  if (await hasDB()) {
+    await prisma.student.delete({ where: { id } });
+    return true;
+  }
+  const db = getLocalDB();
+  const filtered = db.students.filter((s: Student) => s.id !== id);
+  if (filtered.length !== db.students.length) {
+    db.students = filtered;
+    saveLocalDB(db);
+    return true;
+  }
+  return false;
 }
 
 // --- Subjects ---

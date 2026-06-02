@@ -22,6 +22,12 @@ export interface School {
   deputyHeadTeacher?: string | null;
   director?: string | null;
   themeColor?: string | null;
+  reportTitle?: string | null;
+  reportMotto?: string | null;
+  reportShowBadge?: boolean;
+  reportShowResidency?: boolean;
+  reportShowSignatures?: boolean;
+  reportShowRules?: boolean;
 }
 
 export interface User {
@@ -297,6 +303,12 @@ export async function updateSchoolMetadata(
     logoUrl?: string | null;
     name?: string;
     contactPhone?: string;
+    reportTitle?: string | null;
+    reportMotto?: string | null;
+    reportShowBadge?: boolean;
+    reportShowResidency?: boolean;
+    reportShowSignatures?: boolean;
+    reportShowRules?: boolean;
   }
 ): Promise<School> {
   if (await hasDB()) {
@@ -748,4 +760,102 @@ export async function promoteStudents(schoolId: string, fromClassId: string, toC
   });
   saveLocalDB(db);
   return db.students.filter((s: Student) => s.schoolId === schoolId && s.classId === toClassId);
+}
+
+// --- Marzpay API Integration ---
+export async function initiateMarzpayCollection(
+  amount: number,
+  method: "mobile_money" | "card",
+  phoneNumber?: string,
+  description?: string
+): Promise<any> {
+  const reference = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+
+  const payload: any = {
+    amount,
+    method,
+    reference,
+    country: "UG",
+    description: description || "SchoolPro Payment"
+  };
+
+  if (method === "mobile_money" && phoneNumber) {
+    // Format phone: e.g. 078... -> +25678...
+    let cleanPhone = phoneNumber.trim().replace(/\s+/g, "");
+    if (cleanPhone.startsWith("0")) {
+      cleanPhone = "+256" + cleanPhone.substring(1);
+    } else if (!cleanPhone.startsWith("+")) {
+      cleanPhone = "+" + cleanPhone;
+    }
+    payload.phone_number = cleanPhone;
+  }
+
+  try {
+    const response = await fetch("https://wallet.wearemarz.com/api/v1/collect-money", {
+      method: "POST",
+      headers: {
+        "Authorization": "Basic bWFyel8zN0hIbWpPaExzZzFHRGYzOjFlOTV6UkRRUlRsdXJxbk4wcGxBc2dxVlQ5ZzFQNFhH",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+    
+    const result = await response.json();
+    console.log("Marzpay collection response:", result);
+    return result;
+  } catch (err: any) {
+    console.error("Marzpay collection request error:", err);
+    return {
+      status: "failed",
+      message: err.message || "Failed to contact Marzpay server"
+    };
+  }
+}
+
+export async function checkMarzpayCollectionStatus(uuid: string): Promise<any> {
+  try {
+    const response = await fetch(`https://wallet.wearemarz.com/api/v1/collect-money/${uuid}`, {
+      method: "GET",
+      headers: {
+        "Authorization": "Basic bWFyel8zN0hIbWpPaExzZzFHRGYzOjFlOTV6UkRRUlRsdXJxbk4wcGxBc2dxVlQ5ZzFQNFhH"
+      }
+    });
+    const result = await response.json();
+    return result;
+  } catch (err: any) {
+    console.error("Marzpay status check error:", err);
+    return {
+      status: "failed",
+      message: err.message || "Failed to fetch transaction status"
+    };
+  }
+}
+
+// --- SMS Broadcasting Simulation ---
+export async function sendSmsBroadcast(schoolId: string, group: string, message: string): Promise<any> {
+  const logDir = path.join(process.cwd(), "logs");
+  if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir, { recursive: true });
+  }
+  const logPath = path.join(logDir, "sms_broadcasts.log");
+  const timestamp = new Date().toISOString();
+  const logEntry = `[${timestamp}] School: ${schoolId} | Group: ${group} | Message: "${message}"\n`;
+  
+  try {
+    fs.appendFileSync(logPath, logEntry, "utf8");
+    return {
+      status: "success",
+      timestamp,
+      count: group === "Class Parents" ? 45 : group === "All Staff" ? 18 : 280
+    };
+  } catch (err: any) {
+    console.error("SMS Broadcast Logging Failed:", err);
+    return {
+      status: "failed",
+      message: err.message
+    };
+  }
 }

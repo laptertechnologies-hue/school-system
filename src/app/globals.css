@@ -365,40 +365,22 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Print Styles for Report Cards */
 @media print {
-  body {
-    background: white !important;
-    color: black !important;
+  body * {
+    visibility: hidden !important;
   }
-  
-  aside, 
-  header, 
-  footer, 
-  button, 
-  .btn, 
-  .flex.justify-between.align-center {
-    display: none !important;
+  #printable-report, #printable-report * {
+    visibility: visible !important;
   }
-  
-  main {
-    padding: 0 !important;
-    margin: 0 !important;
-    background: transparent !important;
-  }
-  
-  .card {
-    border: none !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-    background: transparent !important;
-  }
-  
   #printable-report {
-    display: block !important;
-    border: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
     width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
     box-shadow: none !important;
+    background: transparent !important;
   }
 }
 

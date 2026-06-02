@@ -34,6 +34,14 @@ model School {
   deputyHeadTeacher  String?
   director           String?
   themeColor         String?   @default("#38bdf8")
+
+  // Custom report template config
+  reportTitle        String?   @default("OFFICIAL ACADEMIC REPORT CARD")
+  reportMotto        String?   @default("")
+  reportShowBadge    Boolean   @default(true)
+  reportShowResidency Boolean  @default(true)
+  reportShowSignatures Boolean @default(true)
+  reportShowRules    Boolean   @default(true)
 }
 
 model User {

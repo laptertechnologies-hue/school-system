@@ -6,9 +6,10 @@ import {
   getExamPapers, getMarks, getFeeStructures, getStudentPayments, getExpenses, getAttendance, authenticateUser,
   createClass, createStream, createUser, createStudent, createSubject, createExamPaper, addMark,
   createFeeStructure, recordStudentPayment, createExpense, recordAttendance, promoteStudents,
-  processTeacherSalary, createPayment, getPayments, updateSchoolStatus, updateSchoolMetadata
+  processTeacherSalary, createPayment, getPayments, updateSchoolStatus, updateSchoolMetadata,
+  initiateMarzpayCollection, checkMarzpayCollectionStatus, sendSmsBroadcast
 } from "../../../lib/services";
-import { Database, CreditCard, Building2, CheckCircle } from "lucide-react";
+import { Database, CreditCard, Building2, CheckCircle, MessageSquare, Sliders } from "lucide-react";
 import { 
   GraduationCap, 
   Users, 
@@ -173,6 +174,22 @@ export default function SchoolPortal({ params }: PageProps) {
   const [cardExpiry, setCardExpiry] = useState("");
   const [cardCvv, setCardCvv] = useState("");
   const [cardOtp, setCardOtp] = useState("");
+  const [momoTxUuid, setMomoTxUuid] = useState("");
+
+  // SMS Broadcaster States
+  const [smsCredits, setSmsCredits] = useState(500);
+  const [smsGroup, setSmsGroup] = useState("All Parents");
+  const [smsTemplate, setSmsTemplate] = useState("");
+  const [smsMessage, setSmsMessage] = useState("");
+  const [smsLogs, setSmsLogs] = useState<any[]>([]);
+
+  // Report Card Designer States
+  const [designerTitle, setDesignerTitle] = useState("OFFICIAL ACADEMIC REPORT CARD");
+  const [designerMotto, setDesignerMotto] = useState("");
+  const [designerShowBadge, setDesignerShowBadge] = useState(true);
+  const [designerShowResidency, setDesignerShowResidency] = useState(true);
+  const [designerShowSignatures, setDesignerShowSignatures] = useState(true);
+  const [designerShowRules, setDesignerShowRules] = useState(true);
 
   useEffect(() => {
     async function fetchSchool() {
@@ -197,6 +214,13 @@ export default function SchoolPortal({ params }: PageProps) {
         setSetupDirector(s.director || "");
         setSetupLogoUrl(s.logoUrl || "");
         setSetupThemeColor(s.themeColor || "#38bdf8");
+
+        setDesignerTitle(s.reportTitle || "OFFICIAL ACADEMIC REPORT CARD");
+        setDesignerMotto(s.reportMotto || "");
+        setDesignerShowBadge(s.reportShowBadge !== false);
+        setDesignerShowResidency(s.reportShowResidency !== false);
+        setDesignerShowSignatures(s.reportShowSignatures !== false);
+        setDesignerShowRules(s.reportShowRules !== false);
       }
       
       const isConnected = await checkDatabaseConnection();
@@ -694,6 +718,26 @@ export default function SchoolPortal({ params }: PageProps) {
     }
   };
 
+  // Save Report Template Config
+  const handleSaveReportTemplate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!school) return;
+    try {
+      const updated = await updateSchoolMetadata(school.id, {
+        reportTitle: designerTitle,
+        reportMotto: designerMotto,
+        reportShowBadge: designerShowBadge,
+        reportShowResidency: designerShowResidency,
+        reportShowSignatures: designerShowSignatures,
+        reportShowRules: designerShowRules
+      });
+      setSchool(updated);
+      alert("Academic report card template layout saved successfully!");
+    } catch (err: any) {
+      alert("Failed to save report template config: " + (err.message || err));
+    }
+  };
+
   // Trigger simulated payment transaction steps
   const handleTriggerMoMoPayment = (amount: number, purpose: "TUITION" | "PACKAGE", studentId: string = "") => {
     setMomoAmount(String(amount));
@@ -711,78 +755,115 @@ export default function SchoolPortal({ params }: PageProps) {
   };
 
   const executeSimulatedMoMo = async () => {
-    if (momoProvider === "CARD") {
-      if (!cardName || !cardNumber || !cardExpiry || !cardCvv) {
-        alert("Please fill in all credit card details.");
-        return;
-      }
-    } else {
-      if (!momoPhone) {
-        alert("Please enter your mobile phone number.");
-        return;
-      }
-    }
     if (!school) return;
-    setMomoStep(1); // Processing gateway pull
-    setTimeout(() => {
-      setMomoStep(2); // Prompt OTP/PIN USSD screen
-    }, 2000);
+    
+    const amountVal = parseFloat(momoAmount);
+    if (isNaN(amountVal) || amountVal <= 0) {
+      alert("Invalid payment amount");
+      return;
+    }
+
+    if (momoProvider !== "CARD" && !momoPhone) {
+      alert("Please enter your mobile phone number.");
+      return;
+    }
+
+    setMomoStep(1); // Connecting gateway
+    try {
+      const res = await initiateMarzpayCollection(
+        amountVal,
+        momoProvider === "CARD" ? "card" : "mobile_money",
+        momoProvider === "CARD" ? undefined : momoPhone,
+        momoPurpose === "PACKAGE" ? `Plan Renewal for ${school.name}` : `Tuition Payment for Student ID ${momoStudentId}`
+      );
+
+      if (res && res.status === "success") {
+        setMomoTxUuid(res.uuid);
+        if (momoProvider === "CARD") {
+          // Direct redirect for card payments
+          if (res.redirect_url) {
+            window.location.href = res.redirect_url;
+          } else {
+            alert("Card redirect URL not provided by gateway.");
+            setMomoStep(0);
+          }
+        } else {
+          // For Mobile Money, wait for the customer to approve, and display the polling check screen
+          setMomoStep(2); // Waiting for Approval
+        }
+      } else {
+        alert(res?.message || "Failed to initiate payment collection from Marzpay.");
+        setMomoStep(0);
+      }
+    } catch (err: any) {
+      alert("Error contacting Marzpay gateway: " + (err.message || err));
+      setMomoStep(0);
+    }
   };
 
-  const finishSimulatedMoMo = async () => {
-    setMomoStep(3); // Validating txn settlement reference
-    
-    setTimeout(async () => {
-      try {
-        if (!school) {
-          alert("School state is null.");
-          return;
-        }
-        if (momoPurpose === "TUITION" && momoStudentId) {
-          const stud = students.find(s => s.id === momoStudentId);
-          if (stud) {
-            const fs = feeStructures.find(f => f.classId === stud.classId);
-            const totalDue = stud.type === "BOARDING" 
-              ? (fs?.tuitionAmount || 0) + (fs?.boardingAmount || 0)
-              : (fs?.tuitionAmount || 0);
+  const checkPaymentStatus = async () => {
+    if (!momoTxUuid) {
+      alert("No transaction reference found.");
+      return;
+    }
+    setMomoStep(3); // Verifying
+    try {
+      const res = await checkMarzpayCollectionStatus(momoTxUuid);
+      if (res && res.status === "success") {
+        // Complete the payment locally!
+        try {
+          if (!school) return;
+          if (momoPurpose === "TUITION" && momoStudentId) {
+            const stud = students.find(s => s.id === momoStudentId);
+            if (stud) {
+              const fs = feeStructures.find(f => f.classId === stud.classId);
+              const totalDue = stud.type === "BOARDING" 
+                ? (fs?.tuitionAmount || 0) + (fs?.boardingAmount || 0)
+                : (fs?.tuitionAmount || 0);
 
-            const prevPayment = studentPayments.find(p => p.studentId === momoStudentId);
-            const alreadyPaid = prevPayment ? prevPayment.amountPaid : 0;
-            const newTotalPaid = alreadyPaid + parseFloat(momoAmount);
-            const balance = Math.max(0, totalDue - newTotalPaid);
+              const prevPayment = studentPayments.find(p => p.studentId === momoStudentId);
+              const alreadyPaid = prevPayment ? prevPayment.amountPaid : 0;
+              const newTotalPaid = alreadyPaid + parseFloat(momoAmount);
+              const balance = Math.max(0, totalDue - newTotalPaid);
 
-            await recordStudentPayment({
-              studentId: momoStudentId,
-              term: 1,
-              year: 2026,
-              amountPaid: newTotalPaid,
-              balance,
+              await recordStudentPayment({
+                studentId: momoStudentId,
+                term: 1,
+                year: 2026,
+                amountPaid: newTotalPaid,
+                balance,
+              });
+            }
+          } else if (momoPurpose === "PACKAGE") {
+            await updateSchoolStatus(school.id, "ACTIVE");
+            await createPayment({
+              schoolId: school.id,
+              amount: parseFloat(momoAmount),
+              method: momoProvider === "CARD" ? "CARD" : "MOBILE_MONEY",
+              status: "COMPLETED",
+              txRef: `TX-MARZ-${momoTxUuid.substring(0, 8).toUpperCase()}`
             });
+            const updatedSch = await getSchoolBySubdomain(subdomain);
+            if (updatedSch) setSchool(updatedSch);
           }
-        } else if (momoPurpose === "PACKAGE") {
-          // Extend subscription by 1 Year and activate school status
-          await updateSchoolStatus(school.id, "ACTIVE");
-          
-          await createPayment({
-            schoolId: school.id,
-            amount: parseFloat(momoAmount),
-            method: momoProvider === "CARD" ? "CREDIT_CARD" : `${momoProvider}_MONEY`,
-            status: "COMPLETED",
-            txRef: `TX-SaaS-${Math.random().toString(36).substring(2, 9).toUpperCase()}`
-          });
-
-          // Reload local school parameters
-          const updatedSch = await getSchoolBySubdomain(subdomain);
-          if (updatedSch) setSchool(updatedSch);
+          setMomoStep(4); // Success!
+          await loadSchoolData(school.id);
+        } catch (err: any) {
+          alert("Error updating transaction records: " + (err.message || err));
+          setMomoStep(2);
         }
-        
-        setMomoStep(4); // Successful transaction
-        await loadSchoolData(school.id);
-      } catch (err) {
-        alert("Transaction failed validation.");
-        setShowMoMoModal(false);
+      } else if (res && res.status === "failed") {
+        alert("Payment failed or was declined by user.");
+        setMomoStep(0);
+      } else {
+        // Still pending
+        alert("Payment is still pending. Please approve the USSD prompt on your phone and try again.");
+        setMomoStep(2);
       }
-    }, 2000);
+    } catch (err: any) {
+      alert("Error checking transaction status: " + (err.message || err));
+      setMomoStep(2);
+    }
   };
 
   // Generate PLE Report Card Data
@@ -1145,17 +1226,17 @@ export default function SchoolPortal({ params }: PageProps) {
       )}
       
       {/* Sidebar navigation */}
-      <aside style={{ width: "260px", background: "#0f172a", color: "#cbd5e1", display: "flex", flexDirection: "column" }} className="flex-mobile-col">
-        <div style={{ padding: "24px", borderBottom: "1px solid #1e293b" }}>
+      <aside style={{ width: "260px", background: "linear-gradient(180deg, var(--primary) 0%, var(--primary-hover) 100%)", color: "white", display: "flex", flexDirection: "column", height: "100vh", position: "sticky", top: 0 }} className="flex-mobile-col">
+        <div style={{ padding: "24px", borderBottom: "1px solid rgba(255, 255, 255, 0.15)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             {school.logoUrl ? (
               <img src={school.logoUrl} alt="Logo" style={{ width: "32px", height: "32px", borderRadius: "6px", objectFit: "contain", background: "white", padding: "2px" }} />
             ) : (
-              <GraduationCap size={28} color="var(--primary)" />
+              <GraduationCap size={28} color="white" />
             )}
             <div>
               <h3 style={{ color: "white", fontSize: "16px", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>{school.name}</h3>
-              <span style={{ fontSize: "10px", color: "#64748b", textTransform: "uppercase", letterSpacing: "1px" }}>{currentUser.role} Portal</span>
+              <span style={{ fontSize: "10px", color: "rgba(255, 255, 255, 0.75)", textTransform: "uppercase", letterSpacing: "1px" }}>{currentUser.role} Portal</span>
             </div>
           </div>
         </div>
@@ -1166,9 +1247,20 @@ export default function SchoolPortal({ params }: PageProps) {
             <button 
               onClick={() => setActiveTab("overview")} 
               className={`btn ${activeTab === "overview" ? "btn-primary" : "btn-outline"}`}
-              style={{ justifyContent: "flex-start", border: "none", color: activeTab === "overview" ? "white" : "#94a3b8" }}
+              style={{ justifyContent: "flex-start", border: "none", background: activeTab === "overview" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "overview" ? 1 : 0.75, transition: "all 0.2s ease" }}
             >
               <ClipboardList size={18} /> Overview
+            </button>
+          )}
+
+          {/* SMS Broadcast Module */}
+          {["ADMIN", "HEADTEACHER", "DOS"].includes(currentUser.role) && (
+            <button 
+              onClick={() => setActiveTab("sms")} 
+              className={`btn ${activeTab === "sms" ? "btn-primary" : "btn-outline"}`}
+              style={{ justifyContent: "flex-start", border: "none", background: activeTab === "sms" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "sms" ? 1 : 0.75, transition: "all 0.2s ease" }}
+            >
+              <MessageSquare size={18} /> SMS Broadcast
             </button>
           )}
 
@@ -1177,9 +1269,20 @@ export default function SchoolPortal({ params }: PageProps) {
             <button 
               onClick={() => setActiveTab("settings")} 
               className={`btn ${activeTab === "settings" ? "btn-primary" : "btn-outline"}`}
-              style={{ justifyContent: "flex-start", border: "none", color: activeTab === "settings" ? "white" : "#94a3b8" }}
+              style={{ justifyContent: "flex-start", border: "none", background: activeTab === "settings" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "settings" ? 1 : 0.75, transition: "all 0.2s ease" }}
             >
               <Settings size={18} /> School Profile & Theme
+            </button>
+          )}
+
+          {/* Report Card Designer */}
+          {["ADMIN", "DOS"].includes(currentUser.role) && (
+            <button 
+              onClick={() => setActiveTab("report_designer")} 
+              className={`btn ${activeTab === "report_designer" ? "btn-primary" : "btn-outline"}`}
+              style={{ justifyContent: "flex-start", border: "none", background: activeTab === "report_designer" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "report_designer" ? 1 : 0.75, transition: "all 0.2s ease" }}
+            >
+              <Sliders size={18} /> Report Designer
             </button>
           )}
 
@@ -1188,18 +1291,18 @@ export default function SchoolPortal({ params }: PageProps) {
             <button 
               onClick={() => setActiveTab("classes")} 
               className={`btn ${activeTab === "classes" ? "btn-primary" : "btn-outline"}`}
-              style={{ justifyContent: "flex-start", border: "none", color: activeTab === "classes" ? "white" : "#94a3b8" }}
+              style={{ justifyContent: "flex-start", border: "none", background: activeTab === "classes" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "classes" ? 1 : 0.75, transition: "all 0.2s ease" }}
             >
               <Building2 size={18} /> Classes & Subjects
             </button>
           )}
 
-          {/* Students Directory (Admin/DOS/Headteacher) */}
+          {/* Students Directory */}
           {["ADMIN", "DOS", "HEADTEACHER", "TEACHER"].includes(currentUser.role) && (
             <button 
               onClick={() => setActiveTab("students")} 
               className={`btn ${activeTab === "students" ? "btn-primary" : "btn-outline"}`}
-              style={{ justifyContent: "flex-start", border: "none", color: activeTab === "students" ? "white" : "#94a3b8" }}
+              style={{ justifyContent: "flex-start", border: "none", background: activeTab === "students" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "students" ? 1 : 0.75, transition: "all 0.2s ease" }}
             >
               <Users size={18} /> Student Registry
             </button>
@@ -1210,7 +1313,7 @@ export default function SchoolPortal({ params }: PageProps) {
             <button 
               onClick={() => setActiveTab("staff")} 
               className={`btn ${activeTab === "staff" ? "btn-primary" : "btn-outline"}`}
-              style={{ justifyContent: "flex-start", border: "none", color: activeTab === "staff" ? "white" : "#94a3b8" }}
+              style={{ justifyContent: "flex-start", border: "none", background: activeTab === "staff" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "staff" ? 1 : 0.75, transition: "all 0.2s ease" }}
             >
               <Users size={18} /> Staff Accounts
             </button>
@@ -1221,7 +1324,7 @@ export default function SchoolPortal({ params }: PageProps) {
             <button 
               onClick={() => setActiveTab("promotion")} 
               className={`btn ${activeTab === "promotion" ? "btn-primary" : "btn-outline"}`}
-              style={{ justifyContent: "flex-start", border: "none", color: activeTab === "promotion" ? "white" : "#94a3b8" }}
+              style={{ justifyContent: "flex-start", border: "none", background: activeTab === "promotion" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "promotion" ? 1 : 0.75, transition: "all 0.2s ease" }}
             >
               <Layers size={18} /> Academic Promotion
             </button>
@@ -1232,7 +1335,7 @@ export default function SchoolPortal({ params }: PageProps) {
             <button 
               onClick={() => setActiveTab("exams")} 
               className={`btn ${activeTab === "exams" ? "btn-primary" : "btn-outline"}`}
-              style={{ justifyContent: "flex-start", border: "none", color: activeTab === "exams" ? "white" : "#94a3b8" }}
+              style={{ justifyContent: "flex-start", border: "none", background: activeTab === "exams" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "exams" ? 1 : 0.75, transition: "all 0.2s ease" }}
             >
               <Layers size={18} /> Examination Papers
             </button>
@@ -1243,18 +1346,18 @@ export default function SchoolPortal({ params }: PageProps) {
             <button 
               onClick={() => setActiveTab("marks")} 
               className={`btn ${activeTab === "marks" ? "btn-primary" : "btn-outline"}`}
-              style={{ justifyContent: "flex-start", border: "none", color: activeTab === "marks" ? "white" : "#94a3b8" }}
+              style={{ justifyContent: "flex-start", border: "none", background: activeTab === "marks" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "marks" ? 1 : 0.75, transition: "all 0.2s ease" }}
             >
               <Award size={18} /> Upload Student Marks
             </button>
           )}
 
-          {/* Attendance (Teacher, Admin, Head Teacher, DOS) */}
+          {/* Attendance */}
           {["ADMIN", "TEACHER", "HEADTEACHER", "DOS"].includes(currentUser.role) && (
             <button 
               onClick={() => setActiveTab("attendance")} 
               className={`btn ${activeTab === "attendance" ? "btn-primary" : "btn-outline"}`}
-              style={{ justifyContent: "flex-start", border: "none", color: activeTab === "attendance" ? "white" : "#94a3b8" }}
+              style={{ justifyContent: "flex-start", border: "none", background: activeTab === "attendance" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "attendance" ? 1 : 0.75, transition: "all 0.2s ease" }}
             >
               <UserCheck size={18} /> Student Attendance
             </button>
@@ -1265,7 +1368,7 @@ export default function SchoolPortal({ params }: PageProps) {
             <button 
               onClick={() => setActiveTab("reports")} 
               className={`btn ${activeTab === "reports" ? "btn-primary" : "btn-outline"}`}
-              style={{ justifyContent: "flex-start", border: "none", color: activeTab === "reports" ? "white" : "#94a3b8" }}
+              style={{ justifyContent: "flex-start", border: "none", background: activeTab === "reports" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "reports" ? 1 : 0.75, transition: "all 0.2s ease" }}
             >
               <FileText size={18} /> Report Cards
             </button>
@@ -1274,12 +1377,12 @@ export default function SchoolPortal({ params }: PageProps) {
           {/* Finance dashboard (Director & Admin only & Premium only) */}
           {["ADMIN", "DIRECTOR"].includes(currentUser.role) && school.packageType === "PREMIUM" && (
             <>
-              <div style={{ fontSize: "11px", color: "#64748b", textTransform: "uppercase", letterSpacing: "1px", margin: "14px 10px 4px", fontWeight: 700 }}>School Accounts</div>
+              <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.7)", textTransform: "uppercase", letterSpacing: "1px", margin: "14px 10px 4px", fontWeight: 700 }}>School Accounts</div>
               
               <button 
                 onClick={() => setActiveTab("finance_overview")} 
                 className={`btn ${activeTab === "finance_overview" ? "btn-primary" : "btn-outline"}`}
-                style={{ justifyContent: "flex-start", border: "none", color: activeTab === "finance_overview" ? "white" : "#94a3b8", padding: "8px 12px", fontSize: "13px" }}
+                style={{ justifyContent: "flex-start", border: "none", background: activeTab === "finance_overview" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "finance_overview" ? 1 : 0.75, transition: "all 0.2s ease", padding: "8px 12px", fontSize: "13px" }}
               >
                 <ClipboardList size={16} /> Financial Overview
               </button>
@@ -1287,7 +1390,7 @@ export default function SchoolPortal({ params }: PageProps) {
               <button 
                 onClick={() => setActiveTab("tuition_fees")} 
                 className={`btn ${activeTab === "tuition_fees" ? "btn-primary" : "btn-outline"}`}
-                style={{ justifyContent: "flex-start", border: "none", color: activeTab === "tuition_fees" ? "white" : "#94a3b8", padding: "8px 12px", fontSize: "13px" }}
+                style={{ justifyContent: "flex-start", border: "none", background: activeTab === "tuition_fees" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "tuition_fees" ? 1 : 0.75, transition: "all 0.2s ease", padding: "8px 12px", fontSize: "13px" }}
               >
                 <Building2 size={16} /> Class Fee Structures
               </button>
@@ -1295,7 +1398,7 @@ export default function SchoolPortal({ params }: PageProps) {
               <button 
                 onClick={() => setActiveTab("student_billing")} 
                 className={`btn ${activeTab === "student_billing" ? "btn-primary" : "btn-outline"}`}
-                style={{ justifyContent: "flex-start", border: "none", color: activeTab === "student_billing" ? "white" : "#94a3b8", padding: "8px 12px", fontSize: "13px" }}
+                style={{ justifyContent: "flex-start", border: "none", background: activeTab === "student_billing" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "student_billing" ? 1 : 0.75, transition: "all 0.2s ease", padding: "8px 12px", fontSize: "13px" }}
               >
                 <DollarSign size={16} /> Tuition Payments
               </button>
@@ -1303,7 +1406,7 @@ export default function SchoolPortal({ params }: PageProps) {
               <button 
                 onClick={() => setActiveTab("defaulters_list")} 
                 className={`btn ${activeTab === "defaulters_list" ? "btn-primary" : "btn-outline"}`}
-                style={{ justifyContent: "flex-start", border: "none", color: activeTab === "defaulters_list" ? "white" : "#94a3b8", padding: "8px 12px", fontSize: "13px" }}
+                style={{ justifyContent: "flex-start", border: "none", background: activeTab === "defaulters_list" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "defaulters_list" ? 1 : 0.75, transition: "all 0.2s ease", padding: "8px 12px", fontSize: "13px" }}
               >
                 <Users size={16} /> Defaulters Directory
               </button>
@@ -1311,7 +1414,7 @@ export default function SchoolPortal({ params }: PageProps) {
               <button 
                 onClick={() => setActiveTab("expenditures")} 
                 className={`btn ${activeTab === "expenditures" ? "btn-primary" : "btn-outline"}`}
-                style={{ justifyContent: "flex-start", border: "none", color: activeTab === "expenditures" ? "white" : "#94a3b8", padding: "8px 12px", fontSize: "13px" }}
+                style={{ justifyContent: "flex-start", border: "none", background: activeTab === "expenditures" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "expenditures" ? 1 : 0.75, transition: "all 0.2s ease", padding: "8px 12px", fontSize: "13px" }}
               >
                 <TrendingUp size={16} /> School Expenditures
               </button>
@@ -1319,7 +1422,7 @@ export default function SchoolPortal({ params }: PageProps) {
               <button 
                 onClick={() => setActiveTab("payroll")} 
                 className={`btn ${activeTab === "payroll" ? "btn-primary" : "btn-outline"}`}
-                style={{ justifyContent: "flex-start", border: "none", color: activeTab === "payroll" ? "white" : "#94a3b8", padding: "8px 12px", fontSize: "13px" }}
+                style={{ justifyContent: "flex-start", border: "none", background: activeTab === "payroll" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "payroll" ? 1 : 0.75, transition: "all 0.2s ease", padding: "8px 12px", fontSize: "13px" }}
               >
                 <Users size={16} /> Staff Payroll Ledger
               </button>
@@ -1331,7 +1434,7 @@ export default function SchoolPortal({ params }: PageProps) {
             <button 
               onClick={() => setActiveTab("billing")} 
               className={`btn ${activeTab === "billing" ? "btn-primary" : "btn-outline"}`}
-              style={{ justifyContent: "flex-start", border: "none", color: activeTab === "billing" ? "white" : "#94a3b8" }}
+              style={{ justifyContent: "flex-start", border: "none", background: activeTab === "billing" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "billing" ? 1 : 0.75, transition: "all 0.2s ease" }}
             >
               <CreditCard size={18} /> Subscription & Billing
             </button>
@@ -2308,12 +2411,26 @@ export default function SchoolPortal({ params }: PageProps) {
                       
                       {/* School Heading */}
                       <div style={{ textAlign: "center", borderBottom: "3px double black", paddingBottom: "14px", marginBottom: "20px" }}>
+                        {school.reportShowBadge && (
+                          <div style={{ display: "flex", justifyContent: "center", marginBottom: "10px" }}>
+                            {school.logoUrl ? (
+                              <img src={school.logoUrl} alt="Logo" style={{ width: "60px", height: "60px", objectFit: "contain" }} />
+                            ) : (
+                              <GraduationCap size={48} color="var(--primary)" />
+                            )}
+                          </div>
+                        )}
                         <h2 style={{ fontSize: "24px", margin: 0, textTransform: "uppercase", color: "#1e3a8a" }}>{school.name}</h2>
                         <p style={{ margin: "4px 0 0", fontSize: "12px", fontStyle: "italic" }}>
-                          P.O. Box Kampala, Uganda • Tel: {school.contactPhone} • Email: {school.contactEmail}
+                          P.O. Box {school.poBox || "Kampala, Uganda"} • Tel: {school.contactPhone} • Email: {school.contactEmail}
                         </p>
+                        {school.reportMotto && (
+                          <p style={{ margin: "2px 0 0", fontSize: "11px", fontStyle: "italic", fontWeight: "bold", color: "#475569" }}>
+                            Motto: "{school.reportMotto}"
+                          </p>
+                        )}
                         <h3 style={{ fontSize: "16px", margin: "10px 0 0", textTransform: "uppercase", textDecoration: "underline" }}>
-                          OFFICIAL ACADEMIC REPORT CARD
+                          {school.reportTitle || "OFFICIAL ACADEMIC REPORT CARD"}
                         </h3>
                       </div>
 
@@ -2323,7 +2440,9 @@ export default function SchoolPortal({ params }: PageProps) {
                         <div><strong>Class:</strong> {classes.find(c => c.id === selectedReportStudent.classId)?.name}</div>
                         <div><strong>Student Number:</strong> {selectedReportStudent.studentNumber}</div>
                         <div><strong>Academic Term:</strong> Term {selectedReportTerm} (2026)</div>
-                        <div><strong>Residency Type:</strong> {selectedReportStudent.type}</div>
+                        {school.reportShowResidency && (
+                          <div><strong>Residency Type:</strong> {selectedReportStudent.type}</div>
+                        )}
                         <div><strong>Date Generated:</strong> {new Date().toLocaleDateString()}</div>
                       </div>
 
@@ -2384,18 +2503,20 @@ export default function SchoolPortal({ params }: PageProps) {
                       )}
 
                       {/* CBC Info if Secondary */}
-                      {classes.find(c => c.id === selectedReportStudent.classId)?.level === "SECONDARY" && (
+                      {classes.find(c => c.id === selectedReportStudent.classId)?.level === "SECONDARY" && school.reportShowRules && (
                         <div style={{ background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "12px", fontSize: "12px", lineHeight: "1.4" }}>
                           <strong>CBC Grading Guideline:</strong> Grade A = Exceptional Competency, Grade B = Outstanding, Grade C = Satisfactory, Grade D = Basic, Grade E = Elementary.
                         </div>
                       )}
 
                       {/* Signatures */}
-                      <div style={{ display: "flex", justifyContent: "space-between", marginTop: "40px", fontSize: "12px" }}>
-                        <div style={{ borderTop: "1px solid black", width: "150px", textAlign: "center", paddingTop: "6px" }}>Class Teacher</div>
-                        <div style={{ borderTop: "1px solid black", width: "150px", textAlign: "center", paddingTop: "6px" }}>Head Teacher</div>
-                        <div style={{ borderTop: "1px solid black", width: "150px", textAlign: "center", paddingTop: "6px" }}>School Stamp</div>
-                      </div>
+                      {school.reportShowSignatures && (
+                        <div style={{ display: "flex", justifyContent: "space-between", marginTop: "40px", fontSize: "12px" }}>
+                          <div style={{ borderTop: "1px solid black", width: "150px", textAlign: "center", paddingTop: "6px" }}>Class Teacher</div>
+                          <div style={{ borderTop: "1px solid black", width: "150px", textAlign: "center", paddingTop: "6px" }}>Head Teacher</div>
+                          <div style={{ borderTop: "1px solid black", width: "150px", textAlign: "center", paddingTop: "6px" }}>School Stamp</div>
+                        </div>
+                      )}
 
                     </div>
                   </div>
@@ -3185,6 +3306,318 @@ export default function SchoolPortal({ params }: PageProps) {
           </div>
         )}
 
+        {/* TAB: SMS BROADCASTER */}
+        {activeTab === "sms" && (
+          <div className="tab-content-anim">
+            <h2 style={{ marginBottom: "10px" }}>SMS Broadcast Center</h2>
+            <p style={{ color: "#64748b", marginBottom: "30px" }}>Draft, template, and dispatch term announcements or fee reminders directly to student contacts.</p>
+            
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }} className="flex-mobile-col">
+              <div className="card">
+                <h4 style={{ marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px" }}><MessageSquare size={18} /> Dispatch Broadcast Message</h4>
+                
+                {/* Form */}
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!school) return;
+                  if (!smsMessage) {
+                    alert("Please write a message first.");
+                    return;
+                  }
+                  if (smsCredits < 1) {
+                    alert("Insufficient SMS credits.");
+                    return;
+                  }
+                  try {
+                    const res = await sendSmsBroadcast(school.id, smsGroup, smsMessage);
+                    if (res && res.status === "success") {
+                      // Deduct simulated credits
+                      const cost = res.count;
+                      setSmsCredits(prev => Math.max(0, prev - cost));
+                      
+                      // Add log
+                      const newLog = {
+                        id: Math.random().toString(36).substring(7),
+                        date: new Date().toLocaleString(),
+                        group: smsGroup,
+                        message: smsMessage,
+                        count: res.count,
+                        status: "Delivered"
+                      };
+                      setSmsLogs(prev => [newLog, ...prev]);
+                      setSmsMessage("");
+                      alert(`SMS broadcast successfully dispatched to ${res.count} contacts!`);
+                    } else {
+                      alert("Failed to send broadcast: " + res?.message);
+                    }
+                  } catch (err: any) {
+                    alert("Error queuing broadcast: " + (err.message || err));
+                  }
+                }}>
+                  <div className="form-group">
+                    <label className="form-label">Recipient Group</label>
+                    <select className="input-field" value={smsGroup} onChange={(e) => setSmsGroup(e.target.value)}>
+                      <option value="All Parents">All Student Parents ({students.length} contacts)</option>
+                      <option value="All Staff">All School Staff ({users.length} contacts)</option>
+                      <option value="Class Parents">Class Parents - P1/S1 (45 contacts)</option>
+                    </select>
+                  </div>
+                  
+                  <div className="form-group">
+                    <label className="form-label">Load Template</label>
+                    <select 
+                      className="input-field" 
+                      value={smsTemplate} 
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSmsTemplate(val);
+                        if (val === "defaulter") {
+                          setSmsMessage(`Dear Parent, this is a reminder from ${school?.name} that your child's term tuition balance remains unpaid. Please clear it urgently. Thank you.`);
+                        } else if (val === "report") {
+                          setSmsMessage(`Dear Parent, Academic Report Cards for Term 1 have been finalized. You are invited for parent-teacher discussions on Friday at the school. DOS.`);
+                        } else if (val === "welcome") {
+                          setSmsMessage(`Welcome back to the new term at ${school?.name}! We look forward to a successful and productive term with your child.`);
+                        } else {
+                          setSmsMessage("");
+                        }
+                      }}
+                    >
+                      <option value="">-- Choose message template --</option>
+                      <option value="defaulter">Tuition Fee Defaulter Reminder</option>
+                      <option value="report">Report Cards Release Announcement</option>
+                      <option value="welcome">New Term Resumption Welcome</option>
+                    </select>
+                  </div>
+                  
+                  <div className="form-group">
+                    <label className="form-label">Message (Max 160 chars per SMS)</label>
+                    <textarea 
+                      className="input-field" 
+                      style={{ minHeight: "120px", fontFamily: "var(--font-sans)", resize: "none" }}
+                      maxLength={480}
+                      value={smsMessage}
+                      onChange={(e) => setSmsMessage(e.target.value)}
+                      placeholder="Write your text message here..."
+                      required
+                    />
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#64748b", marginTop: "4px" }}>
+                      <span>{smsMessage.length} characters</span>
+                      <span>{Math.ceil(smsMessage.length / 160)} SMS Parts</span>
+                    </div>
+                  </div>
+                  
+                  <button type="submit" className="btn btn-primary hover-scale" style={{ width: "100%", padding: "12px" }}>
+                    🚀 Dispatch SMS Queue
+                  </button>
+                </form>
+              </div>
+              
+              <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                {/* Credit Balance Card */}
+                <div className="card" style={{ display: "flex", alignItems: "center", gap: "16px", background: "linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)", color: "white", border: "none" }}>
+                  <div style={{ padding: "16px", borderRadius: "12px", background: "rgba(255,255,255,0.2)" }}>
+                    <MessageSquare size={32} />
+                  </div>
+                  <div>
+                    <span style={{ fontSize: "12px", textTransform: "uppercase", opacity: 0.8 }}>Simulated SMS Balance</span>
+                    <h2 style={{ fontSize: "32px", fontWeight: 800 }}>{smsCredits.toLocaleString()} Credits</h2>
+                    <span style={{ fontSize: "11px", opacity: 0.7 }}>Recharge requests can be simulated via settings.</span>
+                  </div>
+                </div>
+                
+                {/* Sent Logs Card */}
+                <div className="card" style={{ flex: 1 }}>
+                  <h4 style={{ marginBottom: "16px" }}>Recent Dispatches History</h4>
+                  <div className="table-container" style={{ maxHeight: "250px", overflowY: "auto" }}>
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Group</th>
+                          <th>Sent</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {smsLogs.map((log: any) => (
+                          <tr key={log.id}>
+                            <td>{log.date.split(",")[0]}</td>
+                            <td><strong>{log.group}</strong></td>
+                            <td>{log.count} SMS</td>
+                            <td><span className="badge badge-success">{log.status}</span></td>
+                          </tr>
+                        ))}
+                        {smsLogs.length === 0 && (
+                          <tr><td colSpan={4} style={{ textAlign: "center", color: "#64748b", fontStyle: "italic", padding: "16px" }}>No SMS dispatches triggered yet.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: REPORT CARD DESIGNER */}
+        {activeTab === "report_designer" && ["ADMIN", "DOS"].includes(currentUser.role) && (
+          <div className="tab-content-anim">
+            <h2 style={{ marginBottom: "10px" }}>Academic Report Template Designer</h2>
+            <p style={{ color: "#64748b", marginBottom: "30px" }}>Customize the title headers, motto displays, logo badges, residency info, stamp templates, and secondary CBC regulations rules boxes.</p>
+            
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }} className="flex-mobile-col">
+              {/* Controls Column */}
+              <div className="card">
+                <h4 style={{ marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px" }}><Sliders size={18} /> Report Configuration</h4>
+                <form onSubmit={handleSaveReportTemplate}>
+                  <div className="form-group">
+                    <label className="form-label">Report Card Header Title</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      value={designerTitle}
+                      onChange={(e) => setDesignerTitle(e.target.value)}
+                      placeholder="e.g. OFFICIAL ACADEMIC REPORT CARD"
+                      required
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label className="form-label">School Official Motto</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      value={designerMotto}
+                      onChange={(e) => setDesignerMotto(e.target.value)}
+                      placeholder="e.g. Education for progress"
+                    />
+                  </div>
+                  
+                  <div style={{ height: "1px", background: "#e2e8f0", margin: "20px 0" }}></div>
+                  <h4 style={{ marginBottom: "12px", fontSize: "14px", color: "#0f172a" }}>Display Layout Settings</h4>
+                  
+                  <div className="flex flex-col gap-2" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "14px" }}>
+                      <input 
+                        type="checkbox" 
+                        checked={designerShowBadge}
+                        onChange={(e) => setDesignerShowBadge(e.target.checked)}
+                      />
+                      <span>Show Official School Logo Badge</span>
+                    </label>
+                    
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "14px" }}>
+                      <input 
+                        type="checkbox" 
+                        checked={designerShowResidency}
+                        onChange={(e) => setDesignerShowResidency(e.target.checked)}
+                      />
+                      <span>Show Residency Type (Day / Boarding student indicator)</span>
+                    </label>
+                    
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "14px" }}>
+                      <input 
+                        type="checkbox" 
+                        checked={designerShowSignatures}
+                        onChange={(e) => setDesignerShowSignatures(e.target.checked)}
+                      />
+                      <span>Show Official Teacher/Head Teacher Signature Stamps</span>
+                    </label>
+                    
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "14px" }}>
+                      <input 
+                        type="checkbox" 
+                        checked={designerShowRules}
+                        onChange={(e) => setDesignerShowRules(e.target.checked)}
+                      />
+                      <span>Show Curriculum Criteria (Uganda CBC Grading Guideline Box)</span>
+                    </label>
+                  </div>
+                  
+                  <button type="submit" className="btn btn-primary hover-scale" style={{ width: "100%", marginTop: "24px" }}>
+                    💾 Save Design Template Configuration
+                  </button>
+                </form>
+              </div>
+              
+              {/* Preview Column */}
+              <div className="card text-center" style={{ display: "flex", flexDirection: "column", alignItems: "stretch", background: "#f8fafc" }}>
+                <h4 style={{ marginBottom: "16px" }}>Live Report Card Mockup Preview</h4>
+                <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "10px" }}>
+                  
+                  {/* Miniature Report Card Design */}
+                  <div style={{ width: "100%", maxWidth: "340px", background: "white", padding: "20px", border: "1px solid #cbd5e1", borderRadius: "8px", boxShadow: "0 4px 6px rgba(0,0,0,0.05)", textAlign: "left", fontSize: "10px", color: "black", fontFamily: "Arial, sans-serif" }}>
+                    
+                    {/* Header */}
+                    <div style={{ textAlign: "center", borderBottom: "1px double black", paddingBottom: "8px", marginBottom: "10px" }}>
+                      {designerShowBadge && (
+                        <div style={{ display: "flex", justifyContent: "center", marginBottom: "4px" }}>
+                          {school?.logoUrl ? (
+                            <img src={school.logoUrl} alt="Logo" style={{ width: "25px", height: "25px", objectFit: "contain", border: "1px solid #e2e8f0", padding: "1px" }} />
+                          ) : (
+                            <GraduationCap size={20} color="var(--primary)" />
+                          )}
+                        </div>
+                      )}
+                      <h5 style={{ fontSize: "11px", margin: 0, textTransform: "uppercase", color: "#1e3a8a", fontWeight: "bold" }}>{school?.name}</h5>
+                      <span style={{ fontSize: "7px", color: "#475569" }}>P.O. Box {school?.poBox || "Kampala, Uganda"}</span>
+                      {designerMotto && (
+                        <p style={{ margin: "2px 0 0", fontSize: "7px", fontStyle: "italic", fontWeight: "bold", color: "#475569" }}>
+                          Motto: "{designerMotto}"
+                        </p>
+                      )}
+                      <h6 style={{ fontSize: "8px", margin: "6px 0 0", textTransform: "uppercase", textDecoration: "underline", color: "black", fontWeight: "bold" }}>
+                        {designerTitle || "OFFICIAL ACADEMIC REPORT CARD"}
+                      </h6>
+                    </div>
+                    
+                    {/* Student Info */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px", fontSize: "8px", marginBottom: "10px", borderBottom: "1px solid #e2e8f0", paddingBottom: "6px" }}>
+                      <div><strong>Student:</strong> Kakooza Ronald</div>
+                      <div><strong>Class:</strong> Primary One</div>
+                      <div><strong>Roll No:</strong> STD-2026-004</div>
+                      {designerShowResidency && (
+                        <div><strong>Residency:</strong> Day Student</div>
+                      )}
+                    </div>
+                    
+                    {/* Marks Mock Table */}
+                    <div style={{ border: "1px solid #cbd5e1", borderRadius: "3px", padding: "4px", marginBottom: "10px", background: "#f8fafc" }}>
+                      <div style={{ fontWeight: "bold", fontSize: "8px", marginBottom: "4px" }}>Academic Marks Assessment</div>
+                      <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #e2e8f0", paddingBottom: "2px", marginBottom: "2px" }}>
+                        <span>Mathematics</span>
+                        <strong>92% (PLE: 1)</strong>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span>English Language</span>
+                        <strong>85% (PLE: 1)</strong>
+                      </div>
+                    </div>
+                    
+                    {/* Secondary CBC box */}
+                    {designerShowRules && (
+                      <div style={{ background: "#f1f5f9", padding: "6px", borderRadius: "4px", fontSize: "7px", border: "1px solid #cbd5e1", marginBottom: "10px", lineHeight: "1.3" }}>
+                        <strong>CBC Guidelines:</strong> Competence letter grades map Continuous projects assessments continuously.
+                      </div>
+                    )}
+                    
+                    {/* Signatures */}
+                    {designerShowSignatures && (
+                      <div style={{ display: "flex", justifyContent: "space-between", marginTop: "14px", fontSize: "7px" }}>
+                        <div style={{ borderTop: "1px solid black", width: "60px", textAlign: "center", paddingTop: "2px" }}>Teacher</div>
+                        <div style={{ borderTop: "1px solid black", width: "60px", textAlign: "center", paddingTop: "2px" }}>Head Teacher</div>
+                        <div style={{ borderTop: "1px solid black", width: "60px", textAlign: "center", paddingTop: "2px" }}>Stamp</div>
+                      </div>
+                    )}
+                    
+                  </div>
+                  
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
       </main>
 
       {/* Mobile Money & Card Simulation Modal Overlay */}
@@ -3330,24 +3763,24 @@ export default function SchoolPortal({ params }: PageProps) {
               <div>
                 {momoProvider !== "CARD" ? (
                   <div style={{ background: "#27272a", color: "#22c55e", fontFamily: "monospace", padding: "16px", borderRadius: "8px", border: "2px solid #3f3f46", fontSize: "14px", marginBottom: "20px" }}>
-                    <p style={{ marginBottom: "8px" }}>[USSD Push Prompt Received]</p>
+                    <p style={{ marginBottom: "8px" }}>[USSD Push Prompt Sent]</p>
                     <p style={{ marginBottom: "16px" }}>
-                      Do you want to pay {school.name} fees of {parseFloat(momoAmount).toLocaleString()} UGX?
+                      A mobile money push collection request of {parseFloat(momoAmount).toLocaleString()} UGX has been sent to your phone. Please approve the transaction by entering your PIN and click "Check Status" below.
                     </p>
-                    <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "12px" }}>
                       <button 
-                        onClick={finishSimulatedMoMo}
+                        onClick={checkPaymentStatus}
                         className="btn" 
-                        style={{ flex: 1, background: "#22c55e", color: "black", border: "none", fontSize: "12px", fontWeight: "bold", padding: "8px", borderRadius: "6px", cursor: "pointer" }}
+                        style={{ width: "100%", background: "#22c55e", color: "black", border: "none", fontSize: "13px", fontWeight: "bold", padding: "10px", borderRadius: "6px", cursor: "pointer" }}
                       >
-                        1. Accept (Enter PIN)
+                        🔄 Check Payment Status
                       </button>
                       <button 
                         onClick={() => setShowMoMoModal(false)}
                         className="btn" 
-                        style={{ flex: 1, background: "#ef4444", color: "white", border: "none", fontSize: "12px", padding: "8px", borderRadius: "6px", cursor: "pointer" }}
+                        style={{ width: "100%", background: "#ef4444", color: "white", border: "none", fontSize: "12px", padding: "8px", borderRadius: "6px", cursor: "pointer" }}
                       >
-                        2. Decline
+                        Cancel
                       </button>
                     </div>
                   </div>
@@ -3355,36 +3788,25 @@ export default function SchoolPortal({ params }: PageProps) {
                   <div style={{ background: "#f8fafc", color: "#1e293b", padding: "20px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "13px", marginBottom: "20px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "6px", borderBottom: "1px solid #e2e8f0", paddingBottom: "10px", marginBottom: "12px" }}>
                       <CreditCard size={18} color="var(--primary)" />
-                      <strong style={{ fontSize: "14px" }}>3D Secure OTP Authentication</strong>
+                      <strong style={{ fontSize: "14px" }}>Card Transaction Status</strong>
                     </div>
                     <p style={{ marginBottom: "14px", lineHeight: "1.4" }}>
-                      A security verification code has been sent to your registered phone. Please enter it below to complete this transaction.
+                      If you have completed the payment on the secure card gateway, you can click verify below.
                     </p>
-                    <div className="form-group" style={{ marginBottom: "16px" }}>
-                      <label className="form-label" style={{ color: "#475569" }}>One-Time Password (OTP)</label>
-                      <input 
-                        type="text" 
-                        className="input-field" 
-                        placeholder="e.g. 123456" 
-                        value={cardOtp}
-                        onChange={(e) => setCardOtp(e.target.value)}
-                        style={{ background: "white", color: "#1e293b", borderColor: "#cbd5e1" }}
-                      />
-                    </div>
                     <div style={{ display: "flex", gap: "10px" }}>
                       <button 
-                        onClick={finishSimulatedMoMo}
+                        onClick={checkPaymentStatus}
                         className="btn btn-primary" 
                         style={{ flex: 1, padding: "8px", fontSize: "12px", cursor: "pointer" }}
                       >
-                        Verify OTP
+                        Verify Transaction
                       </button>
                       <button 
                         onClick={() => setShowMoMoModal(false)}
                         className="btn btn-outline" 
                         style={{ flex: 1, padding: "8px", fontSize: "12px", cursor: "pointer" }}
                       >
-                        Cancel
+                        Close
                       </button>
                     </div>
                   </div>

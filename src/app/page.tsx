@@ -6,6 +6,7 @@ import {
   createUser, 
   updateSchoolStatus, 
   checkDatabaseConnection, 
+  getSchools,
   School 
 } from "../lib/services";
 import { 
@@ -40,6 +41,7 @@ export default function MarketingPage() {
   const [error, setError] = useState("");
   const [demoHost, setDemoHost] = useState("");
   const [dbConnected, setDbConnected] = useState<boolean | null>(null);
+  const [partnerSchools, setPartnerSchools] = useState<School[]>([]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -55,7 +57,18 @@ export default function MarketingPage() {
       const isConnected = await checkDatabaseConnection();
       setDbConnected(isConnected);
     }
+    // Fetch partner schools
+    async function fetchSchools() {
+      try {
+        const schools = await getSchools();
+        const activePartners = schools.filter(s => s.status === "ACTIVE" && s.subdomain !== "super-admin-system");
+        setPartnerSchools(activePartners);
+      } catch (err) {
+        console.error("Failed to fetch partner schools:", err);
+      }
+    }
     checkDb();
+    fetchSchools();
   }, []);
 
   const handleSubdomainChange = (val: string) => {
@@ -259,6 +272,39 @@ export default function MarketingPage() {
                   </p>
                 </div>
               </div>
+
+              {/* Partner Schools Showcase Section */}
+              {partnerSchools.length > 0 && (
+                <div style={{ margin: "60px 0 80px", padding: "45px 0", borderTop: "1px solid #e2e8f0" }}>
+                  <div style={{ textAlign: "center", marginBottom: "40px" }}>
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "1.5px" }}>Partner Schools</span>
+                    <h2 style={{ fontSize: "32px", fontWeight: 800, color: "#0f172a", marginTop: "8px" }}>Trusted by Active Ugandan Institutions</h2>
+                    <p style={{ color: "#64748b", marginTop: "8px" }}>Empowering schools of all sizes to run digital classrooms and finance systems.</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-4 gap-3">
+                    {partnerSchools.map((s) => (
+                      <div 
+                        key={s.id}
+                        className="card text-center hover-scale" 
+                        style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "20px", background: "white", borderColor: "#e2e8f0" }}
+                      >
+                        <div style={{ width: "70px", height: "70px", borderRadius: "12px", border: "1px solid #e2e8f0", background: "#f8fafc", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", marginBottom: "16px" }}>
+                          {s.logoUrl ? (
+                            <img src={s.logoUrl} alt={`${s.name} Logo`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          ) : (
+                            <div style={{ width: "100%", height: "100%", background: "linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: "bold", fontSize: "20px" }}>
+                              {s.name.substring(0, 2).toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                        <h4 style={{ color: "#0f172a", fontSize: "15px", fontWeight: 700, marginBottom: "4px" }}>{s.name}</h4>
+                        <span style={{ fontSize: "12px", color: "var(--primary)", fontWeight: 600 }}>{s.subdomain}.portal.laptertech.store</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Showcase Section 1: Report Cards */}
               <div className="grid grid-cols-2 gap-3 align-center" style={{ marginBottom: "60px", padding: "40px 0", borderTop: "1px solid #e2e8f0" }}>

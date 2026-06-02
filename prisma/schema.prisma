@@ -42,6 +42,10 @@ model School {
   reportShowResidency Boolean  @default(true)
   reportShowSignatures Boolean @default(true)
   reportShowRules    Boolean   @default(true)
+  reportLogoSize      Int?      @default(60)
+  reportShowStudentPhoto Boolean? @default(true)
+  reportHeaderColor   String?   @default("#1e3a8a")
+  reportBorderType    String?   @default("double")
 }
 
 model User {

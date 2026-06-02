@@ -121,6 +121,14 @@ export default function SchoolPortal({ params }: PageProps) {
   const [editStaffNumber, setEditStaffNumber] = useState("");
   const [editStaffPhoto, setEditStaffPhoto] = useState("");
 
+  // Bulk upload states
+  const [showBulkStudentModal, setShowBulkStudentModal] = useState(false);
+  const [showBulkStaffModal, setShowBulkStaffModal] = useState(false);
+  const [bulkStudentText, setBulkStudentText] = useState("");
+  const [bulkStaffText, setBulkStaffText] = useState("");
+  const [bulkStudentClassId, setBulkStudentClassId] = useState("");
+  const [bulkStudentStreamId, setBulkStudentStreamId] = useState("");
+
   const [newSubjectName, setNewSubjectName] = useState("");
   const [newSubjectClassId, setNewSubjectClassId] = useState("");
   const [newSubjectCode, setNewSubjectCode] = useState("");
@@ -225,6 +233,10 @@ export default function SchoolPortal({ params }: PageProps) {
   const [designerShowResidency, setDesignerShowResidency] = useState(true);
   const [designerShowSignatures, setDesignerShowSignatures] = useState(true);
   const [designerShowRules, setDesignerShowRules] = useState(true);
+  const [designerLogoSize, setDesignerLogoSize] = useState<number>(60);
+  const [designerShowStudentPhoto, setDesignerShowStudentPhoto] = useState<boolean>(true);
+  const [designerHeaderColor, setDesignerHeaderColor] = useState<string>("#1e3a8a");
+  const [designerBorderType, setDesignerBorderType] = useState<string>("double");
 
   useEffect(() => {
     async function fetchSchool() {
@@ -256,6 +268,10 @@ export default function SchoolPortal({ params }: PageProps) {
         setDesignerShowResidency(s.reportShowResidency !== false);
         setDesignerShowSignatures(s.reportShowSignatures !== false);
         setDesignerShowRules(s.reportShowRules !== false);
+        setDesignerLogoSize(s.reportLogoSize || 60);
+        setDesignerShowStudentPhoto(s.reportShowStudentPhoto !== false);
+        setDesignerHeaderColor(s.reportHeaderColor || "#1e3a8a");
+        setDesignerBorderType(s.reportBorderType || "double");
       }
       
       const isConnected = await checkDatabaseConnection();
@@ -313,6 +329,11 @@ export default function SchoolPortal({ params }: PageProps) {
         setNewStreamClassId(cls[0].id);
         setNewStudentClassId(cls[0].id);
         setNewSubjectClassId(cls[0].id);
+        setBulkStudentClassId(cls[0].id);
+        const subStreams = strms.filter(st => st.classId === cls[0].id);
+        if (subStreams.length > 0) {
+          setBulkStudentStreamId(subStreams[0].id);
+        }
         setSelectedClassId(cls[0].id);
         setSelectedFeeClassId(cls[0].id);
         setSelectedReportClassId(cls[0].id);
@@ -531,6 +552,110 @@ export default function SchoolPortal({ params }: PageProps) {
     setNewStudentPhoto("");
     await loadSchoolData(school.id);
     alert("Student registered successfully!");
+  };
+
+  // Bulk student upload handler
+  const handleBulkStudentUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!school || !bulkStudentClassId || !bulkStudentStreamId || !bulkStudentText) {
+      alert("Please fill in all details and paste student list.");
+      return;
+    }
+    try {
+      const lines = bulkStudentText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+      if (lines.length === 0) {
+        alert("Pasted list is empty.");
+        return;
+      }
+      let successCount = 0;
+      let existingCount = students.length;
+      for (const line of lines) {
+        const parts = line.split(/[,\t]/).map(p => p.trim());
+        if (parts.length === 0 || !parts[0]) continue;
+        const name = parts[0];
+        let studentNumber = parts[1] || "";
+        let typeStr = parts[2] || "DAY";
+        if (!studentNumber) {
+          existingCount++;
+          const initials = school.name.split(/\s+/).map(w => w[0]).join("").toUpperCase().replace(/[^A-Z]/g, "") || subdomain.toUpperCase();
+          studentNumber = `${initials}-STU-${String(existingCount).padStart(4, "0")}`;
+        }
+        let residencyType: "DAY" | "BOARDING" = "DAY";
+        if (typeStr.toUpperCase() === "BOARDING" || typeStr.toUpperCase() === "B") {
+          residencyType = "BOARDING";
+        }
+        await createStudent({
+          schoolId: school.id,
+          classId: bulkStudentClassId,
+          streamId: bulkStudentStreamId,
+          name,
+          studentNumber,
+          type: residencyType,
+          photo: null,
+        });
+        successCount++;
+      }
+      setBulkStudentText("");
+      setShowBulkStudentModal(false);
+      await loadSchoolData(school.id);
+      alert(`Successfully imported ${successCount} students!`);
+    } catch (err: any) {
+      alert("Error importing students: " + (err.message || err));
+    }
+  };
+
+  // Bulk staff upload handler
+  const handleBulkStaffUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!school || !bulkStaffText) {
+      alert("Please paste staff list.");
+      return;
+    }
+    try {
+      const lines = bulkStaffText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+      if (lines.length === 0) {
+        alert("Pasted list is empty.");
+        return;
+      }
+      let successCount = 0;
+      let existingCount = users.length;
+      for (const line of lines) {
+        const parts = line.split(/[,\t]/).map(p => p.trim());
+        if (parts.length === 0 || !parts[0]) continue;
+        const name = parts[0];
+        const email = parts[1] || "";
+        let roleStr = parts[2] || "TEACHER";
+        let staffNumber = parts[3] || "";
+        if (!email) continue;
+        let role: "ADMIN" | "TEACHER" | "DOS" | "HEADTEACHER" | "DIRECTOR" = "TEACHER";
+        const upperRole = roleStr.toUpperCase();
+        if (upperRole === "ADMIN") role = "ADMIN";
+        else if (upperRole === "DOS") role = "DOS";
+        else if (upperRole === "HEADTEACHER" || upperRole === "HEAD") role = "HEADTEACHER";
+        else if (upperRole === "DIRECTOR") role = "DIRECTOR";
+        if (!staffNumber) {
+          existingCount++;
+          const initials = school.name.split(/\s+/).map(w => w[0]).join("").toUpperCase().replace(/[^A-Z]/g, "") || subdomain.toUpperCase();
+          staffNumber = `${initials}-STF-${String(existingCount).padStart(4, "0")}`;
+        }
+        await createUser({
+          schoolId: school.id,
+          name,
+          email,
+          passwordHash: "password",
+          role,
+          photo: null,
+          staffNumber,
+        });
+        successCount++;
+      }
+      setBulkStaffText("");
+      setShowBulkStaffModal(false);
+      await loadSchoolData(school.id);
+      alert(`Successfully imported ${successCount} staff accounts!`);
+    } catch (err: any) {
+      alert("Error importing staff: " + (err.message || err));
+    }
   };
 
   // Create subject handler
@@ -782,7 +907,11 @@ export default function SchoolPortal({ params }: PageProps) {
         reportShowBadge: designerShowBadge,
         reportShowResidency: designerShowResidency,
         reportShowSignatures: designerShowSignatures,
-        reportShowRules: designerShowRules
+        reportShowRules: designerShowRules,
+        reportLogoSize: designerLogoSize,
+        reportShowStudentPhoto: designerShowStudentPhoto,
+        reportHeaderColor: designerHeaderColor,
+        reportBorderType: designerBorderType
       });
       setSchool(updated);
       alert("Academic report card template layout saved successfully!");
@@ -1634,6 +1763,99 @@ export default function SchoolPortal({ params }: PageProps) {
               </div>
             </div>
 
+            {/* Dashboard Analytics Graphs */}
+            {(() => {
+              const enrollmentData = classes.map(c => {
+                const count = students.filter(s => s.classId === c.id).length;
+                return { className: c.name, count };
+              });
+              const maxCount = Math.max(...enrollmentData.map(d => d.count), 1);
+              const dayStudents = students.filter(s => s.type === "DAY").length;
+              const boardingStudents = students.filter(s => s.type === "BOARDING").length;
+              const maxResidency = Math.max(dayStudents, boardingStudents, 1);
+              const totalPaid = studentPayments.reduce((acc, p) => acc + p.amountPaid, 0);
+              const totalBalance = studentPayments.reduce((acc, p) => acc + p.balance, 0);
+              const maxFinance = Math.max(totalPaid, totalBalance, 1);
+
+              return (
+                <div className="grid grid-cols-2 gap-3 flex-mobile-col no-print" style={{ marginBottom: "30px" }}>
+                  
+                  {/* Graph A: Student Enrollment per Class */}
+                  <div className="card">
+                    <h3 style={{ marginBottom: "20px", fontSize: "16px", fontWeight: "bold" }}>Class Enrollment Distribution</h3>
+                    <div style={{ width: "100%", height: "220px", display: "flex", alignItems: "flex-end", gap: "12px", padding: "10px 20px 25px 20px", position: "relative", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                      <div style={{ position: "absolute", top: "10px", bottom: "40px", left: "0", right: "0", display: "flex", flexDirection: "column", justifyContent: "space-between", pointerEvents: "none" }}>
+                        <div style={{ borderBottom: "1px dashed #e2e8f0", width: "100%" }}></div>
+                        <div style={{ borderBottom: "1px dashed #e2e8f0", width: "100%" }}></div>
+                        <div style={{ borderBottom: "1px dashed #e2e8f0", width: "100%" }}></div>
+                        <div style={{ borderBottom: "1px dashed #e2e8f0", width: "100%" }}></div>
+                      </div>
+
+                      {enrollmentData.map((d, index) => {
+                        const heightPercent = (d.count / maxCount) * 100;
+                        return (
+                          <div key={index} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", zIndex: 1, position: "relative" }}>
+                            <span style={{ fontSize: "10px", fontWeight: "bold", color: "var(--primary)", marginBottom: "4px" }}>{d.count}</span>
+                            <div style={{ width: "100%", maxWidth: "32px", height: `${Math.max(heightPercent * 1.3, 4)}px`, background: "linear-gradient(180deg, var(--primary) 0%, var(--primary-hover) 100%)", borderRadius: "4px 4px 0 0" }}></div>
+                            <span style={{ position: "absolute", bottom: "-22px", fontSize: "10px", color: "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "55px", textAlign: "center" }} title={d.className}>{d.className}</span>
+                          </div>
+                        );
+                      })}
+                      {enrollmentData.length === 0 && (
+                        <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748b", fontStyle: "italic", fontSize: "13px" }}>No enrollment records available.</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Graph B: Residency Type or Finance Status */}
+                  <div className="card">
+                    {school.packageType === "PREMIUM" ? (
+                      <div>
+                        <h3 style={{ marginBottom: "20px", fontSize: "16px", fontWeight: "bold" }}>Term Fees Ledger Summary</h3>
+                        <div style={{ width: "100%", height: "220px", display: "flex", alignItems: "flex-end", gap: "24px", padding: "10px 40px 25px 40px", position: "relative", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                          
+                          {/* Paid Bar */}
+                          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", zIndex: 1 }}>
+                            <span style={{ fontSize: "11px", fontWeight: "bold", color: "#10b981", marginBottom: "6px" }}>{totalPaid.toLocaleString()} UGX</span>
+                            <div style={{ width: "100%", maxWidth: "60px", height: `${(totalPaid / maxFinance) * 130 + 4}px`, background: "linear-gradient(180deg, #10b981 0%, #059669 100%)", borderRadius: "6px 6px 0 0" }}></div>
+                            <span style={{ marginTop: "6px", fontSize: "11px", fontWeight: "bold", color: "#374151" }}>Total Collected</span>
+                          </div>
+
+                          {/* Balance Bar */}
+                          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", zIndex: 1 }}>
+                            <span style={{ fontSize: "11px", fontWeight: "bold", color: "#f59e0b", marginBottom: "6px" }}>{totalBalance.toLocaleString()} UGX</span>
+                            <div style={{ width: "100%", maxWidth: "60px", height: `${(totalBalance / maxFinance) * 130 + 4}px`, background: "linear-gradient(180deg, #f59e0b 0%, #d97706 100%)", borderRadius: "6px 6px 0 0" }}></div>
+                            <span style={{ marginTop: "6px", fontSize: "11px", fontWeight: "bold", color: "#374151" }}>Outstanding Balances</span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <h3 style={{ marginBottom: "20px", fontSize: "16px", fontWeight: "bold" }}>Residency Structure Breakdown</h3>
+                        <div style={{ width: "100%", height: "220px", display: "flex", alignItems: "flex-end", gap: "24px", padding: "10px 40px 25px 40px", position: "relative", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                          
+                          {/* Day Students Bar */}
+                          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", zIndex: 1 }}>
+                            <span style={{ fontSize: "11px", fontWeight: "bold", color: "var(--primary)", marginBottom: "6px" }}>{dayStudents} Pupils</span>
+                            <div style={{ width: "100%", maxWidth: "60px", height: `${(dayStudents / maxResidency) * 130 + 4}px`, background: "linear-gradient(180deg, var(--primary) 0%, var(--primary-hover) 100%)", borderRadius: "6px 6px 0 0" }}></div>
+                            <span style={{ marginTop: "6px", fontSize: "11px", fontWeight: "bold", color: "#374151" }}>Day Students</span>
+                          </div>
+
+                          {/* Boarding Students Bar */}
+                          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", zIndex: 1 }}>
+                            <span style={{ fontSize: "11px", fontWeight: "bold", color: "#8b5cf6", marginBottom: "6px" }}>{boardingStudents} Pupils</span>
+                            <div style={{ width: "100%", maxWidth: "60px", height: `${(boardingStudents / maxResidency) * 130 + 4}px`, background: "linear-gradient(180deg, #8b5cf6 0%, #7c3aed 100%)", borderRadius: "6px 6px 0 0" }}></div>
+                            <span style={{ marginTop: "6px", fontSize: "11px", fontWeight: "bold", color: "#374151" }}>Boarding Students</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                </div>
+              );
+            })()}
+
             {/* School Roster lists */}
             <div className="grid grid-cols-2 gap-3">
               <div className="card">
@@ -2035,8 +2257,30 @@ export default function SchoolPortal({ params }: PageProps) {
         {/* TAB 2C: STUDENTS (Admin/DOS/Head/Teacher) */}
         {activeTab === "students" && (
           <div className="tab-content-anim">
-            <h2 style={{ marginBottom: "10px" }}>Student Registry & Directory</h2>
-            <p style={{ color: "#64748b", marginBottom: "30px" }}>Register new student parameters and manage the current student directory.</p>
+            <div className="flex justify-between align-center no-print" style={{ marginBottom: "20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <h2 style={{ marginBottom: "6px" }}>Student Registry & Directory</h2>
+                <p style={{ color: "#64748b", margin: 0 }}>Register new student parameters and manage the current student directory.</p>
+              </div>
+              {currentUser.role === "ADMIN" && (
+                <button 
+                  onClick={() => {
+                    if (classes.length > 0) {
+                      setBulkStudentClassId(classes[0].id);
+                      const subStreams = streams.filter(s => s.classId === classes[0].id);
+                      if (subStreams.length > 0) {
+                        setBulkStudentStreamId(subStreams[0].id);
+                      }
+                    }
+                    setShowBulkStudentModal(true);
+                  }}
+                  className="btn btn-outline"
+                  style={{ display: "flex", alignItems: "center", gap: "8px", background: "white" }}
+                >
+                  <PlusCircle size={16} /> Bulk Upload Students
+                </button>
+              )}
+            </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "24px" }} className="flex-mobile-col">
               {/* Register Student */}
@@ -2245,8 +2489,19 @@ export default function SchoolPortal({ params }: PageProps) {
         {/* TAB 2D: STAFF DIRECTORY (Admin only) */}
         {activeTab === "staff" && (
           <div className="tab-content-anim">
-            <h2 style={{ marginBottom: "10px" }}>Staff & User Accounts</h2>
-            <p style={{ color: "#64748b", marginBottom: "30px" }}>Manage accounts and system access roles for teachers, DOS, and administrators.</p>
+            <div className="flex justify-between align-center no-print" style={{ marginBottom: "20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <h2 style={{ marginBottom: "6px" }}>Staff & User Accounts</h2>
+                <p style={{ color: "#64748b", margin: 0 }}>Manage accounts and system access roles for teachers, DOS, and administrators.</p>
+              </div>
+              <button 
+                onClick={() => setShowBulkStaffModal(true)} 
+                className="btn btn-outline"
+                style={{ display: "flex", alignItems: "center", gap: "8px", background: "white" }}
+              >
+                <PlusCircle size={16} /> Bulk Upload Staff
+              </button>
+            </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "24px" }} className="flex-mobile-col">
               {/* Create Staff */}
@@ -2770,17 +3025,17 @@ export default function SchoolPortal({ params }: PageProps) {
                     <div id="printable-report" className="card" style={{ background: "white", color: "black", borderColor: "#cbd5e1", padding: "40px", fontFamily: "Arial, sans-serif" }}>
                       
                       {/* School Heading */}
-                      <div style={{ textAlign: "center", borderBottom: "3px double black", paddingBottom: "14px", marginBottom: "20px" }}>
+                      <div style={{ textAlign: "center", borderBottom: school.reportBorderType === "solid" ? "1px solid black" : school.reportBorderType === "none" ? "none" : "3px double black", paddingBottom: "14px", marginBottom: "20px" }}>
                         {school.reportShowBadge && (
                           <div style={{ display: "flex", justifyContent: "center", marginBottom: "10px" }}>
                             {school.logoUrl ? (
-                              <img src={school.logoUrl} alt="Logo" style={{ width: "60px", height: "60px", objectFit: "contain" }} />
+                              <img src={school.logoUrl} alt="Logo" style={{ width: `${school.reportLogoSize || 60}px`, height: `${school.reportLogoSize || 60}px`, objectFit: "contain" }} />
                             ) : (
-                              <GraduationCap size={48} color="var(--primary)" />
+                              <GraduationCap size={Math.round((school.reportLogoSize || 60) * 0.8)} color="var(--primary)" />
                             )}
                           </div>
                         )}
-                        <h2 style={{ fontSize: "24px", margin: 0, textTransform: "uppercase", color: "#1e3a8a" }}>{school.name}</h2>
+                        <h2 style={{ fontSize: "24px", margin: 0, textTransform: "uppercase", color: school.reportHeaderColor || "#1e3a8a" }}>{school.name}</h2>
                         <p style={{ margin: "4px 0 0", fontSize: "12px", fontStyle: "italic" }}>
                           P.O. Box {school.poBox || "Kampala, Uganda"} • Tel: {school.contactPhone} • Email: {school.contactEmail}
                         </p>
@@ -2794,16 +3049,27 @@ export default function SchoolPortal({ params }: PageProps) {
                         </h3>
                       </div>
 
-                      {/* Student Meta details */}
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", fontSize: "13px", marginBottom: "20px", borderBottom: "1px solid #94a3b8", paddingBottom: "12px" }}>
-                        <div><strong>Student Name:</strong> {selectedReportStudent.name}</div>
-                        <div><strong>Class:</strong> {classes.find(c => c.id === selectedReportStudent.classId)?.name}</div>
-                        <div><strong>Student Number:</strong> {selectedReportStudent.studentNumber}</div>
-                        <div><strong>Academic Term:</strong> Term {selectedReportTerm} (2026)</div>
-                        {school.reportShowResidency && (
-                          <div><strong>Residency Type:</strong> {selectedReportStudent.type}</div>
+                      {/* Student Meta details with Optional Student Photo */}
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: "20px", marginBottom: "20px", borderBottom: "1px solid #94a3b8", paddingBottom: "12px" }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", fontSize: "13px", flex: 1 }}>
+                          <div><strong>Student Name:</strong> {selectedReportStudent.name}</div>
+                          <div><strong>Class:</strong> {classes.find(c => c.id === selectedReportStudent.classId)?.name}</div>
+                          <div><strong>Student Number:</strong> {selectedReportStudent.studentNumber}</div>
+                          <div><strong>Academic Term:</strong> Term {selectedReportTerm} (2026)</div>
+                          {school.reportShowResidency && (
+                            <div><strong>Residency Type:</strong> {selectedReportStudent.type}</div>
+                          )}
+                          <div><strong>Date Generated:</strong> {new Date().toLocaleDateString()}</div>
+                        </div>
+                        {school.reportShowStudentPhoto !== false && (
+                          <div style={{ width: "75px", height: "80px", border: "1px solid #cbd5e1", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", background: "#f8fafc", flexShrink: 0 }}>
+                            {selectedReportStudent.photo ? (
+                              <img src={selectedReportStudent.photo} alt="Student" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            ) : (
+                              <span style={{ fontSize: "9px", color: "#94a3b8", textAlign: "center" }}>No Photo</span>
+                            )}
+                          </div>
                         )}
-                        <div><strong>Date Generated:</strong> {new Date().toLocaleDateString()}</div>
                       </div>
 
                       {/* Grades Table */}
@@ -3893,6 +4159,66 @@ export default function SchoolPortal({ params }: PageProps) {
                       <span>Show Curriculum Criteria (Uganda CBC Grading Guideline Box)</span>
                     </label>
                   </div>
+
+                  <div style={{ height: "1px", background: "#e2e8f0", margin: "20px 0" }}></div>
+                  <h4 style={{ marginBottom: "12px", fontSize: "14px", color: "#0f172a" }}>Report Card Styling Settings</h4>
+
+                  <div className="form-group">
+                    <label className="form-label">School Logo Size (Width/Height)</label>
+                    <select 
+                      className="input-field" 
+                      value={designerLogoSize} 
+                      onChange={(e) => setDesignerLogoSize(parseInt(e.target.value))}
+                    >
+                      <option value="40">Small (40px)</option>
+                      <option value="60">Medium (60px)</option>
+                      <option value="80">Large (80px)</option>
+                      <option value="100">Extra Large (100px)</option>
+                      <option value="120">Super Large (120px)</option>
+                    </select>
+                  </div>
+
+                  <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "14px", marginTop: "12px", marginBottom: "16px" }}>
+                    <input 
+                      type="checkbox" 
+                      checked={designerShowStudentPhoto}
+                      onChange={(e) => setDesignerShowStudentPhoto(e.target.checked)}
+                    />
+                    <span>Show Student Portrait Photo on Report Card</span>
+                  </label>
+
+                  <div className="form-group">
+                    <label className="form-label">Report Header Accent Color</label>
+                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                      <input 
+                        type="color" 
+                        value={designerHeaderColor}
+                        onChange={(e) => setDesignerHeaderColor(e.target.value)}
+                        style={{ width: "40px", height: "35px", border: "1px solid var(--border)", borderRadius: "4px", padding: "2px", cursor: "pointer" }}
+                      />
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        value={designerHeaderColor}
+                        onChange={(e) => setDesignerHeaderColor(e.target.value)}
+                        placeholder="#1e3a8a"
+                        style={{ flex: 1 }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">School Header Bottom Border Style</label>
+                    <select 
+                      className="input-field" 
+                      value={designerBorderType} 
+                      onChange={(e) => setDesignerBorderType(e.target.value)}
+                    >
+                      <option value="double">Double Underline (Traditional)</option>
+                      <option value="solid">Solid Underline (Modern)</option>
+                      <option value="none">No Underline (Minimalist)</option>
+                    </select>
+                  </div>
                   
                   <button type="submit" className="btn btn-primary hover-scale" style={{ width: "100%", marginTop: "24px" }}>
                     💾 Save Design Template Configuration
@@ -3909,17 +4235,17 @@ export default function SchoolPortal({ params }: PageProps) {
                   <div style={{ width: "100%", maxWidth: "340px", background: "white", padding: "20px", border: "1px solid #cbd5e1", borderRadius: "8px", boxShadow: "0 4px 6px rgba(0,0,0,0.05)", textAlign: "left", fontSize: "10px", color: "black", fontFamily: "Arial, sans-serif" }}>
                     
                     {/* Header */}
-                    <div style={{ textAlign: "center", borderBottom: "1px double black", paddingBottom: "8px", marginBottom: "10px" }}>
+                    <div style={{ textAlign: "center", borderBottom: designerBorderType === "double" ? "3px double black" : designerBorderType === "solid" ? "1px solid black" : "none", paddingBottom: "8px", marginBottom: "10px" }}>
                       {designerShowBadge && (
                         <div style={{ display: "flex", justifyContent: "center", marginBottom: "4px" }}>
                           {school?.logoUrl ? (
-                            <img src={school.logoUrl} alt="Logo" style={{ width: "25px", height: "25px", objectFit: "contain", border: "1px solid #e2e8f0", padding: "1px" }} />
+                            <img src={school.logoUrl} alt="Logo" style={{ width: `${designerLogoSize * 0.4}px`, height: `${designerLogoSize * 0.4}px`, objectFit: "contain", border: "1px solid #e2e8f0", padding: "1px" }} />
                           ) : (
-                            <GraduationCap size={20} color="var(--primary)" />
+                            <GraduationCap size={Math.round(designerLogoSize * 0.35)} color="var(--primary)" />
                           )}
                         </div>
                       )}
-                      <h5 style={{ fontSize: "11px", margin: 0, textTransform: "uppercase", color: "#1e3a8a", fontWeight: "bold" }}>{school?.name}</h5>
+                      <h5 style={{ fontSize: "11px", margin: 0, textTransform: "uppercase", color: designerHeaderColor, fontWeight: "bold" }}>{school?.name}</h5>
                       <span style={{ fontSize: "7px", color: "#475569" }}>P.O. Box {school?.poBox || "Kampala, Uganda"}</span>
                       {designerMotto && (
                         <p style={{ margin: "2px 0 0", fontSize: "7px", fontStyle: "italic", fontWeight: "bold", color: "#475569" }}>
@@ -3932,12 +4258,19 @@ export default function SchoolPortal({ params }: PageProps) {
                     </div>
                     
                     {/* Student Info */}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px", fontSize: "8px", marginBottom: "10px", borderBottom: "1px solid #e2e8f0", paddingBottom: "6px" }}>
-                      <div><strong>Student:</strong> Kakooza Ronald</div>
-                      <div><strong>Class:</strong> Primary One</div>
-                      <div><strong>Roll No:</strong> STD-2026-004</div>
-                      {designerShowResidency && (
-                        <div><strong>Residency:</strong> Day Student</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", marginBottom: "10px", borderBottom: "1px solid #e2e8f0", paddingBottom: "6px" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "2px", fontSize: "8px", flex: 1 }}>
+                        <div><strong>Student:</strong> Kakooza Ronald</div>
+                        <div><strong>Class:</strong> Primary One</div>
+                        <div><strong>Roll No:</strong> STD-2026-004</div>
+                        {designerShowResidency && (
+                          <div><strong>Residency:</strong> Day Student</div>
+                        )}
+                      </div>
+                      {designerShowStudentPhoto && (
+                        <div style={{ width: "32px", height: "34px", border: "1px solid #cbd5e1", borderRadius: "3px", display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9", fontSize: "6px", color: "#94a3b8", flexShrink: 0 }}>
+                          Photo
+                        </div>
                       )}
                     </div>
                     
@@ -4524,6 +4857,127 @@ export default function SchoolPortal({ params }: PageProps) {
                 <button 
                   type="button" 
                   onClick={() => setShowEditStaffModal(false)}
+                  className="btn btn-outline" 
+                  style={{ flex: 1 }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Bulk Upload Students Modal */}
+      {showBulkStudentModal && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1050, padding: "20px" }}>
+          <div className="card" style={{ width: "100%", maxWidth: "550px", background: "white", padding: "30px", boxShadow: "var(--shadow-lg)" }}>
+            <h3 style={{ marginBottom: "16px", borderBottom: "1px solid var(--border)", paddingBottom: "10px" }}>Bulk Upload Students</h3>
+            
+            <form onSubmit={handleBulkStudentUpload}>
+              <div className="grid grid-cols-2 gap-2" style={{ marginBottom: "16px" }}>
+                <div className="form-group">
+                  <label className="form-label">Target Class</label>
+                  <select 
+                    className="input-field" 
+                    value={bulkStudentClassId} 
+                    onChange={(e) => {
+                      setBulkStudentClassId(e.target.value);
+                      const sub = streams.filter(s => s.classId === e.target.value);
+                      if (sub.length > 0) setBulkStudentStreamId(sub[0].id);
+                    }}
+                    required
+                  >
+                    {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Target Stream</label>
+                  <select 
+                    className="input-field" 
+                    value={bulkStudentStreamId} 
+                    onChange={(e) => setBulkStudentStreamId(e.target.value)}
+                    required
+                  >
+                    {streams.filter(st => st.classId === bulkStudentClassId).map(st => (
+                      <option key={st.id} value={st.id}>{st.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Paste Students List (CSV/TSV Format)</label>
+                <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "8px" }}>
+                  Format: <code>Student Name, Student Number (Optional), Residency (DAY/BOARDING)</code><br/>
+                  Example:<br/>
+                  <code>Dimbuka Alvin,, DAY</code><br/>
+                  <code>Namusoke Joy, GSS-STU-0010, BOARDING</code>
+                </div>
+                <textarea 
+                  className="input-field" 
+                  rows={8} 
+                  placeholder="Paste student lines here..." 
+                  value={bulkStudentText}
+                  onChange={(e) => setBulkStudentText(e.target.value)}
+                  required
+                  style={{ fontFamily: "monospace", fontSize: "12px", padding: "10px" }}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: "10px", marginTop: "24px" }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Import List</button>
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setShowBulkStudentModal(false);
+                    setBulkStudentText("");
+                  }}
+                  className="btn btn-outline" 
+                  style={{ flex: 1 }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Bulk Upload Staff Modal */}
+      {showBulkStaffModal && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1050, padding: "20px" }}>
+          <div className="card" style={{ width: "100%", maxWidth: "550px", background: "white", padding: "30px", boxShadow: "var(--shadow-lg)" }}>
+            <h3 style={{ marginBottom: "16px", borderBottom: "1px solid var(--border)", paddingBottom: "10px" }}>Bulk Upload Staff</h3>
+            
+            <form onSubmit={handleBulkStaffUpload}>
+              <div className="form-group">
+                <label className="form-label">Paste Staff List (CSV/TSV Format)</label>
+                <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "8px" }}>
+                  Format: <code>Full Name, Email, Role (TEACHER/DOS/HEADTEACHER/DIRECTOR), Staff ID (Optional)</code><br/>
+                  Example:<br/>
+                  <code>Opio Peter, peter@school.ug, TEACHER</code><br/>
+                  <code>Nakafeero Sylvia, sylvia@school.ug, DOS, GSS-STF-0012</code>
+                </div>
+                <textarea 
+                  className="input-field" 
+                  rows={8} 
+                  placeholder="Paste staff lines here..." 
+                  value={bulkStaffText}
+                  onChange={(e) => setBulkStaffText(e.target.value)}
+                  required
+                  style={{ fontFamily: "monospace", fontSize: "12px", padding: "10px" }}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: "10px", marginTop: "24px" }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Import List</button>
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setShowBulkStaffModal(false);
+                    setBulkStaffText("");
+                  }}
                   className="btn btn-outline" 
                   style={{ flex: 1 }}
                 >

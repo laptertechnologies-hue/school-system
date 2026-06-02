@@ -28,6 +28,10 @@ export interface School {
   reportShowResidency?: boolean;
   reportShowSignatures?: boolean;
   reportShowRules?: boolean;
+  reportLogoSize?: number | null;
+  reportShowStudentPhoto?: boolean | null;
+  reportHeaderColor?: string | null;
+  reportBorderType?: string | null;
 }
 
 export interface User {
@@ -312,6 +316,10 @@ export async function updateSchoolMetadata(
     reportShowResidency?: boolean;
     reportShowSignatures?: boolean;
     reportShowRules?: boolean;
+    reportLogoSize?: number | null;
+    reportShowStudentPhoto?: boolean | null;
+    reportHeaderColor?: string | null;
+    reportBorderType?: string | null;
   }
 ): Promise<School> {
   if (await hasDB()) {

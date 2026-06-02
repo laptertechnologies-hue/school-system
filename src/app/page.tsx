@@ -20,7 +20,8 @@ import {
   ArrowRight, 
   TrendingUp, 
   Lock,
-  Database
+  Database,
+  MessageSquare
 } from "lucide-react";
 
 export default function MarketingPage() {
@@ -241,7 +242,7 @@ export default function MarketingPage() {
               </div>
 
               {/* Core Features Grid */}
-              <div className="grid grid-cols-3 gap-3" style={{ marginBottom: "60px" }}>
+              <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", marginBottom: "60px" }}>
                 <div className="card hover-scale" style={{ background: "#ffffff", borderColor: "#e2e8f0" }}>
                   <div style={{ background: "var(--primary-light)", padding: "14px", borderRadius: "12px", display: "inline-block", marginBottom: "16px" }}>
                     <Award size={26} color="var(--primary)" />
@@ -251,7 +252,7 @@ export default function MarketingPage() {
                     Tailored for primary levels. Instantly compute subject grading (1-8) across the 4 core subjects and determine Division levels (I to IV).
                   </p>
                 </div>
-
+ 
                 <div className="card hover-scale" style={{ background: "#ffffff", borderColor: "#e2e8f0" }}>
                   <div style={{ background: "var(--primary-light)", padding: "14px", borderRadius: "12px", display: "inline-block", marginBottom: "16px" }}>
                     <BookOpen size={26} color="var(--primary)" />
@@ -261,7 +262,7 @@ export default function MarketingPage() {
                     Fully aligned with the Lower Secondary Curriculum. Tracks continuous project-based evaluations (20%) and maps to letter grades A-E.
                   </p>
                 </div>
-
+ 
                 <div className="card hover-scale" style={{ background: "#ffffff", borderColor: "#e2e8f0" }}>
                   <div style={{ background: "var(--primary-light)", padding: "14px", borderRadius: "12px", display: "inline-block", marginBottom: "16px" }}>
                     <DollarSign size={26} color="var(--primary)" />
@@ -269,6 +270,26 @@ export default function MarketingPage() {
                   <h3 style={{ color: "#0f172a", marginBottom: "12px", fontSize: "18px" }}>Financial Auditing</h3>
                   <p style={{ color: "#475569", fontSize: "14px", lineHeight: 1.5 }}>
                     Manage tuition parameters, log student fee payments, track defaulters, and record school expenses alongside teacher payroll databases.
+                  </p>
+                </div>
+
+                <div className="card hover-scale" style={{ background: "#ffffff", borderColor: "#e2e8f0" }}>
+                  <div style={{ background: "var(--primary-light)", padding: "14px", borderRadius: "12px", display: "inline-block", marginBottom: "16px" }}>
+                    <Users size={26} color="var(--primary)" />
+                  </div>
+                  <h3 style={{ color: "#0f172a", marginBottom: "12px", fontSize: "18px" }}>Unlimited Teacher Accounts</h3>
+                  <p style={{ color: "#475569", fontSize: "14px", lineHeight: 1.5 }}>
+                    Create accounts for all teachers with no limits. Teaching staff can enter marks, view subject registries, and upload marks from their own devices.
+                  </p>
+                </div>
+
+                <div className="card hover-scale" style={{ background: "#ffffff", borderColor: "#e2e8f0" }}>
+                  <div style={{ background: "var(--primary-light)", padding: "14px", borderRadius: "12px", display: "inline-block", marginBottom: "16px" }}>
+                    <MessageSquare size={26} color="var(--primary)" />
+                  </div>
+                  <h3 style={{ color: "#0f172a", marginBottom: "12px", fontSize: "18px" }}>Parent SMS Broadcaster</h3>
+                  <p style={{ color: "#475569", fontSize: "14px", lineHeight: 1.5 }}>
+                    Send bulk SMS notifications to parents of students. Instantly alert them of grades, report cards, outstanding tuition balances, and events.
                   </p>
                 </div>
               </div>
@@ -384,9 +405,9 @@ export default function MarketingPage() {
                     <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="var(--primary)" /> Complete PLE Grading System</li>
                     <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="var(--primary)" /> Lower Secondary CBC Tracking</li>
                     <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="var(--primary)" /> Automated Report Card PDFs</li>
-                    <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="var(--primary)" /> Max 5 Admin / Teacher accounts</li>
-                    <li style={{ color: "#94a3b8", textDecoration: "line-through", display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="#cbd5e1" /> School Financial Management</li>
-                    <li style={{ color: "#94a3b8", textDecoration: "line-through", display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="#cbd5e1" /> Parent Billing & Ledger</li>
+                    <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="var(--primary)" /> Create accounts for all teachers (No Limit)</li>
+                    <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="var(--primary)" /> School Financial Management</li>
+                    <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="var(--primary)" /> Parent Billing & Ledger</li>
                   </ul>
                   <button onClick={() => { setPackageType("BASIC"); setActiveTab("register"); }} className="btn btn-outline hover-scale" style={{ width: "100%", marginTop: "20px", color: "var(--primary)", borderColor: "var(--primary)" }}>Choose Basic Plan</button>
                 </div>
@@ -406,8 +427,8 @@ export default function MarketingPage() {
                     <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="var(--primary)" /> Student Fee structures & logs</li>
                     <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="var(--primary)" /> Automated Defaulters tracking</li>
                     <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="var(--primary)" /> Salaries & Expenditure Ledger</li>
-                    <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="var(--primary)" /> Unlimited Teacher/Staff accounts</li>
                     <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="var(--primary)" /> Mobile Money & Card billing simulation</li>
+                    <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="var(--primary)" /> Parent SMS Broadcaster (Bulk SMS)</li>
                   </ul>
                   <button onClick={() => { setPackageType("PREMIUM"); setActiveTab("register"); }} className="btn btn-primary hover-scale" style={{ width: "100%", marginTop: "20px" }}>Choose Premium Plan</button>
                 </div>
@@ -664,21 +685,27 @@ export default function MarketingPage() {
             
             <div className="grid grid-cols-3 gap-3">
               <div className="card text-center hover-scale" style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "24px", background: "white", borderColor: "#cbd5e1" }}>
-                <div style={{ width: "80px", height: "80px", borderRadius: "50%", background: "var(--primary-light)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", fontWeight: "bold", color: "var(--primary)", marginBottom: "16px" }}>RO</div>
-                <h4 style={{ color: "#0f172a", marginBottom: "4px" }}>Ronald Okello</h4>
-                <span style={{ fontSize: "12px", color: "var(--primary)", fontWeight: 700 }}>Co-Founder & CEO</span>
+                <div style={{ width: "90px", height: "90px", borderRadius: "50%", overflow: "hidden", border: "3px solid var(--primary-light)", marginBottom: "16px", boxShadow: "var(--shadow)" }}>
+                  <img src="/images/mujuni_vincent_ceo.png" alt="Vincent Mujuni" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                </div>
+                <h4 style={{ color: "#0f172a", marginBottom: "4px" }}>Vincent Mujuni</h4>
+                <span style={{ fontSize: "12px", color: "var(--primary)", fontWeight: 700 }}>CEO & Founder</span>
                 <p style={{ fontSize: "13px", color: "#64748b", marginTop: "12px", lineHeight: 1.4 }}>Former school administrator with 10+ years experience in East African educational systems.</p>
               </div>
 
               <div className="card text-center hover-scale" style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "24px", background: "white", borderColor: "#cbd5e1" }}>
-                <div style={{ width: "80px", height: "80px", borderRadius: "50%", background: "var(--primary-light)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", fontWeight: "bold", color: "var(--primary)", marginBottom: "16px" }}>SN</div>
+                <div style={{ width: "90px", height: "90px", borderRadius: "50%", overflow: "hidden", border: "3px solid var(--primary-light)", marginBottom: "16px", boxShadow: "var(--shadow)" }}>
+                  <img src="/images/sylvia_nakafeero_cpo.png" alt="Sylvia Nakafeero" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                </div>
                 <h4 style={{ color: "#0f172a", marginBottom: "4px" }}>Sylvia Nakafeero</h4>
                 <span style={{ fontSize: "12px", color: "var(--primary)", fontWeight: 700 }}>Chief Product Officer</span>
                 <p style={{ fontSize: "13px", color: "#64748b", marginTop: "12px", lineHeight: 1.4 }}>Lead developer specializing in CBC curriculum integrations and automated grading algorithms.</p>
               </div>
 
               <div className="card text-center hover-scale" style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "24px", background: "white", borderColor: "#cbd5e1" }}>
-                <div style={{ width: "80px", height: "80px", borderRadius: "50%", background: "var(--primary-light)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", fontWeight: "bold", color: "var(--primary)", marginBottom: "16px" }}>JM</div>
+                <div style={{ width: "90px", height: "90px", borderRadius: "50%", overflow: "hidden", border: "3px solid var(--primary-light)", marginBottom: "16px", boxShadow: "var(--shadow)" }}>
+                  <img src="/images/joseph_mugisha_success.png" alt="Joseph Mugisha" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                </div>
                 <h4 style={{ color: "#0f172a", marginBottom: "4px" }}>Joseph Mugisha</h4>
                 <span style={{ fontSize: "12px", color: "var(--primary)", fontWeight: 700 }}>Head of Customer Success</span>
                 <p style={{ fontSize: "13px", color: "#64748b", marginTop: "12px", lineHeight: 1.4 }}>Managing client support, onboarding, and training for partner schools across Uganda.</p>

@@ -29,7 +29,9 @@ import {
   ChevronDown,
   Info,
   XCircle,
-  FileText
+  FileText,
+  Menu,
+  X
 } from "lucide-react";
 
 interface PageProps {
@@ -68,6 +70,7 @@ export default function SchoolPortal({ params }: PageProps) {
 
   // Navigation state inside dashboard
   const [activeTab, setActiveTab] = useState("overview");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Setup form states
   const [newClassName, setNewClassName] = useState("");
@@ -1134,15 +1137,48 @@ export default function SchoolPortal({ params }: PageProps) {
 
                 <div className="grid grid-cols-2 gap-2" style={{ marginBottom: "16px" }}>
                   <div className="form-group">
-                    <label className="form-label" style={{ color: "#d1d5db" }}>School Logo/Badge URL</label>
+                    <label className="form-label" style={{ color: "#d1d5db" }}>School Logo/Badge</label>
                     <input 
-                      type="text" 
+                      type="file" 
+                      accept="image/*"
                       className="input-field" 
-                      placeholder="e.g. https://example.com/logo.png"
-                      value={setupLogoUrl} 
-                      onChange={(e) => setSetupLogoUrl(e.target.value)} 
-                      style={{ background: "#0f172a", borderColor: "#374151", color: "white" }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          if (file.size > 1024 * 1024) {
+                            alert("Logo image should be less than 1MB to store directly in the database.");
+                            return;
+                          }
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setSetupLogoUrl(reader.result as string);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      style={{ background: "#0f172a", borderColor: "#374151", color: "white", padding: "8px" }}
                     />
+                    <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "6px" }}>
+                      <span style={{ color: "#9ca3af", fontSize: "11px", whiteSpace: "nowrap" }}>Or URL:</span>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        placeholder="e.g. https://example.com/logo.png"
+                        value={setupLogoUrl && setupLogoUrl.startsWith("data:") ? "" : setupLogoUrl} 
+                        onChange={(e) => setSetupLogoUrl(e.target.value)} 
+                        style={{ background: "#0f172a", borderColor: "#374151", color: "white", fontSize: "11px", padding: "4px 8px", height: "auto" }}
+                      />
+                    </div>
+                    {setupLogoUrl && (
+                      <button 
+                        type="button" 
+                        onClick={() => setSetupLogoUrl("")}
+                        className="btn"
+                        style={{ padding: "4px 8px", fontSize: "11px", marginTop: "4px", background: "#ef4444", color: "white", border: "none", alignSelf: "flex-start", cursor: "pointer", borderRadius: "4px" }}
+                      >
+                        Remove Logo
+                      </button>
+                    )}
                   </div>
                   <div className="form-group">
                     <label className="form-label" style={{ color: "#d1d5db" }}>Portal Accent Theme Color</label>
@@ -1214,7 +1250,7 @@ export default function SchoolPortal({ params }: PageProps) {
 
   // Dashboard layout
   return (
-    <div data-theme="light" style={{ minHeight: "100vh", display: "flex", backgroundColor: "#f1f5f9", color: "#1e293b" }}>
+    <div data-theme="light" className="dashboard-layout" style={{ minHeight: "100vh", display: "flex", backgroundColor: "#f1f5f9", color: "#1e293b" }}>
       {school.themeColor && (
         <style dangerouslySetInnerHTML={{ __html: `
           :root {
@@ -1224,10 +1260,20 @@ export default function SchoolPortal({ params }: PageProps) {
           }
         `}} />
       )}
+
+      {/* Sidebar Backdrop Overlay for Mobile */}
+      <div 
+        className={`sidebar-overlay ${sidebarOpen ? "open" : ""}`} 
+        onClick={() => setSidebarOpen(false)}
+        style={{ display: "none" }}
+      />
       
       {/* Sidebar navigation */}
-      <aside style={{ width: "260px", background: "linear-gradient(180deg, var(--primary) 0%, var(--primary-hover) 100%)", color: "white", display: "flex", flexDirection: "column", height: "100vh", position: "sticky", top: 0 }} className="flex-mobile-col">
-        <div style={{ padding: "24px", borderBottom: "1px solid rgba(255, 255, 255, 0.15)" }}>
+      <aside 
+        style={{ width: "260px", background: "linear-gradient(180deg, var(--primary) 0%, var(--primary-hover) 100%)", color: "white", display: "flex", flexDirection: "column", height: "100vh", position: "sticky", top: 0 }} 
+        className={`sidebar-nav flex-mobile-col ${sidebarOpen ? "open" : ""}`}
+      >
+        <div style={{ padding: "24px", borderBottom: "1px solid rgba(255, 255, 255, 0.15)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             {school.logoUrl ? (
               <img src={school.logoUrl} alt="Logo" style={{ width: "32px", height: "32px", borderRadius: "6px", objectFit: "contain", background: "white", padding: "2px" }} />
@@ -1235,13 +1281,29 @@ export default function SchoolPortal({ params }: PageProps) {
               <GraduationCap size={28} color="white" />
             )}
             <div>
-              <h3 style={{ color: "white", fontSize: "16px", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>{school.name}</h3>
+              <h3 style={{ color: "white", fontSize: "16px", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", maxWidth: "160px" }}>{school.name}</h3>
               <span style={{ fontSize: "10px", color: "rgba(255, 255, 255, 0.75)", textTransform: "uppercase", letterSpacing: "1px" }}>{currentUser.role} Portal</span>
             </div>
           </div>
+          {/* Mobile Close Button */}
+          <button 
+            onClick={() => setSidebarOpen(false)}
+            className="mobile-close-btn"
+            style={{ display: "none", background: "transparent", border: "none", color: "white", cursor: "pointer", padding: 0 }}
+          >
+            <X size={20} />
+          </button>
         </div>
 
-        <nav style={{ padding: "20px 10px", flex: 1, display: "flex", flexDirection: "column", gap: "6px", overflowY: "auto" }}>
+        <nav 
+          onClick={(e) => {
+            const target = e.target as HTMLElement;
+            if (target.closest("button")) {
+              setSidebarOpen(false);
+            }
+          }}
+          style={{ padding: "20px 10px", flex: 1, display: "flex", flexDirection: "column", gap: "6px", overflowY: "auto" }}
+        >
           {/* Universal view */}
           {["ADMIN", "HEADTEACHER", "DIRECTOR", "DOS"].includes(currentUser.role) && (
             <button 
@@ -1453,8 +1515,37 @@ export default function SchoolPortal({ params }: PageProps) {
         </div>
       </aside>
 
-      {/* Main Workspace */}
-      <main style={{ flex: 1, padding: "40px" }} className="animate-fade-in">
+      {/* Right Content Area */}
+      <div className="workspace-container" style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+        
+        {/* Mobile Header Bar */}
+        <div className="mobile-header" style={{ display: "none" }}>
+          <button 
+            onClick={() => setSidebarOpen(true)} 
+            className="btn btn-outline" 
+            style={{ padding: "8px 12px", border: "1px solid var(--border)", background: "white", borderRadius: "6px" }}
+          >
+            <Menu size={20} />
+          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {school.logoUrl ? (
+              <img src={school.logoUrl} alt="Logo" style={{ width: "24px", height: "24px", borderRadius: "4px", objectFit: "contain", background: "white" }} />
+            ) : (
+              <GraduationCap size={20} color="var(--primary)" />
+            )}
+            <strong style={{ fontSize: "14px", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", maxWidth: "160px" }}>{school.name}</strong>
+          </div>
+          <button 
+            onClick={handleLogout} 
+            className="btn btn-outline" 
+            style={{ padding: "8px 12px", border: "1px solid var(--border)", background: "white", borderRadius: "6px", color: "#ef4444" }}
+          >
+            <LogOut size={16} />
+          </button>
+        </div>
+
+        {/* Main Workspace */}
+        <main style={{ flex: 1, padding: "40px" }} className="main-workspace animate-fade-in">
         
         {/* TAB 1: OVERVIEW */}
         {activeTab === "overview" && (
@@ -1649,14 +1740,48 @@ export default function SchoolPortal({ params }: PageProps) {
 
                   <div className="grid grid-cols-2 gap-2">
                     <div className="form-group">
-                      <label className="form-label">School Logo Image URL</label>
+                      <label className="form-label">School Logo/Badge</label>
                       <input 
-                        type="text" 
+                        type="file" 
+                        accept="image/*"
                         className="input-field" 
-                        placeholder="e.g. https://example.com/logo.png" 
-                        value={profileLogoUrl}
-                        onChange={(e) => setProfileLogoUrl(e.target.value)}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            if (file.size > 1024 * 1024) {
+                              alert("Logo image should be less than 1MB to store directly in the database.");
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setProfileLogoUrl(reader.result as string);
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        style={{ padding: "8px" }}
                       />
+                      <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "6px" }}>
+                        <span style={{ color: "#64748b", fontSize: "11px", whiteSpace: "nowrap" }}>Or URL:</span>
+                        <input 
+                          type="text" 
+                          className="input-field" 
+                          placeholder="e.g. https://example.com/logo.png" 
+                          value={profileLogoUrl && profileLogoUrl.startsWith("data:") ? "" : profileLogoUrl}
+                          onChange={(e) => setProfileLogoUrl(e.target.value)}
+                          style={{ fontSize: "11px", padding: "4px 8px", height: "auto" }}
+                        />
+                      </div>
+                      {profileLogoUrl && (
+                        <button 
+                          type="button" 
+                          onClick={() => setProfileLogoUrl("")}
+                          className="btn btn-outline"
+                          style={{ padding: "4px 8px", fontSize: "11px", marginTop: "4px", color: "var(--danger)", borderColor: "var(--danger)", alignSelf: "flex-start" }}
+                        >
+                          Remove Logo
+                        </button>
+                      )}
                     </div>
                     <div className="form-group">
                       <label className="form-label">Dashboard Accent Theme Color</label>
@@ -3845,6 +3970,7 @@ export default function SchoolPortal({ params }: PageProps) {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

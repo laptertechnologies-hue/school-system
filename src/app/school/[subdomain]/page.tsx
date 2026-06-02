@@ -558,6 +558,36 @@ export default function SchoolPortal({ params }: PageProps) {
     setInputComments(newComments);
   }, [selectedExamId, selectedSubjectId, selectedClassId, selectedStreamId, marks, students]);
 
+  // Synchronize selections for TEACHER role when assignments or selections change
+  useEffect(() => {
+    if (currentUser?.role === "TEACHER" && teacherAssignments.length > 0 && classes.length > 0) {
+      const myClasses = classes.filter(c => teacherAssignments.some(ta => ta.teacherId === currentUser.id && ta.classId === c.id));
+      if (myClasses.length > 0) {
+        const firstClass = myClasses[0].id;
+        if (!selectedClassId || !myClasses.some(c => c.id === selectedClassId)) {
+          setSelectedClassId(firstClass);
+        }
+        const classIdToUse = !selectedClassId || !myClasses.some(c => c.id === selectedClassId) ? firstClass : selectedClassId;
+        
+        const myStreams = streams.filter(st => st.classId === classIdToUse && teacherAssignments.some(ta => ta.teacherId === currentUser.id && ta.classId === classIdToUse && ta.streamId === st.id));
+        if (myStreams.length > 0) {
+          const firstStream = myStreams[0].id;
+          if (!selectedStreamId || !myStreams.some(s => s.id === selectedStreamId)) {
+            setSelectedStreamId(firstStream);
+          }
+          const streamIdToUse = !selectedStreamId || !myStreams.some(s => s.id === selectedStreamId) ? firstStream : selectedStreamId;
+          
+          const mySubjects = subjects.filter(sub => sub.classId === classIdToUse && teacherAssignments.some(ta => ta.teacherId === currentUser.id && ta.classId === classIdToUse && ta.streamId === streamIdToUse && ta.subjectId === sub.id));
+          if (mySubjects.length > 0) {
+            if (!selectedSubjectId || !mySubjects.some(s => s.id === selectedSubjectId)) {
+              setSelectedSubjectId(mySubjects[0].id);
+            }
+          }
+        }
+      }
+    }
+  }, [currentUser, teacherAssignments, classes, streams, subjects, selectedClassId, selectedStreamId]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError("");
@@ -1953,35 +1983,6 @@ export default function SchoolPortal({ params }: PageProps) {
     );
   }
 
-  // Synchronize selections for TEACHER role when assignments or selections change
-  useEffect(() => {
-    if (currentUser?.role === "TEACHER" && teacherAssignments.length > 0 && classes.length > 0) {
-      const myClasses = classes.filter(c => teacherAssignments.some(ta => ta.teacherId === currentUser.id && ta.classId === c.id));
-      if (myClasses.length > 0) {
-        const firstClass = myClasses[0].id;
-        if (!selectedClassId || !myClasses.some(c => c.id === selectedClassId)) {
-          setSelectedClassId(firstClass);
-        }
-        const classIdToUse = !selectedClassId || !myClasses.some(c => c.id === selectedClassId) ? firstClass : selectedClassId;
-        
-        const myStreams = streams.filter(st => st.classId === classIdToUse && teacherAssignments.some(ta => ta.teacherId === currentUser.id && ta.classId === classIdToUse && ta.streamId === st.id));
-        if (myStreams.length > 0) {
-          const firstStream = myStreams[0].id;
-          if (!selectedStreamId || !myStreams.some(s => s.id === selectedStreamId)) {
-            setSelectedStreamId(firstStream);
-          }
-          const streamIdToUse = !selectedStreamId || !myStreams.some(s => s.id === selectedStreamId) ? firstStream : selectedStreamId;
-          
-          const mySubjects = subjects.filter(sub => sub.classId === classIdToUse && teacherAssignments.some(ta => ta.teacherId === currentUser.id && ta.classId === classIdToUse && ta.streamId === streamIdToUse && ta.subjectId === sub.id));
-          if (mySubjects.length > 0) {
-            if (!selectedSubjectId || !mySubjects.some(s => s.id === selectedSubjectId)) {
-              setSelectedSubjectId(mySubjects[0].id);
-            }
-          }
-        }
-      }
-    }
-  }, [currentUser, teacherAssignments, classes, streams, subjects, selectedClassId, selectedStreamId]);
 
   // Filtered lists for Marks Upload if teacher
   const teacherClasses = currentUser?.role === "TEACHER"

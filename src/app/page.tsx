@@ -122,8 +122,9 @@ export default function MarketingPage() {
       }
 
       window.location.href = targetUrl;
-    } catch (err) {
-      setLoginError("Failed to verify school subdomain.");
+    } catch (err: any) {
+      console.error("Verification error:", err);
+      setLoginError(`Failed to verify school subdomain: ${err.message || err}`);
     }
   };
 

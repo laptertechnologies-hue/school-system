@@ -2540,6 +2540,17 @@ export default function SchoolPortal({ params }: PageProps) {
             </button>
           )}
 
+          {/* Grading Setup */}
+          {["ADMIN", "DOS"].includes(currentUser.role) && (
+            <button 
+              onClick={() => setActiveTab("grading")} 
+              className={`btn ${activeTab === "grading" ? "btn-primary" : "btn-outline"}`}
+              style={{ justifyContent: "flex-start", border: "none", background: activeTab === "grading" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "grading" ? 1 : 0.75, transition: "all 0.2s ease" }}
+            >
+              <Award size={18} /> Grading Setup
+            </button>
+          )}
+
           {/* Class Setup (Admin only) */}
           {currentUser.role === "ADMIN" && (
             <button 
@@ -3619,6 +3630,326 @@ export default function SchoolPortal({ params }: PageProps) {
                   <Award size={18} /> Save Customized Curriculum Grading Scales
                 </button>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: GRADING SETUP */}
+        {activeTab === "grading" && (
+          <div className="tab-content-anim">
+            <div style={{ marginBottom: "30px" }}>
+              <h2 style={{ marginBottom: "8px", display: "flex", alignItems: "center", gap: "10px" }}>
+                <Award size={24} color="var(--primary)" /> Grading Setup
+              </h2>
+              <p style={{ color: "#64748b" }}>Configure Continuous Assessment column weights and customise grade boundary ranges used on report cards.</p>
+            </div>
+
+            {/* SECTION 1: CA Columns */}
+            {(school.schoolType === "SECONDARY" || school.schoolType === "COMBINED") && (
+              <div className="card" style={{ marginBottom: "24px" }}>
+                <h4 style={{ marginBottom: "6px", display: "flex", alignItems: "center", gap: "8px", fontSize: "15px", color: "#0f172a" }}>
+                  <Sliders size={18} color="var(--primary)" />
+                  Continuous Assessment (CA) Columns
+                </h4>
+                <p style={{ color: "#64748b", fontSize: "12px", marginBottom: "20px" }}>
+                  Toggle each CA component on/off and set its maximum score. These columns appear in the marks entry sheet and on report cards.
+                </p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+                  {/* U1 */}
+                  <div style={{ padding: "16px", background: cbU1Active ? "var(--primary-light)" : "#f8fafc", border: `2px solid ${cbU1Active ? "var(--primary-glow)" : "#e2e8f0"}`, borderRadius: "10px", transition: "all 0.2s" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+                      <div>
+                        <div style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a" }}>Unit 1 (U1)</div>
+                        <div style={{ fontSize: "11px", color: "#64748b" }}>First unit assessment</div>
+                      </div>
+                      <label style={{ position: "relative", display: "inline-block", width: "40px", height: "22px", cursor: "pointer" }}>
+                        <input type="checkbox" checked={cbU1Active} onChange={(e) => setCbU1Active(e.target.checked)} style={{ opacity: 0, width: 0, height: 0 }} />
+                        <span style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: cbU1Active ? "var(--primary)" : "#cbd5e1", borderRadius: "22px", transition: "0.2s" }}>
+                          <span style={{ position: "absolute", height: "16px", width: "16px", left: cbU1Active ? "20px" : "3px", bottom: "3px", background: "white", borderRadius: "50%", transition: "0.2s" }} />
+                        </span>
+                      </label>
+                    </div>
+                    {cbU1Active && (
+                      <div>
+                        <label style={{ fontSize: "11px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>Max Score (marks)</label>
+                        <input type="number" step="0.5" min="1" max="100" className="input-field" value={cbU1Max}
+                          onChange={(e) => setCbU1Max(Number(e.target.value))}
+                          style={{ padding: "6px 10px", fontSize: "14px", height: "auto", fontWeight: 700 }} />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* U2 */}
+                  <div style={{ padding: "16px", background: cbU2Active ? "var(--primary-light)" : "#f8fafc", border: `2px solid ${cbU2Active ? "var(--primary-glow)" : "#e2e8f0"}`, borderRadius: "10px", transition: "all 0.2s" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+                      <div>
+                        <div style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a" }}>Unit 2 (U2)</div>
+                        <div style={{ fontSize: "11px", color: "#64748b" }}>Second unit assessment</div>
+                      </div>
+                      <label style={{ position: "relative", display: "inline-block", width: "40px", height: "22px", cursor: "pointer" }}>
+                        <input type="checkbox" checked={cbU2Active} onChange={(e) => setCbU2Active(e.target.checked)} style={{ opacity: 0, width: 0, height: 0 }} />
+                        <span style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: cbU2Active ? "var(--primary)" : "#cbd5e1", borderRadius: "22px", transition: "0.2s" }}>
+                          <span style={{ position: "absolute", height: "16px", width: "16px", left: cbU2Active ? "20px" : "3px", bottom: "3px", background: "white", borderRadius: "50%", transition: "0.2s" }} />
+                        </span>
+                      </label>
+                    </div>
+                    {cbU2Active && (
+                      <div>
+                        <label style={{ fontSize: "11px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>Max Score (marks)</label>
+                        <input type="number" step="0.5" min="1" max="100" className="input-field" value={cbU2Max}
+                          onChange={(e) => setCbU2Max(Number(e.target.value))}
+                          style={{ padding: "6px 10px", fontSize: "14px", height: "auto", fontWeight: 700 }} />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* E.T */}
+                  <div style={{ padding: "16px", background: cbEtActive ? "var(--primary-light)" : "#f8fafc", border: `2px solid ${cbEtActive ? "var(--primary-glow)" : "#e2e8f0"}`, borderRadius: "10px", transition: "all 0.2s" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+                      <div>
+                        <div style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a" }}>End-Term (E.T)</div>
+                        <div style={{ fontSize: "11px", color: "#64748b" }}>End-of-term assessment</div>
+                      </div>
+                      <label style={{ position: "relative", display: "inline-block", width: "40px", height: "22px", cursor: "pointer" }}>
+                        <input type="checkbox" checked={cbEtActive} onChange={(e) => setCbEtActive(e.target.checked)} style={{ opacity: 0, width: 0, height: 0 }} />
+                        <span style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: cbEtActive ? "var(--primary)" : "#cbd5e1", borderRadius: "22px", transition: "0.2s" }}>
+                          <span style={{ position: "absolute", height: "16px", width: "16px", left: cbEtActive ? "20px" : "3px", bottom: "3px", background: "white", borderRadius: "50%", transition: "0.2s" }} />
+                        </span>
+                      </label>
+                    </div>
+                    {cbEtActive && (
+                      <div>
+                        <label style={{ fontSize: "11px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>Max Score (marks)</label>
+                        <input type="number" step="0.5" min="1" max="100" className="input-field" value={cbEtMax}
+                          onChange={(e) => setCbEtMax(Number(e.target.value))}
+                          style={{ padding: "6px 10px", fontSize: "14px", height: "auto", fontWeight: 700 }} />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* HPG */}
+                  <div style={{ padding: "16px", background: cbHpgActive ? "var(--primary-light)" : "#f8fafc", border: `2px solid ${cbHpgActive ? "var(--primary-glow)" : "#e2e8f0"}`, borderRadius: "10px", transition: "all 0.2s" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+                      <div>
+                        <div style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a" }}>High Perf. (HPG)</div>
+                        <div style={{ fontSize: "11px", color: "#64748b" }}>High performance grade</div>
+                      </div>
+                      <label style={{ position: "relative", display: "inline-block", width: "40px", height: "22px", cursor: "pointer" }}>
+                        <input type="checkbox" checked={cbHpgActive} onChange={(e) => setCbHpgActive(e.target.checked)} style={{ opacity: 0, width: 0, height: 0 }} />
+                        <span style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: cbHpgActive ? "var(--primary)" : "#cbd5e1", borderRadius: "22px", transition: "0.2s" }}>
+                          <span style={{ position: "absolute", height: "16px", width: "16px", left: cbHpgActive ? "20px" : "3px", bottom: "3px", background: "white", borderRadius: "50%", transition: "0.2s" }} />
+                        </span>
+                      </label>
+                    </div>
+                    {cbHpgActive && (
+                      <div>
+                        <label style={{ fontSize: "11px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>Max Score (marks)</label>
+                        <input type="number" step="0.5" min="1" max="100" className="input-field" value={cbHpgMax}
+                          onChange={(e) => setCbHpgMax(Number(e.target.value))}
+                          style={{ padding: "6px 10px", fontSize: "14px", height: "auto", fontWeight: 700 }} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Save CA config inline by delegating to existing settings save */}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await updateSchoolMetadata(school.id, {
+                        cbU1Max, cbU2Max, cbEtMax, cbHpgMax,
+                        cbU1Active, cbU2Active, cbEtActive, cbHpgActive
+                      });
+                      alert("CA column settings saved successfully!");
+                      const refreshed = await getSchoolBySubdomain(school.subdomain);
+                      if (refreshed) setSchool(refreshed);
+                    } catch (err: any) {
+                      alert("Failed to save: " + (err.message || err));
+                    }
+                  }}
+                  className="btn btn-primary"
+                  style={{ marginTop: "20px", display: "flex", alignItems: "center", gap: "8px" }}
+                >
+                  <Sliders size={16} /> Save CA Column Settings
+                </button>
+              </div>
+            )}
+
+            {/* SECTION 2: Grade Range Tables */}
+            <div className="card">
+              <h4 style={{ marginBottom: "6px", display: "flex", alignItems: "center", gap: "8px", fontSize: "15px", color: "#0f172a" }}>
+                <Award size={18} color="var(--primary)" />
+                Grade Boundary Ranges
+              </h4>
+              <p style={{ color: "#64748b", fontSize: "12px", marginBottom: "20px" }}>
+                Set the minimum and maximum mark (%) that maps to each grade letter or aggregate. These are used across all report cards and marks sheets.
+              </p>
+
+              <form onSubmit={handleSaveCustomGradeRanges}>
+                {/* Secondary A–E */}
+                {(school.schoolType === "SECONDARY" || school.schoolType === "COMBINED") && (
+                  <div style={{ marginBottom: "28px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px", padding: "10px 14px", background: "linear-gradient(90deg, var(--primary-light) 0%, #f8fafc 100%)", borderRadius: "8px", border: "1px solid var(--primary-glow)" }}>
+                      <BookOpen size={16} color="var(--primary)" />
+                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a" }}>Secondary — Competency Grades (A to E)</span>
+                      <span style={{ fontSize: "11px", color: "#64748b", marginLeft: "auto" }}>CBC Lower Secondary Curriculum</span>
+                    </div>
+                    <div style={{ overflowX: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "580px" }}>
+                        <thead>
+                          <tr style={{ background: "#f8fafc" }}>
+                            <th style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "#475569", width: "70px", borderBottom: "2px solid #e2e8f0" }}>Grade</th>
+                            <th style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "#475569", width: "130px", borderBottom: "2px solid #e2e8f0" }}>Min Mark (%)</th>
+                            <th style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "#475569", width: "130px", borderBottom: "2px solid #e2e8f0" }}>Max Mark (%)</th>
+                            <th style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "#475569", width: "160px", borderBottom: "2px solid #e2e8f0" }}>Achievement Level</th>
+                            <th style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "#475569", borderBottom: "2px solid #e2e8f0" }}>Descriptor / Remark</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {editingGradeRanges.map((r, idx) => {
+                            if (r.systemType !== "SECONDARY") return null;
+                            const gradeColors: Record<string, string> = { A: "#16a34a", B: "#2563eb", C: "#d97706", D: "#ea580c", E: "#dc2626" };
+                            const col = gradeColors[r.grade] || "var(--primary)";
+                            return (
+                              <tr key={r.id || `sec-${idx}`} style={{ borderBottom: "1px solid #f1f5f9", transition: "background 0.1s" }}
+                                onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
+                                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+                                <td style={{ padding: "8px 12px" }}>
+                                  <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "32px", height: "32px", borderRadius: "8px", background: `${col}18`, color: col, fontWeight: 800, fontSize: "15px" }}>{r.grade}</span>
+                                </td>
+                                <td style={{ padding: "6px 8px" }}>
+                                  <input type="number" step="0.01" min="0" max="100" className="input-field"
+                                    value={r.minMark}
+                                    onChange={(e) => handleGradeRangeChange(idx, "minMark", e.target.value)}
+                                    style={{ padding: "6px 10px", fontSize: "13px", height: "auto" }} required />
+                                </td>
+                                <td style={{ padding: "6px 8px" }}>
+                                  <input type="number" step="0.01" min="0" max="100" className="input-field"
+                                    value={r.maxMark}
+                                    onChange={(e) => handleGradeRangeChange(idx, "maxMark", e.target.value)}
+                                    style={{ padding: "6px 10px", fontSize: "13px", height: "auto" }} required />
+                                </td>
+                                <td style={{ padding: "6px 8px" }}>
+                                  <input type="text" className="input-field"
+                                    value={r.achievementLevel}
+                                    onChange={(e) => handleGradeRangeChange(idx, "achievementLevel", e.target.value)}
+                                    style={{ padding: "6px 10px", fontSize: "13px", height: "auto" }} required />
+                                </td>
+                                <td style={{ padding: "6px 8px" }}>
+                                  <input type="text" className="input-field"
+                                    value={r.descriptor}
+                                    onChange={(e) => handleGradeRangeChange(idx, "descriptor", e.target.value)}
+                                    style={{ padding: "6px 10px", fontSize: "13px", height: "auto" }} required />
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Primary PLE 1–9 */}
+                {(school.schoolType === "PRIMARY" || school.schoolType === "COMBINED") && (
+                  <div style={{ marginBottom: "28px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px", padding: "10px 14px", background: "linear-gradient(90deg, #fef9c3 0%, #f8fafc 100%)", borderRadius: "8px", border: "1px solid #fde68a" }}>
+                      <Award size={16} color="#d97706" />
+                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a" }}>Primary — PLE Aggregates (1 to 9)</span>
+                      <span style={{ fontSize: "11px", color: "#64748b", marginLeft: "auto" }}>UNEB PLE Standard Grading</span>
+                    </div>
+                    <div style={{ overflowX: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "580px" }}>
+                        <thead>
+                          <tr style={{ background: "#fffbeb" }}>
+                            <th style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "#475569", width: "80px", borderBottom: "2px solid #fde68a" }}>Aggregate</th>
+                            <th style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "#475569", width: "130px", borderBottom: "2px solid #fde68a" }}>Min Mark (%)</th>
+                            <th style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "#475569", width: "130px", borderBottom: "2px solid #fde68a" }}>Max Mark (%)</th>
+                            <th style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "#475569", width: "160px", borderBottom: "2px solid #fde68a" }}>Classification</th>
+                            <th style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "#475569", borderBottom: "2px solid #fde68a" }}>Descriptor / Remark</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {editingGradeRanges.map((r, idx) => {
+                            if (r.systemType !== "PRIMARY") return null;
+                            const aggNum = parseInt(r.grade);
+                            const col = aggNum <= 2 ? "#16a34a" : aggNum <= 4 ? "#2563eb" : aggNum <= 6 ? "#d97706" : aggNum <= 8 ? "#ea580c" : "#dc2626";
+                            return (
+                              <tr key={r.id || `prim-${idx}`} style={{ borderBottom: "1px solid #fef9c3", transition: "background 0.1s" }}
+                                onMouseEnter={(e) => (e.currentTarget.style.background = "#fffbeb")}
+                                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+                                <td style={{ padding: "8px 12px" }}>
+                                  <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "32px", height: "32px", borderRadius: "8px", background: `${col}18`, color: col, fontWeight: 800, fontSize: "15px" }}>{r.grade}</span>
+                                </td>
+                                <td style={{ padding: "6px 8px" }}>
+                                  <input type="number" step="0.01" min="0" max="100" className="input-field"
+                                    value={r.minMark}
+                                    onChange={(e) => handleGradeRangeChange(idx, "minMark", e.target.value)}
+                                    style={{ padding: "6px 10px", fontSize: "13px", height: "auto" }} required />
+                                </td>
+                                <td style={{ padding: "6px 8px" }}>
+                                  <input type="number" step="0.01" min="0" max="100" className="input-field"
+                                    value={r.maxMark}
+                                    onChange={(e) => handleGradeRangeChange(idx, "maxMark", e.target.value)}
+                                    style={{ padding: "6px 10px", fontSize: "13px", height: "auto" }} required />
+                                </td>
+                                <td style={{ padding: "6px 8px" }}>
+                                  <input type="text" className="input-field"
+                                    value={r.achievementLevel}
+                                    onChange={(e) => handleGradeRangeChange(idx, "achievementLevel", e.target.value)}
+                                    style={{ padding: "6px 10px", fontSize: "13px", height: "auto" }} required />
+                                </td>
+                                <td style={{ padding: "6px 8px" }}>
+                                  <input type="text" className="input-field"
+                                    value={r.descriptor}
+                                    onChange={(e) => handleGradeRangeChange(idx, "descriptor", e.target.value)}
+                                    style={{ padding: "6px 10px", fontSize: "13px", height: "auto" }} required />
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                <button type="submit" className="btn btn-primary" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", padding: "12px" }}>
+                  <Award size={18} /> Save Grade Boundary Ranges
+                </button>
+              </form>
+
+              {/* Live Grade Preview */}
+              <div style={{ marginTop: "28px", padding: "20px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px" }}>
+                <h5 style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <TrendingUp size={15} color="var(--primary)" /> Live Grade Preview Calculator
+                </h5>
+                <p style={{ fontSize: "12px", color: "#64748b", marginBottom: "12px" }}>Enter a mark to instantly see what grade it maps to using your current ranges.</p>
+                <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "flex-end" }}>
+                  {["SECONDARY", "PRIMARY"].filter(sys =>
+                    sys === "SECONDARY" ? (school.schoolType === "SECONDARY" || school.schoolType === "COMBINED") :
+                    (school.schoolType === "PRIMARY" || school.schoolType === "COMBINED")
+                  ).map(sys => {
+                    const testScore = 75;
+                    const result = computeGradeFromRanges(testScore, sys as "SECONDARY" | "PRIMARY", editingGradeRanges);
+                    return (
+                      <div key={sys} style={{ flex: 1, minWidth: "200px", padding: "12px", background: "white", border: "1px solid #e2e8f0", borderRadius: "8px" }}>
+                        <div style={{ fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: "4px" }}>{sys === "SECONDARY" ? "Secondary (CBC)" : "Primary (PLE)"}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{ fontSize: "22px", fontWeight: 800, color: "var(--primary)" }}>75%</span>
+                          <span style={{ fontSize: "13px", color: "#475569" }}>→</span>
+                          <span style={{ fontSize: "18px", fontWeight: 800, color: result ? "#16a34a" : "#dc2626" }}>
+                            {result ? `${result.grade}` : "No match"}
+                          </span>
+                          {result && <span style={{ fontSize: "12px", color: "#64748b" }}>({result.level})</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p style={{ fontSize: "11px", color: "#94a3b8", marginTop: "10px" }}>💡 Preview uses 75% as a sample mark. Save your ranges to see them take effect.</p>
+              </div>
             </div>
           </div>
         )}

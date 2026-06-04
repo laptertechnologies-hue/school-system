@@ -739,61 +739,83 @@ export default function SchoolPortal({ params }: PageProps) {
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newClassName || !school) return;
-    await createClass(school.id, newClassName, newClassLevel);
-    setNewClassName("");
-    await loadSchoolData(school.id);
+    try {
+      await createClass(school.id, newClassName, newClassLevel);
+      setNewClassName("");
+      await loadSchoolData(school.id);
+      alert("Class created successfully!");
+    } catch (err: any) {
+      console.error("Error creating class:", err);
+      alert("Failed to create class: " + (err.message || err));
+    }
   };
 
   // Create stream handler
   const handleCreateStream = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newStreamName || !newStreamClassId || !school) return;
-    await createStream(newStreamClassId, newStreamName);
-    setNewStreamName("");
-    await loadSchoolData(school.id);
+    try {
+      await createStream(newStreamClassId, newStreamName);
+      setNewStreamName("");
+      await loadSchoolData(school.id);
+      alert("Stream created successfully!");
+    } catch (err: any) {
+      console.error("Error creating stream:", err);
+      alert("Failed to create stream: " + (err.message || err));
+    }
   };
 
   // Create staff user handler
   const handleCreateStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTeacherName || !newTeacherEmail || !school) return;
-    await createUser({
-      schoolId: school.id,
-      name: newTeacherName,
-      email: newTeacherEmail,
-      passwordHash: newTeacherPassword,
-      role: newTeacherRole,
-      photo: newTeacherPhoto || null,
-      staffNumber: newTeacherStaffNumber || null,
-    });
-    setNewTeacherName("");
-    setNewTeacherEmail("");
-    setNewTeacherPassword("password");
-    setNewTeacherPhoto("");
-    await loadSchoolData(school.id);
-    alert("Staff member user account created!");
+    try {
+      await createUser({
+        schoolId: school.id,
+        name: newTeacherName,
+        email: newTeacherEmail,
+        passwordHash: newTeacherPassword,
+        role: newTeacherRole,
+        photo: newTeacherPhoto || null,
+        staffNumber: newTeacherStaffNumber || null,
+      });
+      setNewTeacherName("");
+      setNewTeacherEmail("");
+      setNewTeacherPassword("password");
+      setNewTeacherPhoto("");
+      await loadSchoolData(school.id);
+      alert("Staff member user account created successfully!");
+    } catch (err: any) {
+      console.error("Error creating staff:", err);
+      alert("Failed to create staff account: " + (err.message || err));
+    }
   };
 
   // Create student handler
   const handleCreateStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newStudentName || !newStudentNumber || !newStudentClassId || !newStudentStreamId || !school) return;
-    await createStudent({
-      schoolId: school.id,
-      classId: newStudentClassId,
-      streamId: newStudentStreamId,
-      name: newStudentName,
-      studentNumber: newStudentNumber,
-      type: newStudentType,
-      photo: newStudentPhoto || null,
-      lin: newStudentLin || null,
-    });
-    setNewStudentName("");
-    setNewStudentNumber("");
-    setNewStudentPhoto("");
-    setNewStudentLin("");
-    await loadSchoolData(school.id);
-    alert("Student registered successfully!");
+    try {
+      await createStudent({
+        schoolId: school.id,
+        classId: newStudentClassId,
+        streamId: newStudentStreamId,
+        name: newStudentName,
+        studentNumber: newStudentNumber,
+        type: newStudentType,
+        photo: newStudentPhoto || null,
+        lin: newStudentLin || null,
+      });
+      setNewStudentName("");
+      setNewStudentNumber("");
+      setNewStudentPhoto("");
+      setNewStudentLin("");
+      await loadSchoolData(school.id);
+      alert("Student registered successfully!");
+    } catch (err: any) {
+      console.error("Error registering student:", err);
+      alert("Failed to register student: " + (err.message || err));
+    }
   };
 
   // Excel Parsing and Template Downloads
@@ -968,32 +990,43 @@ export default function SchoolPortal({ params }: PageProps) {
   const handleCreateSubject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSubjectName || !newSubjectClassId || !school) return;
-    await createSubject({
-      schoolId: school.id,
-      classId: newSubjectClassId,
-      name: newSubjectName,
-      code: newSubjectCode,
-    });
-    setNewSubjectName("");
-    setNewSubjectCode("");
-    await loadSchoolData(school.id);
+    try {
+      await createSubject({
+        schoolId: school.id,
+        classId: newSubjectClassId,
+        name: newSubjectName,
+        code: newSubjectCode,
+      });
+      setNewSubjectName("");
+      setNewSubjectCode("");
+      await loadSchoolData(school.id);
+      alert("Subject created successfully!");
+    } catch (err: any) {
+      console.error("Error creating subject:", err);
+      alert("Failed to create subject: " + (err.message || err));
+    }
   };
 
   // Create exam paper
   const handleCreateExam = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newExamName || !school) return;
-    await createExamPaper({
-      schoolId: school.id,
-      name: newExamName,
-      term: parseInt(newExamTerm),
-      year: parseInt(newExamYear),
-      maxMarks: 100,
-      isNewCurriculum: newExamIsNewCurriculum,
-    });
-    setNewExamName("");
-    await loadSchoolData(school.id);
-    alert("Exam Paper scheduled!");
+    try {
+      await createExamPaper({
+        schoolId: school.id,
+        name: newExamName,
+        term: parseInt(newExamTerm),
+        year: parseInt(newExamYear),
+        maxMarks: 100,
+        isNewCurriculum: newExamIsNewCurriculum,
+      });
+      setNewExamName("");
+      await loadSchoolData(school.id);
+      alert("Exam Paper scheduled successfully!");
+    } catch (err: any) {
+      console.error("Error creating exam:", err);
+      alert("Failed to schedule exam paper: " + (err.message || err));
+    }
   };
 
   // Get student's rank/position in their class for a specific exam

@@ -253,6 +253,19 @@ export default function SchoolPortal({ params }: PageProps) {
   const [profileSchoolType, setProfileSchoolType] = useState<"PRIMARY" | "SECONDARY" | "COMBINED">("COMBINED");
   const [profileSuccessMsg, setProfileSuccessMsg] = useState("");
 
+  // Continuous Assessment (CA) configurations
+  const [cbU1Max, setCbU1Max] = useState<number>(3);
+  const [cbU2Max, setCbU2Max] = useState<number>(3);
+  const [cbEtMax, setCbEtMax] = useState<number>(3);
+  const [cbHpgMax, setCbHpgMax] = useState<number>(3);
+  const [cbU1Active, setCbU1Active] = useState<boolean>(true);
+  const [cbU2Active, setCbU2Active] = useState<boolean>(true);
+  const [cbEtActive, setCbEtActive] = useState<boolean>(true);
+  const [cbHpgActive, setCbHpgActive] = useState<boolean>(true);
+
+  // Grade Range custom settings
+  const [editingGradeRanges, setEditingGradeRanges] = useState<GradeRange[]>([]);
+
   // First-time branding setup states
   const [showFirstTimeSetup, setShowFirstTimeSetup] = useState(false);
   const [setupAdminEmail, setSetupAdminEmail] = useState("");
@@ -296,6 +309,185 @@ export default function SchoolPortal({ params }: PageProps) {
   const [smsTemplate, setSmsTemplate] = useState("");
   const [smsMessage, setSmsMessage] = useState("");
   const [smsLogs, setSmsLogs] = useState<any[]>([]);
+
+  // Rank and Totals calculator for Report Cards
+  const getStudentRankAndTotals = (studentId: string, classId: string, examPaperId: string) => {
+    const classStudents = students.filter(st => st.classId === classId);
+    
+    const studentTotals = classStudents.map(st => {
+      const stMarks = marks.filter(m => m.studentId === st.id && m.examPaperId === examPaperId);
+      
+      let sumOfTotals = 0;
+      let count = 0;
+      stMarks.forEach(m => {
+        sumOfTotals += m.score;
+        count++;
+      });
+
+      return {
+        studentId: st.id,
+        totalScore: sumOfTotals,
+        count
+      };
+    });
+
+    studentTotals.sort((a, b) => b.totalScore - a.totalScore);
+
+    const rankIndex = studentTotals.findIndex(item => item.studentId === studentId);
+    const position = rankIndex !== -1 ? rankIndex + 1 : "-";
+    const totalStudents = classStudents.length;
+
+    let totalAllMarks = 0;
+    let totalMarksCount = 0;
+    studentTotals.forEach(item => {
+      totalAllMarks += item.totalScore;
+      totalMarksCount += item.count;
+    });
+    const classAverage = totalMarksCount > 0 ? (totalAllMarks / totalMarksCount).toFixed(1) : "0";
+    const studentAvg = rankIndex !== -1 && studentTotals[rankIndex].count > 0
+      ? (studentTotals[rankIndex].totalScore / studentTotals[rankIndex].count).toFixed(1)
+      : "0";
+
+    return {
+      position,
+      totalStudents,
+      classAverage,
+      studentTotal: studentTotals[rankIndex]?.totalScore.toFixed(0) || "0",
+      studentAverage: studentAvg
+    };
+  };
+
+  const renderMarksAssessmentTable = (student: Student, eotExam: ExamPaper) => {
+    const isCBC = eotExam.isNewCurriculum;
+    const stMarks = marks.filter(m => m.studentId === student.id && m.examPaperId === eotExam.id);
+    const classSubjects = subjects.filter(sub => sub.classId === student.classId);
+
+    if (classSubjects.length === 0) {
+      return (
+        <div style={{ padding: "10px", textAlign: "center", fontStyle: "italic", border: "1px solid #cbd5e1", fontSize: "12px", color: "#64748b" }}>
+          No subjects registered for this class.
+        </div>
+      );
+    }
+
+    if (isCBC) {
+      const u1Active = school?.cbU1Active !== false;
+      const u2Active = school?.cbU2Active !== false;
+      const etActive = school?.cbEtActive !== false;
+      const hpgActive = school?.cbHpgActive !== false;
+
+      const u1Max = school?.cbU1Max ?? 3;
+      const u2Max = school?.cbU2Max ?? 3;
+      const etMax = school?.cbEtMax ?? 3;
+      const hpgMax = school?.cbHpgMax ?? 3;
+
+      const classStudentsIds = students.filter(st => st.classId === student.classId).map(st => st.id);
+
+      return (
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px", marginBottom: "20px" }}>
+          <thead>
+            <tr style={{ background: "#f1f5f9" }}>
+              <th style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "left" }}>SUBJECT</th>
+              {u1Active && <th style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", width: "45px" }}>U1</th>}
+              {u2Active && <th style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", width: "45px" }}>U2</th>}
+              {etActive && <th style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", width: "45px" }}>E.T</th>}
+              {hpgActive && <th style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", width: "45px" }}>HPG</th>}
+              <th style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", width: "55px" }}>TOTAL</th>
+              <th style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", width: "55px" }}>AVG (/3)</th>
+              <th style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", width: "60px" }}>Out of 20</th>
+              <th style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", width: "60px" }}>EOY (/80)</th>
+              <th style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", width: "70px" }}>TOT (100%)</th>
+              <th style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", width: "45px" }}>GRD</th>
+              <th style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "left", width: "130px" }}>ACHIEVEMENT LEVEL</th>
+              <th style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", width: "55px" }}>INITIAL</th>
+            </tr>
+          </thead>
+          <tbody>
+            {classSubjects.map(sub => {
+              const m = stMarks.find(mk => mk.subjectId === sub.id);
+              const subjectMarks = marks.filter(mk => mk.subjectId === sub.id && mk.examPaperId === eotExam.id && classStudentsIds.includes(mk.studentId));
+              const hasU1 = u1Active && subjectMarks.some(mk => mk.u1 !== null && mk.u1 !== undefined);
+              const hasU2 = u2Active && subjectMarks.some(mk => mk.u2 !== null && mk.u2 !== undefined);
+              const hasEt = etActive && subjectMarks.some(mk => mk.u3 !== null && mk.u3 !== undefined);
+              const hasHpg = hpgActive && subjectMarks.some(mk => mk.hpg !== null && mk.hpg !== undefined);
+
+              let totalCA = 0;
+              let maxTotal = 0;
+              if (hasU1) { maxTotal += u1Max; if (m?.u1 !== null && m?.u1 !== undefined) totalCA += m.u1; }
+              if (hasU2) { maxTotal += u2Max; if (m?.u2 !== null && m?.u2 !== undefined) totalCA += m.u2; }
+              if (hasEt) { maxTotal += etMax; if (m?.u3 !== null && m?.u3 !== undefined) totalCA += m.u3; }
+              if (hasHpg) { maxTotal += hpgMax; if (m?.hpg !== null && m?.hpg !== undefined) totalCA += m.hpg; }
+
+              const avgCA = maxTotal > 0 && m ? ((totalCA / maxTotal) * 3).toFixed(1) : "-";
+              const outOf20 = maxTotal > 0 && m ? Math.round((totalCA / maxTotal) * 20) : "-";
+              const eoyVal = m?.eoy !== null && m?.eoy !== undefined ? m.eoy.toFixed(1) : "-";
+              const totalVal = m ? m.score.toFixed(0) : "-";
+              const gradeVal = m ? m.competencyGrade : "-";
+
+              const gradeObj = m ? computeGradeFromRanges(m.score, "SECONDARY", gradeRanges) : null;
+              const achievementVal = gradeObj ? gradeObj.level : "-";
+
+              const assignment = teacherAssignments.find(ta => ta.classId === student.classId && ta.streamId === student.streamId && ta.subjectId === sub.id);
+              let teacherInitials = "";
+              if (assignment) {
+                const teacherUser = users.find(u => u.id === assignment.teacherId);
+                if (teacherUser) {
+                  teacherInitials = teacherUser.name.split(" ").map(w => w[0]).join("").toUpperCase().replace(/[^A-Z]/g, "");
+                }
+              }
+
+              return (
+                <tr key={sub.id}>
+                  <td style={{ border: "1px solid #94a3b8", padding: "6px", fontWeight: "bold" }}>{sub.name}</td>
+                  {u1Active && <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center" }}>{m?.u1 !== null && m?.u1 !== undefined ? m.u1.toFixed(1) : "-"}</td>}
+                  {u2Active && <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center" }}>{m?.u2 !== null && m?.u2 !== undefined ? m.u2.toFixed(1) : "-"}</td>}
+                  {etActive && <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center" }}>{m?.u3 !== null && m?.u3 !== undefined ? m.u3.toFixed(1) : "-"}</td>}
+                  {hpgActive && <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center" }}>{m?.hpg !== null && m?.hpg !== undefined ? m.hpg.toFixed(1) : "-"}</td>}
+                  <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", fontWeight: "600" }}>{m ? totalCA.toFixed(1) : "-"}</td>
+                  <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center" }}>{avgCA}</td>
+                  <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center" }}>{outOf20}</td>
+                  <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center" }}>{eoyVal}</td>
+                  <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", fontWeight: "bold" }}>{m ? `${totalVal}%` : "-"}</td>
+                  <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", fontWeight: "bold", color: "var(--primary)" }}>{gradeVal}</td>
+                  <td style={{ border: "1px solid #94a3b8", padding: "6px" }}>{achievementVal}</td>
+                  <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", fontWeight: "bold" }}>{teacherInitials || "-"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      );
+    } else {
+      return (
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", marginBottom: "20px" }}>
+          <thead>
+            <tr style={{ background: "#f1f5f9" }}>
+              <th style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "left" }}>Subject Title</th>
+              <th style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center" }}>Raw Mark (100)</th>
+              <th style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center" }}>Grade Column</th>
+              <th style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "left" }}>Teacher Comments</th>
+            </tr>
+          </thead>
+          <tbody>
+            {classSubjects.map(sub => {
+              const m = stMarks.find(mk => mk.subjectId === sub.id);
+              const gradeObj = m ? computeGradeFromRanges(m.score, "PRIMARY", gradeRanges) : null;
+              const gradeVal = m ? m.competencyGrade : "-";
+
+              return (
+                <tr key={sub.id}>
+                  <td style={{ border: "1px solid #94a3b8", padding: "8px", fontWeight: "bold" }}>{sub.name}</td>
+                  <td style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center" }}>{m ? `${m.score}%` : "-"}</td>
+                  <td style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center", fontWeight: "bold" }}>{m ? `PLE: Grade ${gradeVal}` : "-"}</td>
+                  <td style={{ border: "1px solid #94a3b8", padding: "8px" }}>{m ? (m.comments || gradeObj?.descriptor || "Good effort") : "-"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      );
+    }
+  };
 
   // Report Card Designer States
   const [designerTitle, setDesignerTitle] = useState("OFFICIAL ACADEMIC REPORT CARD");
@@ -347,6 +539,15 @@ export default function SchoolPortal({ params }: PageProps) {
         setDesignerHeaderColor(s.reportHeaderColor || "#1e3a8a");
         setDesignerBorderType(s.reportBorderType || "double");
 
+        setCbU1Max(s.cbU1Max ?? 3);
+        setCbU2Max(s.cbU2Max ?? 3);
+        setCbEtMax(s.cbEtMax ?? 3);
+        setCbHpgMax(s.cbHpgMax ?? 3);
+        setCbU1Active(s.cbU1Active !== false);
+        setCbU2Active(s.cbU2Active !== false);
+        setCbEtActive(s.cbEtActive !== false);
+        setCbHpgActive(s.cbHpgActive !== false);
+
         // Load custom grade ranges or pre-populate defaults
         const ranges = await getGradeRanges(s.id);
         if (ranges.length === 0) {
@@ -370,8 +571,10 @@ export default function SchoolPortal({ params }: PageProps) {
           ];
           const saved = await saveGradeRanges(s.id, defaultRanges);
           setGradeRanges(saved);
+          setEditingGradeRanges(saved);
         } else {
           setGradeRanges(ranges);
+          setEditingGradeRanges(ranges);
         }
 
         // Initialize design next term fees:
@@ -415,7 +618,9 @@ export default function SchoolPortal({ params }: PageProps) {
       setExams(exms);
       setMarks(mrks);
       setUsers(usrs);
-      setGradeRanges(await getGradeRanges(schoolId));
+      const ranges = await getGradeRanges(schoolId);
+      setGradeRanges(ranges);
+      setEditingGradeRanges(ranges);
 
       const assignments = await getTeacherSubjects(schoolId);
       setTeacherAssignments(assignments);
@@ -540,11 +745,11 @@ export default function SchoolPortal({ params }: PageProps) {
       const m = marks.find(mk => mk.studentId === st.id && mk.examPaperId === selectedExamId && mk.subjectId === selectedSubjectId);
       if (m) {
         newScores[st.id] = String(m.score);
-        newU1[st.id] = m.u1 !== null && m.u1 !== undefined ? String(m.u1) : "";
-        newU2[st.id] = m.u2 !== null && m.u2 !== undefined ? String(m.u2) : "";
-        newU3[st.id] = m.u3 !== null && m.u3 !== undefined ? String(m.u3) : "";
-        newHPG[st.id] = m.hpg !== null && m.hpg !== undefined ? String(m.hpg) : "";
-        newEOY[st.id] = m.eoy !== null && m.eoy !== undefined ? String(m.eoy) : "";
+        newU1[st.id] = m.u1 !== null && m.u1 !== undefined && (school?.cbU1Max || 3) > 0 ? String(Math.round((m.u1 / (school?.cbU1Max || 3)) * 100)) : "";
+        newU2[st.id] = m.u2 !== null && m.u2 !== undefined && (school?.cbU2Max || 3) > 0 ? String(Math.round((m.u2 / (school?.cbU2Max || 3)) * 100)) : "";
+        newU3[st.id] = m.u3 !== null && m.u3 !== undefined && (school?.cbEtMax || 3) > 0 ? String(Math.round((m.u3 / (school?.cbEtMax || 3)) * 100)) : "";
+        newHPG[st.id] = m.hpg !== null && m.hpg !== undefined && (school?.cbHpgMax || 3) > 0 ? String(Math.round((m.hpg / (school?.cbHpgMax || 3)) * 100)) : "";
+        newEOY[st.id] = m.eoy !== null && m.eoy !== undefined ? String(Math.round((m.eoy / 80) * 100)) : "";
         newComments[st.id] = m.comments || "";
       }
     });
@@ -723,7 +928,15 @@ export default function SchoolPortal({ params }: PageProps) {
         deputyHeadTeacher: profileDeputyHeadTeacher,
         director: profileDirector,
         logoUrl: profileLogoUrl,
-        themeColor: profileThemeColor
+        themeColor: profileThemeColor,
+        cbU1Max,
+        cbU2Max,
+        cbEtMax,
+        cbHpgMax,
+        cbU1Active,
+        cbU2Active,
+        cbEtActive,
+        cbHpgActive,
       });
       setSchool(updated);
       setNewClassLevel(updated.schoolType === "SECONDARY" ? "SECONDARY" : "PRIMARY");
@@ -732,6 +945,37 @@ export default function SchoolPortal({ params }: PageProps) {
     } catch (err) {
       console.error(err);
       alert("Failed to update school profile");
+    }
+  };
+
+  const handleGradeRangeChange = (index: number, field: keyof GradeRange, value: any) => {
+    const updated = [...editingGradeRanges];
+    updated[index] = {
+      ...updated[index],
+      [field]: value
+    };
+    setEditingGradeRanges(updated);
+  };
+
+  const handleSaveCustomGradeRanges = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!school) return;
+    try {
+      const cleaned = editingGradeRanges.map(r => ({
+        systemType: r.systemType,
+        grade: r.grade,
+        minMark: Number(r.minMark),
+        maxMark: Number(r.maxMark),
+        achievementLevel: r.achievementLevel,
+        descriptor: r.descriptor || ""
+      }));
+      const updated = await saveGradeRanges(school.id, cleaned);
+      setGradeRanges(updated);
+      setEditingGradeRanges(updated);
+      alert("Custom grade ranges and achievement levels updated successfully!");
+    } catch (err: any) {
+      console.error(err);
+      alert("Failed to save grade ranges: " + (err.message || err));
     }
   };
 
@@ -770,7 +1014,7 @@ export default function SchoolPortal({ params }: PageProps) {
     e.preventDefault();
     if (!newTeacherName || !newTeacherEmail || !school) return;
     try {
-      await createUser({
+      const res = await createUser({
         schoolId: school.id,
         name: newTeacherName,
         email: newTeacherEmail,
@@ -779,6 +1023,10 @@ export default function SchoolPortal({ params }: PageProps) {
         photo: newTeacherPhoto || null,
         staffNumber: newTeacherStaffNumber || null,
       });
+      if (!res.success) {
+        alert("Failed to create staff account: " + res.error);
+        return;
+      }
       setNewTeacherName("");
       setNewTeacherEmail("");
       setNewTeacherPassword("password");
@@ -965,7 +1213,7 @@ export default function SchoolPortal({ params }: PageProps) {
           staffNumber = `${initials}-STF-${String(existingCount).padStart(4, "0")}`;
         }
 
-        await createUser({
+        const res = await createUser({
           schoolId: school.id,
           name,
           email,
@@ -974,6 +1222,10 @@ export default function SchoolPortal({ params }: PageProps) {
           photo: null,
           staffNumber,
         });
+        if (!res.success) {
+          console.error("Bulk staff import failed for " + email + ": " + res.error);
+          continue;
+        }
         successCount++;
       }
 
@@ -1077,23 +1329,57 @@ export default function SchoolPortal({ params }: PageProps) {
           // If all fields are empty, don't save anything
           if (!u1Str && !u2Str && !u3Str && !hpgStr && !eoyStr) continue;
 
-          const u1Val = u1Str ? parseFloat(u1Str) : null;
-          const u2Val = u2Str ? parseFloat(u2Str) : null;
-          const u3Val = u3Str ? parseFloat(u3Str) : null;
-          const hpgVal = hpgStr ? parseFloat(hpgStr) : null;
-          const eoyVal = eoyStr ? parseFloat(eoyStr) : null;
+          const u1Active = school?.cbU1Active !== false;
+          const u2Active = school?.cbU2Active !== false;
+          const etActive = school?.cbEtActive !== false;
+          const hpgActive = school?.cbHpgActive !== false;
 
-          // Validation
-          if (u1Val !== null && (isNaN(u1Val) || u1Val < 0 || u1Val > 3)) continue;
-          if (u2Val !== null && (isNaN(u2Val) || u2Val < 0 || u2Val > 3)) continue;
-          if (u3Val !== null && (isNaN(u3Val) || u3Val < 0 || u3Val > 3)) continue;
-          if (hpgVal !== null && (isNaN(hpgVal) || hpgVal < 0 || hpgVal > 3)) continue;
-          if (eoyVal !== null && (isNaN(eoyVal) || eoyVal < 0 || eoyVal > 80)) continue;
+          const u1Max = school?.cbU1Max ?? 3;
+          const u2Max = school?.cbU2Max ?? 3;
+          const etMax = school?.cbEtMax ?? 3;
+          const hpgMax = school?.cbHpgMax ?? 3;
 
-          const formativeSum = (u1Val || 0) + (u2Val || 0) + (u3Val || 0) + (hpgVal || 0);
-          const avgFormative = formativeSum / 4;
-          const caScore = (avgFormative / 3) * 20;
-          const finalTotal = caScore + (eoyVal || 0);
+          let u1Scaled: number | null = null;
+          let u2Scaled: number | null = null;
+          let u3Scaled: number | null = null;
+          let hpgScaled: number | null = null;
+          let eoyScaled: number | null = null;
+
+          if (u1Active && u1Str) {
+            const raw = parseFloat(u1Str);
+            if (isNaN(raw) || raw < 0 || raw > 100) continue;
+            u1Scaled = (raw / 100) * u1Max;
+          }
+          if (u2Active && u2Str) {
+            const raw = parseFloat(u2Str);
+            if (isNaN(raw) || raw < 0 || raw > 100) continue;
+            u2Scaled = (raw / 100) * u2Max;
+          }
+          if (etActive && u3Str) {
+            const raw = parseFloat(u3Str);
+            if (isNaN(raw) || raw < 0 || raw > 100) continue;
+            u3Scaled = (raw / 100) * etMax;
+          }
+          if (hpgActive && hpgStr) {
+            const raw = parseFloat(hpgStr);
+            if (isNaN(raw) || raw < 0 || raw > 100) continue;
+            hpgScaled = (raw / 100) * hpgMax;
+          }
+          if (eoyStr) {
+            const raw = parseFloat(eoyStr);
+            if (isNaN(raw) || raw < 0 || raw > 100) continue;
+            eoyScaled = (raw / 100) * 80;
+          }
+
+          const totalCA = (u1Scaled || 0) + (u2Scaled || 0) + (u3Scaled || 0) + (hpgScaled || 0);
+          let maxCATotal = 0;
+          if (u1Scaled !== null) maxCATotal += u1Max;
+          if (u2Scaled !== null) maxCATotal += u2Max;
+          if (u3Scaled !== null) maxCATotal += etMax;
+          if (hpgScaled !== null) maxCATotal += hpgMax;
+
+          const caScoreOutOf20 = maxCATotal > 0 ? Math.round((totalCA / maxCATotal) * 20) : 0;
+          const finalTotal = caScoreOutOf20 + (eoyScaled || 0);
 
           const gradeObj = computeGradeFromRanges(finalTotal, "SECONDARY", gradeRanges);
           const compGrade = gradeObj.grade;
@@ -1107,11 +1393,11 @@ export default function SchoolPortal({ params }: PageProps) {
             competencyGrade: compGrade,
             comments: finalComment,
             createdById: currentUser.id,
-            u1: u1Val,
-            u2: u2Val,
-            u3: u3Val,
-            hpg: hpgVal,
-            eoy: eoyVal
+            u1: u1Scaled,
+            u2: u2Scaled,
+            u3: u3Scaled,
+            hpg: hpgScaled,
+            eoy: eoyScaled
           });
         } else {
           const scoreStr = inputScores[studentId];
@@ -2694,7 +2980,134 @@ export default function SchoolPortal({ params }: PageProps) {
                     </div>
                   </div>
 
-                  <button type="submit" className="btn btn-primary" style={{ marginTop: "16px", width: "100%" }}>
+                  {/* CONTINUOUS ASSESSMENT CONFIG (Secondary/Combined only) */}
+                  {(profileSchoolType === "SECONDARY" || profileSchoolType === "COMBINED") && (
+                    <div style={{ marginTop: "20px", padding: "16px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px" }}>
+                      <h4 style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", color: "#0f172a" }}>
+                        <Sliders size={16} color="var(--primary)" />
+                        Continuous Assessment (CA) Columns
+                      </h4>
+                      <p style={{ color: "#64748b", fontSize: "11px", marginBottom: "16px" }}>
+                        Select which Continuous Assessment columns are active and set their maximum marks (e.g. out of 3 or 10).
+                      </p>
+                      
+                      <div className="grid grid-cols-4 gap-2 flex-mobile-col" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
+                        {/* U1 */}
+                        <div style={{ padding: "12px", background: "white", border: "1px solid #e2e8f0", borderRadius: "6px" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                            <span style={{ fontSize: "12px", fontWeight: "bold" }}>Unit 1 (U1)</span>
+                            <input 
+                              type="checkbox" 
+                              checked={cbU1Active} 
+                              onChange={(e) => setCbU1Active(e.target.checked)}
+                              style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                            />
+                          </div>
+                          {cbU1Active && (
+                            <div className="form-group" style={{ margin: 0 }}>
+                              <label className="form-label" style={{ fontSize: "10px" }}>Max Score</label>
+                              <input 
+                                type="number" 
+                                step="0.1" 
+                                min="0.1" 
+                                className="input-field" 
+                                value={cbU1Max} 
+                                onChange={(e) => setCbU1Max(Number(e.target.value))} 
+                                style={{ padding: "4px 8px", height: "auto", fontSize: "12px" }}
+                                required
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* U2 */}
+                        <div style={{ padding: "12px", background: "white", border: "1px solid #e2e8f0", borderRadius: "6px" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                            <span style={{ fontSize: "12px", fontWeight: "bold" }}>Unit 2 (U2)</span>
+                            <input 
+                              type="checkbox" 
+                              checked={cbU2Active} 
+                              onChange={(e) => setCbU2Active(e.target.checked)}
+                              style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                            />
+                          </div>
+                          {cbU2Active && (
+                            <div className="form-group" style={{ margin: 0 }}>
+                              <label className="form-label" style={{ fontSize: "10px" }}>Max Score</label>
+                              <input 
+                                type="number" 
+                                step="0.1" 
+                                min="0.1" 
+                                className="input-field" 
+                                value={cbU2Max} 
+                                onChange={(e) => setCbU2Max(Number(e.target.value))} 
+                                style={{ padding: "4px 8px", height: "auto", fontSize: "12px" }}
+                                required
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* E.T */}
+                        <div style={{ padding: "12px", background: "white", border: "1px solid #e2e8f0", borderRadius: "6px" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                            <span style={{ fontSize: "12px", fontWeight: "bold" }}>End Term CA (E.T)</span>
+                            <input 
+                              type="checkbox" 
+                              checked={cbEtActive} 
+                              onChange={(e) => setCbEtActive(e.target.checked)}
+                              style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                            />
+                          </div>
+                          {cbEtActive && (
+                            <div className="form-group" style={{ margin: 0 }}>
+                              <label className="form-label" style={{ fontSize: "10px" }}>Max Score</label>
+                              <input 
+                                type="number" 
+                                step="0.1" 
+                                min="0.1" 
+                                className="input-field" 
+                                value={cbEtMax} 
+                                onChange={(e) => setCbEtMax(Number(e.target.value))} 
+                                style={{ padding: "4px 8px", height: "auto", fontSize: "12px" }}
+                                required
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* HPG */}
+                        <div style={{ padding: "12px", background: "white", border: "1px solid #e2e8f0", borderRadius: "6px" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                            <span style={{ fontSize: "12px", fontWeight: "bold" }}>High Perform (HPG)</span>
+                            <input 
+                              type="checkbox" 
+                              checked={cbHpgActive} 
+                              onChange={(e) => setCbHpgActive(e.target.checked)}
+                              style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                            />
+                          </div>
+                          {cbHpgActive && (
+                            <div className="form-group" style={{ margin: 0 }}>
+                              <label className="form-label" style={{ fontSize: "10px" }}>Max Score</label>
+                              <input 
+                                type="number" 
+                                step="0.1" 
+                                min="0.1" 
+                                className="input-field" 
+                                value={cbHpgMax} 
+                                onChange={(e) => setCbHpgMax(Number(e.target.value))} 
+                                style={{ padding: "4px 8px", height: "auto", fontSize: "12px" }}
+                                required
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <button type="submit" className="btn btn-primary" style={{ marginTop: "20px", width: "100%" }}>
                     Save Profile & Customize Dashboard Accent
                   </button>
                 </form>
@@ -2720,6 +3133,171 @@ export default function SchoolPortal({ params }: PageProps) {
                   <div style={{ fontSize: "12px", color: "#0f172a", marginTop: "2px" }}>👤 **Director:** {profileDirector || "Not set"}</div>
                 </div>
               </div>
+            </div>
+
+            {/* CUSTOM GRADING SYSTEMS & RANGE EDITING CARD */}
+            <div className="card" style={{ marginTop: "24px" }}>
+              <h4 style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px", fontSize: "15px", color: "#0f172a" }}>
+                <Award size={18} color="var(--primary)" />
+                Custom Letter Grades & Assessment Criteria
+              </h4>
+              <p style={{ color: "#64748b", fontSize: "12px", marginBottom: "20px" }}>
+                Edit the mark range boundaries, descriptors, and official classifications used across report cards.
+              </p>
+
+              <form onSubmit={handleSaveCustomGradeRanges}>
+                {/* Secondary Scale (A-E) */}
+                {(profileSchoolType === "SECONDARY" || profileSchoolType === "COMBINED") && (
+                  <div style={{ marginBottom: "24px", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "16px", background: "#fff" }}>
+                    <h5 style={{ fontSize: "13px", fontWeight: "bold", color: "#1e293b", marginBottom: "12px", borderBottom: "1px solid #f1f5f9", paddingBottom: "6px" }}>
+                      📖 Secondary Curriculum Competency System (Grades A - E)
+                    </h5>
+                    <div style={{ overflowX: "auto" }}>
+                      <table className="table" style={{ fontSize: "12px", minWidth: "650px", borderCollapse: "collapse" }}>
+                        <thead>
+                          <tr style={{ background: "#f8fafc", textAlign: "left" }}>
+                            <th style={{ padding: "8px", width: "80px" }}>Grade</th>
+                            <th style={{ padding: "8px", width: "110px" }}>Min Mark (%)</th>
+                            <th style={{ padding: "8px", width: "110px" }}>Max Mark (%)</th>
+                            <th style={{ padding: "8px", width: "160px" }}>Achievement Level</th>
+                            <th style={{ padding: "8px" }}>Remarks / Descriptor</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {editingGradeRanges.map((r, idx) => {
+                            if (r.systemType !== "SECONDARY") return null;
+                            return (
+                              <tr key={r.id || `sec-${idx}`} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                                <td style={{ padding: "8px", fontWeight: "bold", color: "var(--primary)" }}>{r.grade}</td>
+                                <td style={{ padding: "4px" }}>
+                                  <input 
+                                    type="number" 
+                                    step="0.01" 
+                                    className="input-field" 
+                                    value={r.minMark} 
+                                    onChange={(e) => handleGradeRangeChange(idx, "minMark", e.target.value)}
+                                    style={{ padding: "4px 8px", fontSize: "12px", height: "auto" }}
+                                    required 
+                                  />
+                                </td>
+                                <td style={{ padding: "4px" }}>
+                                  <input 
+                                    type="number" 
+                                    step="0.01" 
+                                    className="input-field" 
+                                    value={r.maxMark} 
+                                    onChange={(e) => handleGradeRangeChange(idx, "maxMark", e.target.value)}
+                                    style={{ padding: "4px 8px", fontSize: "12px", height: "auto" }}
+                                    required 
+                                  />
+                                </td>
+                                <td style={{ padding: "4px" }}>
+                                  <input 
+                                    type="text" 
+                                    className="input-field" 
+                                    value={r.achievementLevel} 
+                                    onChange={(e) => handleGradeRangeChange(idx, "achievementLevel", e.target.value)}
+                                    style={{ padding: "4px 8px", fontSize: "12px", height: "auto" }}
+                                    required 
+                                  />
+                                </td>
+                                <td style={{ padding: "4px" }}>
+                                  <input 
+                                    type="text" 
+                                    className="input-field" 
+                                    value={r.descriptor} 
+                                    onChange={(e) => handleGradeRangeChange(idx, "descriptor", e.target.value)}
+                                    style={{ padding: "4px 8px", fontSize: "12px", height: "auto" }}
+                                    required 
+                                  />
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Primary Scale (Div 1 - Div 9) */}
+                {(profileSchoolType === "PRIMARY" || profileSchoolType === "COMBINED") && (
+                  <div style={{ marginBottom: "24px", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "16px", background: "#fff" }}>
+                    <h5 style={{ fontSize: "13px", fontWeight: "bold", color: "#1e293b", marginBottom: "12px", borderBottom: "1px solid #f1f5f9", paddingBottom: "6px" }}>
+                      📖 Primary PLE Standard System (Aggregates 1 - 9)
+                    </h5>
+                    <div style={{ overflowX: "auto" }}>
+                      <table className="table" style={{ fontSize: "12px", minWidth: "650px", borderCollapse: "collapse" }}>
+                        <thead>
+                          <tr style={{ background: "#f8fafc", textAlign: "left" }}>
+                            <th style={{ padding: "8px", width: "80px" }}>Division</th>
+                            <th style={{ padding: "8px", width: "110px" }}>Min Mark (%)</th>
+                            <th style={{ padding: "8px", width: "110px" }}>Max Mark (%)</th>
+                            <th style={{ padding: "8px", width: "160px" }}>Classification</th>
+                            <th style={{ padding: "8px" }}>Remarks / Descriptor</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {editingGradeRanges.map((r, idx) => {
+                            if (r.systemType !== "PRIMARY") return null;
+                            return (
+                              <tr key={r.id || `prim-${idx}`} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                                <td style={{ padding: "8px", fontWeight: "bold", color: "var(--primary)" }}>{r.grade}</td>
+                                <td style={{ padding: "4px" }}>
+                                  <input 
+                                    type="number" 
+                                    step="0.01" 
+                                    className="input-field" 
+                                    value={r.minMark} 
+                                    onChange={(e) => handleGradeRangeChange(idx, "minMark", e.target.value)}
+                                    style={{ padding: "4px 8px", fontSize: "12px", height: "auto" }}
+                                    required 
+                                  />
+                                </td>
+                                <td style={{ padding: "4px" }}>
+                                  <input 
+                                    type="number" 
+                                    step="0.01" 
+                                    className="input-field" 
+                                    value={r.maxMark} 
+                                    onChange={(e) => handleGradeRangeChange(idx, "maxMark", e.target.value)}
+                                    style={{ padding: "4px 8px", fontSize: "12px", height: "auto" }}
+                                    required 
+                                  />
+                                </td>
+                                <td style={{ padding: "4px" }}>
+                                  <input 
+                                    type="text" 
+                                    className="input-field" 
+                                    value={r.achievementLevel} 
+                                    onChange={(e) => handleGradeRangeChange(idx, "achievementLevel", e.target.value)}
+                                    style={{ padding: "4px 8px", fontSize: "12px", height: "auto" }}
+                                    required 
+                                  />
+                                </td>
+                                <td style={{ padding: "4px" }}>
+                                  <input 
+                                    type="text" 
+                                    className="input-field" 
+                                    value={r.descriptor} 
+                                    onChange={(e) => handleGradeRangeChange(idx, "descriptor", e.target.value)}
+                                    style={{ padding: "4px 8px", fontSize: "12px", height: "auto" }}
+                                    required 
+                                  />
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                <button type="submit" className="btn btn-primary" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%" }}>
+                  <Award size={18} /> Save Customized Curriculum Grading Scales
+                </button>
+              </form>
             </div>
           </div>
         )}
@@ -3691,7 +4269,9 @@ export default function SchoolPortal({ params }: PageProps) {
                       Record Scores: {subjects.find(s => s.id === selectedSubjectId)?.name} 
                     </h3>
                     <span style={{ fontSize: "12px", color: "#64748b" }}>
-                      Max marks for this paper is: {exams.find(e => e.id === selectedExamId)?.maxMarks || 100}
+                      {exams.find(e => e.id === selectedExamId)?.isNewCurriculum 
+                        ? "Continuous Assessment & EOY scores (Enter raw percentages 0-100%)" 
+                        : `Max marks for this paper is: ${exams.find(e => e.id === selectedExamId)?.maxMarks || 100}`}
                     </span>
                   </div>
                   <button onClick={handleSaveMarks} className="btn btn-primary">Save Grid Marks</button>
@@ -3703,14 +4283,23 @@ export default function SchoolPortal({ params }: PageProps) {
                       <tr>
                         <th>Student Number</th>
                         <th>Student Name</th>
-                        <th style={{ width: "180px" }}>Score</th>
-                        <th>Competency Grade Indicator</th>
+                        {exams.find(e => e.id === selectedExamId)?.isNewCurriculum ? (
+                          <>
+                            {school?.cbU1Active !== false && <th style={{ width: "95px" }}>U1 (%)</th>}
+                            {school?.cbU2Active !== false && <th style={{ width: "95px" }}>U2 (%)</th>}
+                            {school?.cbEtActive !== false && <th style={{ width: "95px" }}>E.T (%)</th>}
+                            {school?.cbHpgActive !== false && <th style={{ width: "95px" }}>HPG (%)</th>}
+                            <th style={{ width: "95px" }}>EOY (%)</th>
+                          </>
+                        ) : (
+                          <th style={{ width: "150px" }}>Score</th>
+                        )}
+                        <th>Grade Indicator</th>
                         <th>Remarks / Comments</th>
                       </tr>
                     </thead>
                     <tbody>
                       {students.filter(st => st.classId === selectedClassId && st.streamId === selectedStreamId).map(st => {
-                        // Find current recorded mark if any
                         const currentMark = marks.find(m => m.studentId === st.id && m.examPaperId === selectedExamId && m.subjectId === selectedSubjectId);
                         const isCBC = exams.find(e => e.id === selectedExamId)?.isNewCurriculum;
 
@@ -3718,20 +4307,95 @@ export default function SchoolPortal({ params }: PageProps) {
                           <tr key={st.id}>
                             <td>{st.studentNumber}</td>
                             <td><strong>{st.name}</strong></td>
-                            <td>
-                              <input 
-                                type="number" 
-                                className="input-field" 
-                                placeholder={currentMark ? String(currentMark.score) : "Enter Score"}
-                                value={inputScores[st.id] !== undefined ? inputScores[st.id] : ""}
-                                onChange={(e) => setInputScores({ ...inputScores, [st.id]: e.target.value })}
-                                style={{ padding: "8px 12px" }}
-                              />
-                            </td>
+                            {isCBC ? (
+                              <>
+                                {school?.cbU1Active !== false && (
+                                  <td>
+                                    <input 
+                                      type="number" 
+                                      min="0"
+                                      max="100"
+                                      className="input-field" 
+                                      placeholder="U1 %"
+                                      value={inputU1[st.id] !== undefined ? inputU1[st.id] : ""}
+                                      onChange={(e) => setInputU1({ ...inputU1, [st.id]: e.target.value })}
+                                      style={{ padding: "6px 10px", fontSize: "13px" }}
+                                    />
+                                  </td>
+                                )}
+                                {school?.cbU2Active !== false && (
+                                  <td>
+                                    <input 
+                                      type="number" 
+                                      min="0"
+                                      max="100"
+                                      className="input-field" 
+                                      placeholder="U2 %"
+                                      value={inputU2[st.id] !== undefined ? inputU2[st.id] : ""}
+                                      onChange={(e) => setInputU2({ ...inputU2, [st.id]: e.target.value })}
+                                      style={{ padding: "6px 10px", fontSize: "13px" }}
+                                    />
+                                  </td>
+                                )}
+                                {school?.cbEtActive !== false && (
+                                  <td>
+                                    <input 
+                                      type="number" 
+                                      min="0"
+                                      max="100"
+                                      className="input-field" 
+                                      placeholder="E.T %"
+                                      value={inputU3[st.id] !== undefined ? inputU3[st.id] : ""}
+                                      onChange={(e) => setInputU3({ ...inputU3, [st.id]: e.target.value })}
+                                      style={{ padding: "6px 10px", fontSize: "13px" }}
+                                    />
+                                  </td>
+                                )}
+                                {school?.cbHpgActive !== false && (
+                                  <td>
+                                    <input 
+                                      type="number" 
+                                      min="0"
+                                      max="100"
+                                      className="input-field" 
+                                      placeholder="HPG %"
+                                      value={inputHPG[st.id] !== undefined ? inputHPG[st.id] : ""}
+                                      onChange={(e) => setInputHPG({ ...inputHPG, [st.id]: e.target.value })}
+                                      style={{ padding: "6px 10px", fontSize: "13px" }}
+                                    />
+                                  </td>
+                                )}
+                                <td>
+                                  <input 
+                                    type="number" 
+                                    min="0"
+                                    max="100"
+                                    className="input-field" 
+                                    placeholder="EOY %"
+                                    value={inputEOY[st.id] !== undefined ? inputEOY[st.id] : ""}
+                                    onChange={(e) => setInputEOY({ ...inputEOY, [st.id]: e.target.value })}
+                                    style={{ padding: "6px 10px", fontSize: "13px" }}
+                                  />
+                                </td>
+                              </>
+                            ) : (
+                              <td>
+                                <input 
+                                  type="number" 
+                                  className="input-field" 
+                                  placeholder={currentMark ? String(currentMark.score) : "Enter Score"}
+                                  value={inputScores[st.id] !== undefined ? inputScores[st.id] : ""}
+                                  onChange={(e) => setInputScores({ ...inputScores, [st.id]: e.target.value })}
+                                  style={{ padding: "8px 12px" }}
+                                />
+                              </td>
+                            )}
                             <td>
                               {currentMark ? (
                                 <span className={`badge ${isCBC ? "badge-success" : "badge-primary"}`}>
-                                  {isCBC ? `CBC: ${currentMark.competencyGrade}` : `PLE: Grade ${currentMark.competencyGrade}`}
+                                  {isCBC 
+                                    ? `CBC: Grade ${currentMark.competencyGrade} (${currentMark.score}%)` 
+                                    : `PLE: Grade ${currentMark.competencyGrade}`}
                                 </span>
                               ) : (
                                 <span style={{ fontStyle: "italic", fontSize: "12px", color: "#94a3b8" }}>No marks saved</span>
@@ -3859,6 +4523,8 @@ export default function SchoolPortal({ params }: PageProps) {
                     <div className="bulk-printable-reports">
                       {students.filter(st => st.classId === selectedReportClassId).map((st, index, arr) => {
                         const isLast = index === arr.length - 1;
+                        const eotExam = exams.find(e => e.term === parseInt(selectedReportTerm));
+                        const rankInfo = eotExam ? getStudentRankAndTotals(st.id, st.classId, eotExam.id) : null;
                         return (
                           <React.Fragment key={st.id}>
                             <div className="bulk-report-card" style={{ background: "white", color: "black", borderColor: "#cbd5e1", padding: "40px", fontFamily: "Arial, sans-serif", marginBottom: "40px" }}>
@@ -3898,6 +4564,12 @@ export default function SchoolPortal({ params }: PageProps) {
                                   {school.reportShowResidency && (
                                     <div><strong>Residency Type:</strong> {st.type}</div>
                                   )}
+                                  {rankInfo && (
+                                    <>
+                                      <div><strong>Position Rank:</strong> {rankInfo.position} Out of {rankInfo.totalStudents}</div>
+                                      <div><strong>Average Mark:</strong> {rankInfo.studentAverage}% (Class Avg: {rankInfo.classAverage}%)</div>
+                                    </>
+                                  )}
                                   <div><strong>Date Generated:</strong> {new Date().toLocaleDateString()}</div>
                                 </div>
                                 {school.reportShowStudentPhoto !== false && (
@@ -3913,45 +4585,17 @@ export default function SchoolPortal({ params }: PageProps) {
 
                               {/* Grades Table */}
                               <h4 style={{ textTransform: "uppercase", fontSize: "14px", marginBottom: "8px" }}>Academic Marks Assessment</h4>
-                              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", marginBottom: "20px" }}>
-                                <thead>
-                                  <tr style={{ background: "#f1f5f9" }}>
-                                    <th style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "left" }}>Subject Title</th>
-                                    <th style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center" }}>Raw Mark (100)</th>
-                                    <th style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center" }}>Grade Column</th>
-                                    <th style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "left" }}>Teacher Comments</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {(() => {
-                                    const eotExam = exams.find(e => e.term === parseInt(selectedReportTerm));
-                                    if (!eotExam) return <tr><td colSpan={4} style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center", fontStyle: "italic" }}>No exams scheduled.</td></tr>;
-
-                                    const stMarks = marks.filter(m => m.studentId === st.id && m.examPaperId === eotExam.id);
-                                    if (stMarks.length === 0) return <tr><td colSpan={4} style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center", fontStyle: "italic" }}>No scores uploaded for this student yet.</td></tr>;
-
-                                    return stMarks.map(m => {
-                                      const sub = subjects.find(s => s.id === m.subjectId);
-                                      const isCBC = eotExam.isNewCurriculum;
-                                      
-                                      return (
-                                        <tr key={m.id}>
-                                          <td style={{ border: "1px solid #94a3b8", padding: "8px" }}>{sub?.name}</td>
-                                          <td style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center" }}>{m.score}%</td>
-                                          <td style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center", fontWeight: "bold" }}>
-                                            {isCBC ? `CBC: ${m.competencyGrade}` : `PLE: ${m.competencyGrade}`}
-                                          </td>
-                                          <td style={{ border: "1px solid #94a3b8", padding: "8px" }}>{m.comments}</td>
-                                        </tr>
-                                      );
-                                    });
-                                  })()}
-                                </tbody>
-                              </table>
+                              {eotExam ? (
+                                renderMarksAssessmentTable(st, eotExam)
+                              ) : (
+                                <div style={{ padding: "10px", textAlign: "center", fontStyle: "italic", border: "1px solid #cbd5e1", fontSize: "12px", color: "#64748b" }}>
+                                  No exam scheduled for Term {selectedReportTerm}.
+                                </div>
+                              )}
 
                               {/* PLE Summary if Primary */}
                               {classes.find(c => c.id === st.classId)?.level === "PRIMARY" && (
-                                <div style={{ background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "12px", fontSize: "13px" }}>
+                                <div style={{ background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "12px", fontSize: "13px", marginBottom: "15px" }}>
                                   {(() => {
                                     const pleDetails = getPLEReportDetails(st.id);
                                     if (!pleDetails) return <p style={{ fontStyle: "italic" }}>Report details unavailable.</p>;
@@ -3966,10 +4610,66 @@ export default function SchoolPortal({ params }: PageProps) {
                                 </div>
                               )}
 
-                              {/* CBC Info if Secondary */}
-                              {classes.find(c => c.id === st.classId)?.level === "SECONDARY" && school.reportShowRules && (
-                                <div style={{ background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "12px", fontSize: "12px", lineHeight: "1.4" }}>
-                                  <strong>CBC Grading Guideline:</strong> Grade A = Exceptional Competency, Grade B = Outstanding, Grade C = Satisfactory, Grade D = Basic, Grade E = Elementary.
+                              {/* Grading Legend Card */}
+                              {school.reportShowRules && (
+                                <div style={{ marginTop: "20px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "12px", fontSize: "11px", lineHeight: "1.4" }}>
+                                  <strong style={{ fontSize: "12px", display: "block", marginBottom: "6px" }}>
+                                    {classes.find(c => c.id === st.classId)?.level === "SECONDARY" ? "CBC Grading Scale & Achievement Levels" : "PLE Grading Scale & Classifications"}:
+                                  </strong>
+                                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
+                                    <thead>
+                                      <tr style={{ textAlign: "left", color: "#475569", borderBottom: "1px solid #cbd5e1" }}>
+                                        <th style={{ padding: "4px" }}>Grade</th>
+                                        <th style={{ padding: "4px" }}>Mark Range</th>
+                                        <th style={{ padding: "4px" }}>Achievement Level</th>
+                                        <th style={{ padding: "4px" }}>Descriptor / Classification</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {(() => {
+                                        const level = classes.find(c => c.id === st.classId)?.level || "SECONDARY";
+                                        const ranges = gradeRanges.filter(r => r.systemType === level).sort((a, b) => b.minMark - a.minMark);
+                                        if (ranges.length === 0) {
+                                          // Fallback defaults
+                                          const defaults = level === "SECONDARY" 
+                                            ? [
+                                                { grade: "A", range: "80% - 100%", level: "Exceptional", desc: "Highly proficient in subject skills" },
+                                                { grade: "B", range: "70% - 79%", level: "Outstanding", desc: "Consistently demonstrates subject skills" },
+                                                { grade: "C", range: "55% - 69%", level: "Satisfactory", desc: "Demonstrates basic subject skills" },
+                                                { grade: "D", range: "40% - 54%", level: "Basic", desc: "Beginning to develop subject skills" },
+                                                { grade: "E", range: "0% - 39%", level: "Elementary", desc: "Needs guidance to develop skills" }
+                                              ]
+                                            : [
+                                                { grade: "1", range: "90% - 100%", level: "Distinction", desc: "Outstanding performance" },
+                                                { grade: "2", range: "80% - 89%", level: "Distinction", desc: "Very good performance" },
+                                                { grade: "3", range: "70% - 79%", level: "Credit", desc: "Good performance" },
+                                                { grade: "4", range: "60% - 69%", level: "Credit", desc: "Satisfactory performance" },
+                                                { grade: "5", range: "50% - 59%", level: "Credit", desc: "Fair performance" },
+                                                { grade: "6", range: "40% - 49%", level: "Pass", desc: "Pass performance" },
+                                                { grade: "7", range: "35% - 39%", level: "Pass", desc: "Barely pass performance" },
+                                                { grade: "8", range: "30% - 34%", level: "Pass", desc: "Weak pass performance" },
+                                                { grade: "9", range: "0% - 29%", level: "Fail", desc: "Fail/Needs improvement" }
+                                              ];
+                                          return defaults.map((d, i) => (
+                                            <tr key={i} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                                              <td style={{ padding: "4px", fontWeight: "bold" }}>{d.grade}</td>
+                                              <td style={{ padding: "4px" }}>{d.range}</td>
+                                              <td style={{ padding: "4px" }}>{d.level}</td>
+                                              <td style={{ padding: "4px", color: "#64748b" }}>{d.desc}</td>
+                                            </tr>
+                                          ));
+                                        }
+                                        return ranges.map(r => (
+                                          <tr key={r.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                                            <td style={{ padding: "4px", fontWeight: "bold" }}>{r.grade}</td>
+                                            <td style={{ padding: "4px" }}>{r.minMark}% - {r.maxMark}%</td>
+                                            <td style={{ padding: "4px" }}>{r.achievementLevel}</td>
+                                            <td style={{ padding: "4px", color: "#64748b" }}>{r.descriptor}</td>
+                                          </tr>
+                                        ));
+                                      })()}
+                                    </tbody>
+                                  </table>
                                 </div>
                               )}
 
@@ -3994,141 +4694,179 @@ export default function SchoolPortal({ params }: PageProps) {
                       )}
                     </div>
                   </div>
-                ) : selectedReportStudent ? (
-                  <div>
-                    {/* Header Controls */}
-                    <div className="flex justify-between align-center no-print" style={{ marginBottom: "24px", borderBottom: "1px solid var(--border)", paddingBottom: "16px" }}>
-                      <h3>Preview Report Card</h3>
-                      <button onClick={triggerPrint} className="btn btn-primary">
-                        <Printer size={16} /> Print/Save PDF
-                      </button>
-                    </div>
-
-                    {/* Report Card Template (Print Target) */}
-                    <div id="printable-report" className="card" style={{ background: "white", color: "black", borderColor: "#cbd5e1", padding: "40px", fontFamily: "Arial, sans-serif" }}>
-                      
-                      {/* School Heading */}
-                      <div style={{ textAlign: "center", borderBottom: school.reportBorderType === "solid" ? "1px solid black" : school.reportBorderType === "none" ? "none" : "3px double black", paddingBottom: "14px", marginBottom: "20px" }}>
-                        {school.reportShowBadge && (
-                          <div style={{ display: "flex", justifyContent: "center", marginBottom: "10px" }}>
-                            {school.logoUrl ? (
-                              <img src={school.logoUrl} alt="Logo" style={{ width: `${school.reportLogoSize || 60}px`, height: `${school.reportLogoSize || 60}px`, objectFit: "contain" }} />
-                            ) : (
-                              <GraduationCap size={Math.round((school.reportLogoSize || 60) * 0.8)} color="var(--primary)" />
-                            )}
-                          </div>
-                        )}
-                        <h2 style={{ fontSize: "24px", margin: 0, textTransform: "uppercase", color: school.reportHeaderColor || "#1e3a8a" }}>{school.name}</h2>
-                        <p style={{ margin: "4px 0 0", fontSize: "12px", fontStyle: "italic" }}>
-                          P.O. Box {school.poBox || "Kampala, Uganda"} • Tel: {school.contactPhone} • Email: {school.contactEmail}
-                        </p>
-                        {school.reportMotto && (
-                          <p style={{ margin: "2px 0 0", fontSize: "11px", fontStyle: "italic", fontWeight: "bold", color: "#475569" }}>
-                            Motto: "{school.reportMotto}"
-                          </p>
-                        )}
-                        <h3 style={{ fontSize: "16px", margin: "10px 0 0", textTransform: "uppercase", textDecoration: "underline" }}>
-                          {school.reportTitle || "OFFICIAL ACADEMIC REPORT CARD"}
-                        </h3>
+                ) : selectedReportStudent ? ( (() => {
+                  const eotExam = exams.find(e => e.term === parseInt(selectedReportTerm));
+                  const rankInfo = eotExam ? getStudentRankAndTotals(selectedReportStudent.id, selectedReportStudent.classId, eotExam.id) : null;
+                  return (
+                    <div>
+                      {/* Header Controls */}
+                      <div className="flex justify-between align-center no-print" style={{ marginBottom: "24px", borderBottom: "1px solid var(--border)", paddingBottom: "16px" }}>
+                        <h3>Preview Report Card</h3>
+                        <button onClick={triggerPrint} className="btn btn-primary">
+                          <Printer size={16} /> Print/Save PDF
+                        </button>
                       </div>
 
-                      {/* Student Meta details with Optional Student Photo */}
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: "20px", marginBottom: "20px", borderBottom: "1px solid #94a3b8", paddingBottom: "12px" }}>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", fontSize: "13px", flex: 1 }}>
-                          <div><strong>Student Name:</strong> {selectedReportStudent.name}</div>
-                          <div><strong>Class:</strong> {classes.find(c => c.id === selectedReportStudent.classId)?.name}</div>
-                          <div><strong>Student Number:</strong> {selectedReportStudent.studentNumber}</div>
-                          <div><strong>Academic Term:</strong> Term {selectedReportTerm} (2026)</div>
-                          {school.reportShowResidency && (
-                            <div><strong>Residency Type:</strong> {selectedReportStudent.type}</div>
+                      {/* Report Card Template (Print Target) */}
+                      <div id="printable-report" className="card" style={{ background: "white", color: "black", borderColor: "#cbd5e1", padding: "40px", fontFamily: "Arial, sans-serif" }}>
+                        
+                        {/* School Heading */}
+                        <div style={{ textAlign: "center", borderBottom: school.reportBorderType === "solid" ? "1px solid black" : school.reportBorderType === "none" ? "none" : "3px double black", paddingBottom: "14px", marginBottom: "20px" }}>
+                          {school.reportShowBadge && (
+                            <div style={{ display: "flex", justifyContent: "center", marginBottom: "10px" }}>
+                              {school.logoUrl ? (
+                                <img src={school.logoUrl} alt="Logo" style={{ width: `${school.reportLogoSize || 60}px`, height: `${school.reportLogoSize || 60}px`, objectFit: "contain" }} />
+                              ) : (
+                                <GraduationCap size={Math.round((school.reportLogoSize || 60) * 0.8)} color="var(--primary)" />
+                              )}
+                            </div>
                           )}
-                          <div><strong>Date Generated:</strong> {new Date().toLocaleDateString()}</div>
+                          <h2 style={{ fontSize: "24px", margin: 0, textTransform: "uppercase", color: school.reportHeaderColor || "#1e3a8a" }}>{school.name}</h2>
+                          <p style={{ margin: "4px 0 0", fontSize: "12px", fontStyle: "italic" }}>
+                            P.O. Box {school.poBox || "Kampala, Uganda"} • Tel: {school.contactPhone} • Email: {school.contactEmail}
+                          </p>
+                          {school.reportMotto && (
+                            <p style={{ margin: "2px 0 0", fontSize: "11px", fontStyle: "italic", fontWeight: "bold", color: "#475569" }}>
+                              Motto: "{school.reportMotto}"
+                            </p>
+                          )}
+                          <h3 style={{ fontSize: "16px", margin: "10px 0 0", textTransform: "uppercase", textDecoration: "underline" }}>
+                            {school.reportTitle || "OFFICIAL ACADEMIC REPORT CARD"}
+                          </h3>
                         </div>
-                        {school.reportShowStudentPhoto !== false && (
-                          <div style={{ width: "75px", height: "80px", border: "1px solid #cbd5e1", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", background: "#f8fafc", flexShrink: 0 }}>
-                            {selectedReportStudent.photo ? (
-                              <img src={selectedReportStudent.photo} alt="Student" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                            ) : (
-                              <span style={{ fontSize: "9px", color: "#94a3b8", textAlign: "center" }}>No Photo</span>
+
+                        {/* Student Meta details with Optional Student Photo */}
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: "20px", marginBottom: "20px", borderBottom: "1px solid #94a3b8", paddingBottom: "12px" }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", fontSize: "13px", flex: 1 }}>
+                            <div><strong>Student Name:</strong> {selectedReportStudent.name}</div>
+                            <div><strong>Class:</strong> {classes.find(c => c.id === selectedReportStudent.classId)?.name}</div>
+                            <div><strong>Student Number:</strong> {selectedReportStudent.studentNumber}</div>
+                            <div><strong>Academic Term:</strong> Term {selectedReportTerm} (2026)</div>
+                            {school.reportShowResidency && (
+                              <div><strong>Residency Type:</strong> {selectedReportStudent.type}</div>
                             )}
+                            {rankInfo && (
+                              <>
+                                <div><strong>Position Rank:</strong> {rankInfo.position} Out of {rankInfo.totalStudents}</div>
+                                <div><strong>Average Mark:</strong> {rankInfo.studentAverage}% (Class Avg: {rankInfo.classAverage}%)</div>
+                              </>
+                            )}
+                            <div><strong>Date Generated:</strong> {new Date().toLocaleDateString()}</div>
+                          </div>
+                          {school.reportShowStudentPhoto !== false && (
+                            <div style={{ width: "75px", height: "80px", border: "1px solid #cbd5e1", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", background: "#f8fafc", flexShrink: 0 }}>
+                              {selectedReportStudent.photo ? (
+                                <img src={selectedReportStudent.photo} alt="Student" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                              ) : (
+                                <span style={{ fontSize: "9px", color: "#94a3b8", textAlign: "center" }}>No Photo</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Grades Table */}
+                        <h4 style={{ textTransform: "uppercase", fontSize: "14px", marginBottom: "8px" }}>Academic Marks Assessment</h4>
+                        {eotExam ? (
+                          renderMarksAssessmentTable(selectedReportStudent, eotExam)
+                        ) : (
+                          <div style={{ padding: "10px", textAlign: "center", fontStyle: "italic", border: "1px solid #cbd5e1", fontSize: "12px", color: "#64748b" }}>
+                            No exam scheduled for Term {selectedReportTerm}.
                           </div>
                         )}
-                      </div>
 
-                      {/* Grades Table */}
-                      <h4 style={{ textTransform: "uppercase", fontSize: "14px", marginBottom: "8px" }}>Academic Marks Assessment</h4>
-                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", marginBottom: "20px" }}>
-                        <thead>
-                          <tr style={{ background: "#f1f5f9" }}>
-                            <th style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "left" }}>Subject Title</th>
-                            <th style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center" }}>Raw Mark (100)</th>
-                            <th style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center" }}>Grade Column</th>
-                            <th style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "left" }}>Teacher Comments</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {/* Filter Marks */}
-                          {(() => {
-                            const eotExam = exams.find(e => e.term === parseInt(selectedReportTerm));
-                            if (!eotExam) return <tr><td colSpan={4} style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center", fontStyle: "italic" }}>No exams scheduled.</td></tr>;
+                        {/* PLE Summary if Primary */}
+                        {classes.find(c => c.id === selectedReportStudent.classId)?.level === "PRIMARY" && (
+                          <div style={{ background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "12px", fontSize: "13px", marginBottom: "15px" }}>
+                            {(() => {
+                              const pleDetails = getPLEReportDetails(selectedReportStudent.id);
+                              if (!pleDetails) return <p style={{ fontStyle: "italic" }}>Report details unavailable.</p>;
 
-                            const stMarks = marks.filter(m => m.studentId === selectedReportStudent.id && m.examPaperId === eotExam.id);
-                            if (stMarks.length === 0) return <tr><td colSpan={4} style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center", fontStyle: "italic" }}>No scores uploaded for this student yet.</td></tr>;
-
-                            return stMarks.map(m => {
-                              const sub = subjects.find(s => s.id === m.subjectId);
-                              const isCBC = eotExam.isNewCurriculum;
-                              
                               return (
-                                <tr key={m.id}>
-                                  <td style={{ border: "1px solid #94a3b8", padding: "8px" }}>{sub?.name}</td>
-                                  <td style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center" }}>{m.score}%</td>
-                                  <td style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center", fontWeight: "bold" }}>
-                                    {isCBC ? `CBC: ${m.competencyGrade}` : `PLE: ${m.competencyGrade}`}
-                                  </td>
-                                  <td style={{ border: "1px solid #94a3b8", padding: "8px" }}>{m.comments}</td>
-                                </tr>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                                  <div><strong>UNEB PLE Aggregate (4 subjects):</strong> {pleDetails.aggregate}</div>
+                                  <div><strong>Final Division Level:</strong> Division {pleDetails.division}</div>
+                                </div>
                               );
-                            });
-                          })()}
-                        </tbody>
-                      </table>
+                            })()}
+                          </div>
+                        )}
 
-                      {/* PLE Summary if Primary */}
-                      {classes.find(c => c.id === selectedReportStudent.classId)?.level === "PRIMARY" && (
-                        <div style={{ background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "12px", fontSize: "13px" }}>
-                          {(() => {
-                            const pleDetails = getPLEReportDetails(selectedReportStudent.id);
-                            if (!pleDetails) return <p style={{ fontStyle: "italic" }}>Report details unavailable.</p>;
+                        {/* Grading Legend Card */}
+                        {school.reportShowRules && (
+                          <div style={{ marginTop: "20px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "12px", fontSize: "11px", lineHeight: "1.4" }}>
+                            <strong style={{ fontSize: "12px", display: "block", marginBottom: "6px" }}>
+                              {classes.find(c => c.id === selectedReportStudent.classId)?.level === "SECONDARY" ? "CBC Grading Scale & Achievement Levels" : "PLE Grading Scale & Classifications"}:
+                            </strong>
+                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
+                              <thead>
+                                <tr style={{ textAlign: "left", color: "#475569", borderBottom: "1px solid #cbd5e1" }}>
+                                  <th style={{ padding: "4px" }}>Grade</th>
+                                  <th style={{ padding: "4px" }}>Mark Range</th>
+                                  <th style={{ padding: "4px" }}>Achievement Level</th>
+                                  <th style={{ padding: "4px" }}>Descriptor / Classification</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(() => {
+                                  const level = classes.find(c => c.id === selectedReportStudent.classId)?.level || "SECONDARY";
+                                  const ranges = gradeRanges.filter(r => r.systemType === level).sort((a, b) => b.minMark - a.minMark);
+                                  if (ranges.length === 0) {
+                                    // Fallback defaults
+                                    const defaults = level === "SECONDARY" 
+                                      ? [
+                                          { grade: "A", range: "80% - 100%", level: "Exceptional", desc: "Highly proficient in subject skills" },
+                                          { grade: "B", range: "70% - 79%", level: "Outstanding", desc: "Consistently demonstrates subject skills" },
+                                          { grade: "C", range: "55% - 69%", level: "Satisfactory", desc: "Demonstrates basic subject skills" },
+                                          { grade: "D", range: "40% - 54%", level: "Basic", desc: "Beginning to develop subject skills" },
+                                          { grade: "E", range: "0% - 39%", level: "Elementary", desc: "Needs guidance to develop skills" }
+                                        ]
+                                      : [
+                                          { grade: "1", range: "90% - 100%", level: "Distinction", desc: "Outstanding performance" },
+                                          { grade: "2", range: "80% - 89%", level: "Distinction", desc: "Very good performance" },
+                                          { grade: "3", range: "70% - 79%", level: "Credit", desc: "Good performance" },
+                                          { grade: "4", range: "60% - 69%", level: "Credit", desc: "Satisfactory performance" },
+                                          { grade: "5", range: "50% - 59%", level: "Credit", desc: "Fair performance" },
+                                          { grade: "6", range: "40% - 49%", level: "Pass", desc: "Pass performance" },
+                                          { grade: "7", range: "35% - 39%", level: "Pass", desc: "Barely pass performance" },
+                                          { grade: "8", range: "30% - 34%", level: "Pass", desc: "Weak pass performance" },
+                                          { grade: "9", range: "0% - 29%", level: "Fail", desc: "Fail/Needs improvement" }
+                                        ];
+                                    return defaults.map((d, i) => (
+                                      <tr key={i} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                                        <td style={{ padding: "4px", fontWeight: "bold" }}>{d.grade}</td>
+                                        <td style={{ padding: "4px" }}>{d.range}</td>
+                                        <td style={{ padding: "4px" }}>{d.level}</td>
+                                        <td style={{ padding: "4px", color: "#64748b" }}>{d.desc}</td>
+                                      </tr>
+                                    ));
+                                  }
+                                  return ranges.map(r => (
+                                    <tr key={r.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                                      <td style={{ padding: "4px", fontWeight: "bold" }}>{r.grade}</td>
+                                      <td style={{ padding: "4px" }}>{r.minMark}% - {r.maxMark}%</td>
+                                      <td style={{ padding: "4px" }}>{r.achievementLevel}</td>
+                                      <td style={{ padding: "4px", color: "#64748b" }}>{r.descriptor}</td>
+                                    </tr>
+                                  ));
+                                })()}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
 
-                            return (
-                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                                <div><strong>UNEB PLE Aggregate (4 subjects):</strong> {pleDetails.aggregate}</div>
-                                <div><strong>Final Division Level:</strong> Division {pleDetails.division}</div>
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      )}
+                        {/* Signatures */}
+                        {school.reportShowSignatures && (
+                          <div style={{ display: "flex", justifyContent: "space-between", marginTop: "40px", fontSize: "12px" }}>
+                            <div style={{ borderTop: "1px solid black", width: "150px", textAlign: "center", paddingTop: "6px" }}>Class Teacher</div>
+                            <div style={{ borderTop: "1px solid black", width: "150px", textAlign: "center", paddingTop: "6px" }}>Head Teacher</div>
+                            <div style={{ borderTop: "1px solid black", width: "150px", textAlign: "center", paddingTop: "6px" }}>School Stamp</div>
+                          </div>
+                        )}
 
-                      {/* CBC Info if Secondary */}
-                      {classes.find(c => c.id === selectedReportStudent.classId)?.level === "SECONDARY" && school.reportShowRules && (
-                        <div style={{ background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "12px", fontSize: "12px", lineHeight: "1.4" }}>
-                          <strong>CBC Grading Guideline:</strong> Grade A = Exceptional Competency, Grade B = Outstanding, Grade C = Satisfactory, Grade D = Basic, Grade E = Elementary.
-                        </div>
-                      )}
-
-                      {/* Signatures */}
-                      {school.reportShowSignatures && (
-                        <div style={{ display: "flex", justifyContent: "space-between", marginTop: "40px", fontSize: "12px" }}>
-                          <div style={{ borderTop: "1px solid black", width: "150px", textAlign: "center", paddingTop: "6px" }}>Class Teacher</div>
-                          <div style={{ borderTop: "1px solid black", width: "150px", textAlign: "center", paddingTop: "6px" }}>Head Teacher</div>
-                          <div style={{ borderTop: "1px solid black", width: "150px", textAlign: "center", paddingTop: "6px" }}>School Stamp</div>
-                        </div>
-                      )}
-
+                      </div>
                     </div>
-                  </div>
+                  );
+                })()
                 ) : (
                   <div style={{ textAlign: "center", padding: "60px", color: "#64748b" }}>
                     <Info size={32} style={{ marginBottom: "12px" }} />

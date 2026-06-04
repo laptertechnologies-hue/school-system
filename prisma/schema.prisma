@@ -49,6 +49,14 @@ model School {
   reportBorderType    String?   @default("double")
   reportNextTermFeesDay Float?  @default(150000)
   reportNextTermFeesBoarding Float? @default(350000)
+  cbU1Max            Float?    @default(3)
+  cbU2Max            Float?    @default(3)
+  cbEtMax            Float?    @default(3)
+  cbHpgMax           Float?    @default(3)
+  cbU1Active         Boolean?  @default(true)
+  cbU2Active         Boolean?  @default(true)
+  cbEtActive         Boolean?  @default(true)
+  cbHpgActive        Boolean?  @default(true)
   gradeRanges         GradeRange[]
 }
 

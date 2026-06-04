@@ -35,6 +35,14 @@ export interface School {
   reportBorderType?: string | null;
   reportNextTermFeesDay?: number | null;
   reportNextTermFeesBoarding?: number | null;
+  cbU1Max?: number | null;
+  cbU2Max?: number | null;
+  cbEtMax?: number | null;
+  cbHpgMax?: number | null;
+  cbU1Active?: boolean | null;
+  cbU2Active?: boolean | null;
+  cbEtActive?: boolean | null;
+  cbHpgActive?: boolean | null;
 }
 
 export interface User {
@@ -257,20 +265,25 @@ async function hasDB(): Promise<boolean> {
 // Helper to generate IDs
 const uuid = () => Math.random().toString(36).substring(2, 11);
 
+const serialize = <T>(data: T): T => {
+  if (data === undefined || data === null) return data;
+  return JSON.parse(JSON.stringify(data));
+};
+
 // --- Schools ---
 export async function getSchools(): Promise<School[]> {
   if (await hasDB()) {
-    return (await prisma.school.findMany()) as School[];
+    return serialize((await prisma.school.findMany()) as School[]);
   }
-  return getLocalDB().schools;
+  return serialize(getLocalDB().schools);
 }
 
 export async function getSchoolBySubdomain(subdomain: string): Promise<School | null> {
   if (await hasDB()) {
-    return (await prisma.school.findUnique({ where: { subdomain } })) as School | null;
+    return serialize((await prisma.school.findUnique({ where: { subdomain } })) as School | null);
   }
   const school = getLocalDB().schools.find((s: School) => s.subdomain === subdomain);
-  return school || null;
+  return serialize(school || null);
 }
 
 export async function createSchool(data: Omit<School, "id" | "createdAt" | "status">): Promise<School> {
@@ -324,7 +337,7 @@ export async function createSchool(data: Omit<School, "id" | "createdAt" | "stat
       }
     }
 
-    return createdSchool;
+    return serialize(createdSchool);
   }
 
   const schoolId = "school-" + uuid();
@@ -372,17 +385,17 @@ export async function createSchool(data: Omit<School, "id" | "createdAt" | "stat
   });
 
   saveLocalDB(db);
-  return createdSchool;
+  return serialize(createdSchool);
 }
 
 export async function updateSchoolStatus(id: string, status: "ACTIVE" | "INACTIVE"): Promise<School> {
   const expiresAt = status === "ACTIVE" ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) : null;
   
   if (await hasDB()) {
-    return (await prisma.school.update({
+    return serialize((await prisma.school.update({
       where: { id },
       data: { status, expiresAt },
-    })) as School;
+    })) as School);
   }
 
   const db = getLocalDB();
@@ -391,7 +404,7 @@ export async function updateSchoolStatus(id: string, status: "ACTIVE" | "INACTIV
   school.status = status;
   school.expiresAt = expiresAt;
   saveLocalDB(db);
-  return school;
+  return serialize(school);
 }
 
 export async function updateSchoolSubscription(
@@ -408,10 +421,10 @@ export async function updateSchoolSubscription(
   if (data.expiresAt !== undefined) updateData.expiresAt = data.expiresAt;
 
   if (await hasDB()) {
-    return (await prisma.school.update({
+    return serialize((await prisma.school.update({
       where: { id },
       data: updateData,
-    })) as School;
+    })) as School);
   }
 
   const db = getLocalDB();
@@ -425,7 +438,7 @@ export async function updateSchoolSubscription(
   }
   
   saveLocalDB(db);
-  return school;
+  return serialize(school);
 }
 
 export async function updateSchoolMetadata(
@@ -452,13 +465,21 @@ export async function updateSchoolMetadata(
     reportBorderType?: string | null;
     reportNextTermFeesDay?: number | null;
     reportNextTermFeesBoarding?: number | null;
+    cbU1Max?: number | null;
+    cbU2Max?: number | null;
+    cbEtMax?: number | null;
+    cbHpgMax?: number | null;
+    cbU1Active?: boolean | null;
+    cbU2Active?: boolean | null;
+    cbEtActive?: boolean | null;
+    cbHpgActive?: boolean | null;
   }
 ): Promise<School> {
   if (await hasDB()) {
-    return (await prisma.school.update({
+    return serialize((await prisma.school.update({
       where: { id },
       data: metadata,
-    })) as School;
+    })) as School);
   }
 
   const db = getLocalDB();
@@ -468,7 +489,7 @@ export async function updateSchoolMetadata(
   // Merge metadata
   Object.assign(school, metadata);
   saveLocalDB(db);
-  return school;
+  return serialize(school);
 }
 
 // --- Users & Authentication ---
@@ -478,59 +499,78 @@ export async function authenticateUser(email: string, passwordHash: string, subd
       const superAdmin = await prisma.user.findFirst({
         where: { schoolId: "super", email, passwordHash },
       });
-      return superAdmin as User | null;
+      return serialize(superAdmin as User | null);
     }
     const school = await prisma.school.findUnique({ where: { subdomain } });
     if (!school) return null;
     const user = await prisma.user.findFirst({
       where: { schoolId: school.id, email, passwordHash },
     });
-    return user as User | null;
+    return serialize(user as User | null);
   }
 
   const db = getLocalDB();
   if (subdomain === "admin") {
     const user = db.users.find((u: User) => u.schoolId === "super" && u.email === email && u.passwordHash === passwordHash);
-    return user || null;
+    return serialize(user || null);
   }
   const school = db.schools.find((s: School) => s.subdomain === subdomain);
   if (!school) return null;
   const user = db.users.find((u: User) => u.schoolId === school.id && u.email === email && u.passwordHash === passwordHash);
-  return user || null;
+  return serialize(user || null);
 }
 
 export async function getUsers(schoolId: string): Promise<User[]> {
   if (await hasDB()) {
-    return (await prisma.user.findMany({ where: { schoolId } })) as User[];
+    return serialize((await prisma.user.findMany({ where: { schoolId } })) as User[]);
   }
-  return getLocalDB().users.filter((u: User) => u.schoolId === schoolId);
+  return serialize(getLocalDB().users.filter((u: User) => u.schoolId === schoolId));
 }
 
-export async function createUser(data: Omit<User, "id" | "createdAt">): Promise<User> {
-  if (await hasDB()) {
-    return (await prisma.user.create({
-      data: {
-        schoolId: data.schoolId,
-        name: data.name,
-        email: data.email,
-        passwordHash: data.passwordHash,
-        role: data.role,
-        photo: data.photo || null,
-        staffNumber: data.staffNumber || null,
-      },
-    })) as User;
+export async function createUser(data: Omit<User, "id" | "createdAt">): Promise<{ success: boolean; error?: string; data?: User }> {
+  try {
+    if (await hasDB()) {
+      // Direct duplicate check to return human-readable error
+      const existing = await prisma.user.findFirst({
+        where: { schoolId: data.schoolId, email: data.email }
+      });
+      if (existing) {
+        return { success: false, error: "A staff account with this email address is already registered at this school." };
+      }
+
+      const created = (await prisma.user.create({
+        data: {
+          schoolId: data.schoolId,
+          name: data.name,
+          email: data.email,
+          passwordHash: data.passwordHash,
+          role: data.role,
+          photo: data.photo || null,
+          staffNumber: data.staffNumber || null,
+        },
+      })) as User;
+      return { success: true, data: serialize(created) };
+    }
+
+    const db = getLocalDB();
+    const existing = db.users.find((u: User) => u.schoolId === data.schoolId && u.email === data.email);
+    if (existing) {
+      return { success: false, error: "A staff account with this email address is already registered at this school." };
+    }
+
+    const newUser: User = {
+      ...data,
+      id: "user-" + uuid(),
+      createdAt: new Date(),
+    };
+
+    db.users.push(newUser);
+    saveLocalDB(db);
+    return { success: true, data: serialize(newUser) };
+  } catch (err: any) {
+    console.error("Error in createUser service:", err);
+    return { success: false, error: err.message || String(err) };
   }
-
-  const newUser: User = {
-    ...data,
-    id: "user-" + uuid(),
-    createdAt: new Date(),
-  };
-
-  const db = getLocalDB();
-  db.users.push(newUser);
-  saveLocalDB(db);
-  return newUser;
 }
 
 export async function updateUser(id: string, data: Partial<Omit<User, "id" | "createdAt" | "schoolId">>): Promise<User> {
@@ -771,13 +811,13 @@ export async function createExamPaper(data: Omit<ExamPaper, "id">): Promise<Exam
 // --- Marks ---
 export async function getMarks(schoolId: string): Promise<Mark[]> {
   if (await hasDB()) {
-    return (await prisma.mark.findMany({
+    return serialize((await prisma.mark.findMany({
       where: { student: { schoolId } },
-    })) as Mark[];
+    })) as Mark[]);
   }
   const db = getLocalDB();
   const students = db.students.filter((s: Student) => s.schoolId === schoolId).map((s: Student) => s.id);
-  return db.marks.filter((m: Mark) => students.includes(m.studentId));
+  return serialize(db.marks.filter((m: Mark) => students.includes(m.studentId)));
 }
 
 export async function addMark(data: Omit<Mark, "id" | "createdAt">): Promise<Mark> {
@@ -841,14 +881,14 @@ export async function addMark(data: Omit<Mark, "id" | "createdAt">): Promise<Mar
 // --- Payments & Fees ---
 export async function getPayments(schoolId: string): Promise<Payment[]> {
   if (await hasDB()) {
-    return (await prisma.payment.findMany({ where: { schoolId } })) as Payment[];
+    return serialize((await prisma.payment.findMany({ where: { schoolId } })) as Payment[]);
   }
-  return getLocalDB().payments.filter((p: Payment) => p.schoolId === schoolId);
+  return serialize(getLocalDB().payments.filter((p: Payment) => p.schoolId === schoolId));
 }
 
 export async function createPayment(data: Omit<Payment, "id" | "date">): Promise<Payment> {
   if (await hasDB()) {
-    return (await prisma.payment.create({
+    return serialize((await prisma.payment.create({
       data: {
         schoolId: data.schoolId,
         amount: data.amount,
@@ -856,7 +896,7 @@ export async function createPayment(data: Omit<Payment, "id" | "date">): Promise
         status: data.status,
         txRef: data.txRef,
       },
-    })) as Payment;
+    })) as Payment);
   }
 
   const newPayment: Payment = {
@@ -868,7 +908,7 @@ export async function createPayment(data: Omit<Payment, "id" | "date">): Promise
   const db = getLocalDB();
   db.payments.push(newPayment);
   saveLocalDB(db);
-  return newPayment;
+  return serialize(newPayment);
 }
 
 export async function getFeeStructures(schoolId: string): Promise<FeeStructure[]> {
@@ -891,18 +931,18 @@ export async function createFeeStructure(data: Omit<FeeStructure, "id">): Promis
 
 export async function getStudentPayments(schoolId: string): Promise<StudentPayment[]> {
   if (await hasDB()) {
-    return (await prisma.studentPayment.findMany({
+    return serialize((await prisma.studentPayment.findMany({
       where: { student: { schoolId } },
-    })) as StudentPayment[];
+    })) as StudentPayment[]);
   }
   const db = getLocalDB();
   const students = db.students.filter((s: Student) => s.schoolId === schoolId).map((s: Student) => s.id);
-  return db.studentPayments.filter((sp: StudentPayment) => students.includes(sp.studentId));
+  return serialize(db.studentPayments.filter((sp: StudentPayment) => students.includes(sp.studentId)));
 }
 
 export async function recordStudentPayment(data: Omit<StudentPayment, "id" | "date">): Promise<StudentPayment> {
   if (await hasDB()) {
-    return (await prisma.studentPayment.create({
+    return serialize((await prisma.studentPayment.create({
       data: {
         studentId: data.studentId,
         term: data.term,
@@ -910,7 +950,7 @@ export async function recordStudentPayment(data: Omit<StudentPayment, "id" | "da
         amountPaid: data.amountPaid,
         balance: data.balance,
       },
-    })) as StudentPayment;
+    })) as StudentPayment);
   }
 
   const newSP: StudentPayment = {
@@ -922,27 +962,27 @@ export async function recordStudentPayment(data: Omit<StudentPayment, "id" | "da
   const db = getLocalDB();
   db.studentPayments.push(newSP);
   saveLocalDB(db);
-  return newSP;
+  return serialize(newSP);
 }
 
 // --- Expenses ---
 export async function getExpenses(schoolId: string): Promise<Expense[]> {
   if (await hasDB()) {
-    return (await prisma.expense.findMany({ where: { schoolId } })) as Expense[];
+    return serialize((await prisma.expense.findMany({ where: { schoolId } })) as Expense[]);
   }
-  return getLocalDB().expenses.filter((e: Expense) => e.schoolId === schoolId);
+  return serialize(getLocalDB().expenses.filter((e: Expense) => e.schoolId === schoolId));
 }
 
 export async function createExpense(data: Omit<Expense, "id" | "date">): Promise<Expense> {
   if (await hasDB()) {
-    return (await prisma.expense.create({
+    return serialize((await prisma.expense.create({
       data: {
         schoolId: data.schoolId,
         category: data.category,
         amount: data.amount,
         description: data.description,
       },
-    })) as Expense;
+    })) as Expense);
   }
 
   const newExp: Expense = {
@@ -954,7 +994,7 @@ export async function createExpense(data: Omit<Expense, "id" | "date">): Promise
   const db = getLocalDB();
   db.expenses.push(newExp);
   saveLocalDB(db);
-  return newExp;
+  return serialize(newExp);
 }
 
 // --- Attendance ---
@@ -971,20 +1011,20 @@ export async function getAttendance(schoolId: string, classId: string, dateStr: 
     const startOfDay = new Date(targetDate.setHours(0, 0, 0, 0));
     const endOfDay = new Date(targetDate.setHours(23, 59, 59, 999));
     
-    return (await prisma.attendance.findMany({
+    return serialize((await prisma.attendance.findMany({
       where: {
         studentId: { in: studentIds },
         date: { gte: startOfDay, lte: endOfDay }
       }
-    })) as any[];
+    })) as any[]);
   }
 
   const db = getLocalDB();
   const classStudents = db.students.filter((s: Student) => s.schoolId === schoolId && s.classId === classId).map((s: Student) => s.id);
-  return db.attendances.filter((at: Attendance) => 
+  return serialize(db.attendances.filter((at: Attendance) => 
     classStudents.includes(at.studentId) && 
     at.date.toDateString() === targetDate.toDateString()
-  );
+  ));
 }
 
 export async function recordAttendance(studentId: string, date: Date, status: "PRESENT" | "ABSENT" | "SICK", term: number, year: number): Promise<Attendance> {
@@ -1000,14 +1040,14 @@ export async function recordAttendance(studentId: string, date: Date, status: "P
     });
 
     if (oldAt) {
-      return (await prisma.attendance.update({
+      return serialize((await prisma.attendance.update({
         where: { id: oldAt.id },
         data: { status, term, year }
-      })) as any;
+      })) as any);
     } else {
-      return (await prisma.attendance.create({
+      return serialize((await prisma.attendance.create({
         data: { studentId, date, status, term, year }
-      })) as any;
+      })) as any);
     }
   }
 
@@ -1026,7 +1066,7 @@ export async function recordAttendance(studentId: string, date: Date, status: "P
   );
   db.attendances.push(newAt);
   saveLocalDB(db);
-  return newAt;
+  return serialize(newAt);
 }
 
 // --- Payroll / Teacher Salary ---

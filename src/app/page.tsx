@@ -128,7 +128,12 @@ export default function MarketingPage() {
       window.location.href = targetUrl;
     } catch (err: any) {
       console.error("Verification error:", err);
-      setLoginError(`Failed to verify school subdomain: ${err.message || err}`);
+      const msg = err?.message || "";
+      if (msg.includes("Server Components") || msg.includes("production builds")) {
+        setLoginError("Unable to verify school subdomain. The database server may be starting up — please try again in a moment.");
+      } else {
+        setLoginError(`Failed to verify school subdomain: ${msg || "Server connection failed."}`);
+      }
     }
   };
 

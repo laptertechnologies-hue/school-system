@@ -528,7 +528,19 @@ export default function SchoolPortal({ params }: PageProps) {
       try {
         setLoading(true);
         setLoadError(null);
-        const s = await getSchoolBySubdomain(subdomain);
+        
+        // Wrap server action in a safe call to handle Next.js production error stripping
+        let s: any = null;
+        try {
+          s = await getSchoolBySubdomain(subdomain);
+        } catch (fetchErr: any) {
+          console.error("Server action error (getSchoolBySubdomain):", fetchErr);
+          setLoadError("Unable to connect to the school database. Please check that the server is configured correctly and try again.");
+          setSchool(null);
+          setLoading(false);
+          return;
+        }
+        
         if (s && s.name === "DB_ERROR_INDICATOR") {
           setLoadError(`Database Connection Error: ${s.id}`);
           setSchool(null);
@@ -579,7 +591,13 @@ export default function SchoolPortal({ params }: PageProps) {
           setCbHpgActive(s.cbHpgActive !== false);
 
           // Load custom grade ranges or pre-populate defaults
-          const ranges = await getGradeRanges(s.id);
+          let ranges: any[] = [];
+          try {
+            ranges = await getGradeRanges(s.id);
+          } catch (gradeErr: any) {
+            console.error("Server action error (getGradeRanges):", gradeErr);
+            ranges = [];
+          }
           if (ranges.length > 0 && ranges[0].id === "DB_ERROR_INDICATOR") {
             setLoadError(`Database Connection Error: ${ranges[0].achievementLevel}`);
             setSchool(null);
@@ -605,9 +623,16 @@ export default function SchoolPortal({ params }: PageProps) {
               { systemType: "PRIMARY" as const, grade: "8", minMark: 40, maxMark: 44.99, achievementLevel: "Pass", descriptor: "Weak pass performance" },
               { systemType: "PRIMARY" as const, grade: "9", minMark: 0, maxMark: 39.99, achievementLevel: "Fail", descriptor: "Failure level performance" }
             ];
-            const saved = await saveGradeRanges(s.id, defaultRanges);
-            setGradeRanges(saved);
-            setEditingGradeRanges(saved);
+            try {
+              const saved = await saveGradeRanges(s.id, defaultRanges);
+              setGradeRanges(saved);
+              setEditingGradeRanges(saved);
+            } catch (saveErr: any) {
+              console.error("Server action error (saveGradeRanges):", saveErr);
+              // Use defaults in memory if save fails
+              setGradeRanges(defaultRanges as any);
+              setEditingGradeRanges(defaultRanges as any);
+            }
           } else {
             setGradeRanges(ranges);
             setEditingGradeRanges(ranges);
@@ -618,11 +643,22 @@ export default function SchoolPortal({ params }: PageProps) {
           setDesignerNextTermFeesBoarding(s.reportNextTermFeesBoarding || 350000);
         }
         
-        const isConnected = await checkDatabaseConnection();
+        let isConnected = false;
+        try {
+          isConnected = await checkDatabaseConnection();
+        } catch (dbErr: any) {
+          console.error("Server action error (checkDatabaseConnection):", dbErr);
+        }
         setDbConnected(isConnected);
       } catch (err: any) {
         console.error("Error loading school portal data:", err);
-        setLoadError(err?.message || "An unexpected error occurred while connecting to the database server.");
+        const msg = err?.message || "";
+        // Detect Next.js production error stripping and show a meaningful message
+        if (msg.includes("Server Components") || msg.includes("production builds")) {
+          setLoadError("Unable to connect to the school database. The server may be starting up — please wait a moment and try again.");
+        } else {
+          setLoadError(msg || "An unexpected error occurred while connecting to the database server.");
+        }
       } finally {
         setLoading(false);
       }

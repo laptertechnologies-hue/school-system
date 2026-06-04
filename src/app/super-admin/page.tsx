@@ -93,8 +93,14 @@ export default function SuperAdminDashboard() {
       } else {
         setAuthError("Invalid super-admin credentials.");
       }
-    } catch (err) {
-      setAuthError("Authentication system error.");
+    } catch (err: any) {
+      console.error("Authentication error:", err);
+      const msg = err?.message || "";
+      if (msg.includes("Server Components") || msg.includes("production builds")) {
+        setAuthError("Unable to connect to the authentication server. Please ensure the database is configured and try again.");
+      } else {
+        setAuthError("Authentication system error: " + (msg || "Unable to reach the server."));
+      }
     }
   };
 

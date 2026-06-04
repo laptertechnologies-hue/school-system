@@ -1135,15 +1135,20 @@ export async function getGradeRanges(schoolId: string): Promise<GradeRange[]> {
 }
 
 export async function saveGradeRanges(schoolId: string, ranges: Omit<GradeRange, "id" | "schoolId">[]): Promise<GradeRange[]> {
-  if (await hasDB()) {
-    await prisma.gradeRange.deleteMany({ where: { schoolId } });
-    await prisma.gradeRange.createMany({
-      data: ranges.map(r => ({ ...r, schoolId }))
-    });
-    return (await prisma.gradeRange.findMany({
-      where: { schoolId },
-      orderBy: [{ systemType: "asc" }, { minMark: "desc" }]
-    })) as GradeRange[];
+  try {
+    if (await hasDB()) {
+      await prisma.gradeRange.deleteMany({ where: { schoolId } });
+      await prisma.gradeRange.createMany({
+        data: ranges.map(r => ({ ...r, schoolId }))
+      });
+      return (await prisma.gradeRange.findMany({
+        where: { schoolId },
+        orderBy: [{ systemType: "asc" }, { minMark: "desc" }]
+      })) as GradeRange[];
+    }
+  } catch (err: any) {
+    console.error("Prisma error in saveGradeRanges:", err);
+    // Fall back to memory DB operations or return the default ranges
   }
   const db = getLocalDB();
   if (!db.gradeRanges) db.gradeRanges = [];

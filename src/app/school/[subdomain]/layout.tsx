@@ -6,13 +6,16 @@ export async function generateMetadata({
 }: {
   params: Promise<{ subdomain: string }>;
 }): Promise<Metadata> {
-  const { subdomain } = await params;
+  const resolvedParams = params ? await params : null;
+  const subdomain = resolvedParams?.subdomain || "";
 
   // Capitalise the subdomain for the title
   const schoolName = subdomain
-    .split(/[-_]/)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
+    ? subdomain
+        .split(/[-_]/)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ")
+    : "School";
 
   return {
     title: `${schoolName} | School Portal — SchoolPro Uganda`,

@@ -145,7 +145,7 @@ export async function getSchoolBySubdomain(subdomain: string): Promise<School | 
     }
   } catch (err: any) {
     console.error("Prisma error in getSchoolBySubdomain:", err);
-    return {
+    return serialize({
       id: err.message || String(err),
       name: "DB_ERROR_INDICATOR",
       subdomain,
@@ -156,7 +156,7 @@ export async function getSchoolBySubdomain(subdomain: string): Promise<School | 
       contactEmail: "",
       contactPhone: "",
       createdAt: new Date(),
-    } as any;
+    }) as any;
   }
   const school = getLocalDB().schools.find((s: School) => s.subdomain === subdomain);
   return serialize(school || null);

@@ -529,6 +529,12 @@ export default function SchoolPortal({ params }: PageProps) {
         setLoading(true);
         setLoadError(null);
         const s = await getSchoolBySubdomain(subdomain);
+        if (s && s.name === "DB_ERROR_INDICATOR") {
+          setLoadError(`Database Connection Error: ${s.id}`);
+          setSchool(null);
+          setLoading(false);
+          return;
+        }
         setSchool(s);
         if (s) {
           setProfileName(s.name || "");
@@ -574,6 +580,12 @@ export default function SchoolPortal({ params }: PageProps) {
 
           // Load custom grade ranges or pre-populate defaults
           const ranges = await getGradeRanges(s.id);
+          if (ranges.length > 0 && ranges[0].id === "DB_ERROR_INDICATOR") {
+            setLoadError(`Database Connection Error: ${ranges[0].achievementLevel}`);
+            setSchool(null);
+            setLoading(false);
+            return;
+          }
           if (ranges.length === 0) {
             const defaultRanges = [
               // SECONDARY (CBC Scale)

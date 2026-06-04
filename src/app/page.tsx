@@ -97,6 +97,10 @@ export default function MarketingPage() {
 
     try {
       const school = await getSchoolBySubdomain(sub);
+      if (school && school.name === "DB_ERROR_INDICATOR") {
+        setLoginError(`Database Connection Error: ${school.id}`);
+        return;
+      }
       if (!school) {
         setLoginError(`School subdomain "${sub}" does not exist in our systems.`);
         return;
@@ -140,6 +144,10 @@ export default function MarketingPage() {
     try {
       // Check if subdomain exists
       const existing = await getSchoolBySubdomain(subdomain);
+      if (existing && existing.name === "DB_ERROR_INDICATOR") {
+        setError(`Database Connection Error: ${existing.id}`);
+        return;
+      }
       if (existing) {
         setError(`Subdomain "${subdomain}" is already taken.`);
         return;

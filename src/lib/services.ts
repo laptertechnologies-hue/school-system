@@ -139,8 +139,24 @@ export async function getSchools(): Promise<School[]> {
 }
 
 export async function getSchoolBySubdomain(subdomain: string): Promise<School | null> {
-  if (await hasDB()) {
-    return serialize((await prisma.school.findUnique({ where: { subdomain } })) as School | null);
+  try {
+    if (await hasDB()) {
+      return serialize((await prisma.school.findUnique({ where: { subdomain } })) as School | null);
+    }
+  } catch (err: any) {
+    console.error("Prisma error in getSchoolBySubdomain:", err);
+    return {
+      id: err.message || String(err),
+      name: "DB_ERROR_INDICATOR",
+      subdomain,
+      status: "ERROR",
+      packageType: "BASIC",
+      schoolType: "COMBINED",
+      studentRange: "N/A",
+      contactEmail: "",
+      contactPhone: "",
+      createdAt: new Date(),
+    } as any;
   }
   const school = getLocalDB().schools.find((s: School) => s.subdomain === subdomain);
   return serialize(school || null);
@@ -1061,12 +1077,26 @@ export async function sendSmsBroadcast(schoolId: string, group: string, message:
 
 // --- Grade Ranges Custom Settings ---
 export async function getGradeRanges(schoolId: string): Promise<GradeRange[]> {
-  if (await hasDB()) {
-    const dbRanges = await prisma.gradeRange.findMany({
-      where: { schoolId },
-      orderBy: [{ systemType: "asc" }, { minMark: "desc" }]
-    });
-    return dbRanges as GradeRange[];
+  try {
+    if (await hasDB()) {
+      const dbRanges = await prisma.gradeRange.findMany({
+        where: { schoolId },
+        orderBy: [{ systemType: "asc" }, { minMark: "desc" }]
+      });
+      return dbRanges as GradeRange[];
+    }
+  } catch (err: any) {
+    console.error("Prisma error in getGradeRanges:", err);
+    return [{
+      id: "DB_ERROR_INDICATOR",
+      schoolId: schoolId,
+      systemType: "PRIMARY",
+      grade: "ERROR",
+      minMark: 0,
+      maxMark: 0,
+      achievementLevel: err.message || String(err),
+      descriptor: ""
+    }];
   }
   const db = getLocalDB();
   if (!db.gradeRanges) {

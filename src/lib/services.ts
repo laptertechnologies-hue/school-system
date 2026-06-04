@@ -118,8 +118,26 @@ export async function checkDatabaseConnection(): Promise<boolean> {
   }
 }
 
+// Cache the DB connection check for 30 seconds to avoid redundant pings
+let _dbCache: { value: boolean; ts: number } | null = null;
 async function hasDB(): Promise<boolean> {
-  return await checkDatabaseConnection();
+  const now = Date.now();
+  if (_dbCache && (now - _dbCache.ts) < 30000) return _dbCache.value;
+  const result = await checkDatabaseConnection();
+  _dbCache = { value: result, ts: now };
+  return result;
+}
+
+// Safe wrapper for Prisma queries — catches and logs errors, returns fallback
+async function safePrisma<T>(fn: () => Promise<T>, fallback: T): Promise<{ ok: true; data: T } | { ok: false }> {
+  try {
+    const data = await fn();
+    return { ok: true, data };
+  } catch (err: any) {
+    console.error("Prisma query error:", err?.message || err);
+    _dbCache = null; // Invalidate cache so next call re-checks connection
+    return { ok: false };
+  }
 }
 
 // Helper to generate IDs
@@ -132,8 +150,13 @@ const serialize = <T>(data: T): T => {
 
 // --- Schools ---
 export async function getSchools(): Promise<School[]> {
-  if (await hasDB()) {
-    return serialize((await prisma.school.findMany()) as School[]);
+  try {
+    if (await hasDB()) {
+      return serialize((await prisma.school.findMany()) as School[]);
+    }
+  } catch (err: any) {
+    console.error("Prisma error in getSchools:", err);
+    // Fall through to local DB
   }
   return serialize(getLocalDB().schools);
 }
@@ -370,19 +393,24 @@ export async function updateSchoolMetadata(
 
 // --- Users & Authentication ---
 export async function authenticateUser(email: string, passwordHash: string, subdomain: string): Promise<User | null> {
-  if (await hasDB()) {
-    if (subdomain === "admin") {
-      const superAdmin = await prisma.user.findFirst({
-        where: { schoolId: "super", email, passwordHash },
+  try {
+    if (await hasDB()) {
+      if (subdomain === "admin") {
+        const superAdmin = await prisma.user.findFirst({
+          where: { schoolId: "super", email, passwordHash },
+        });
+        return serialize(superAdmin as User | null);
+      }
+      const school = await prisma.school.findUnique({ where: { subdomain } });
+      if (!school) return null;
+      const user = await prisma.user.findFirst({
+        where: { schoolId: school.id, email, passwordHash },
       });
-      return serialize(superAdmin as User | null);
+      return serialize(user as User | null);
     }
-    const school = await prisma.school.findUnique({ where: { subdomain } });
-    if (!school) return null;
-    const user = await prisma.user.findFirst({
-      where: { schoolId: school.id, email, passwordHash },
-    });
-    return serialize(user as User | null);
+  } catch (err: any) {
+    console.error("Prisma error in authenticateUser:", err);
+    // Fall through to local DB
   }
 
   const db = getLocalDB();

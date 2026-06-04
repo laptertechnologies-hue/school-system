@@ -368,9 +368,9 @@ export default function MarketingPage() {
 
               {/* Instant Interactive Demos Section */}
               <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "16px", padding: "40px", textAlign: "center" }}>
-                <h2 style={{ color: "#0f172a", marginBottom: "16px", fontSize: "24px" }}>Start Your 1-Year Free School Trial Today</h2>
+                <h2 style={{ color: "#0f172a", marginBottom: "16px", fontSize: "24px" }}>Start Your Free 1-Term School Trial Today</h2>
                 <p style={{ color: "#475569", maxWidth: "600px", margin: "0 auto 30px", fontSize: "15px", lineHeight: 1.5 }}>
-                  Wiped clean of dummy accounts, the platform is ready for active testing. Register your school name in seconds to provision a custom subdomain and explore features under the Basic or Premium plans!
+                  Register your school in seconds to get a free first-term trial. Explore all features under the Basic or Premium plan with no upfront payment required!
                 </p>
 
                 <div className="flex justify-center flex-wrap gap-2">
@@ -561,7 +561,7 @@ export default function MarketingPage() {
                   </div>
                   <h2 style={{ color: "#0f172a", marginBottom: "10px" }}>School Registered Successfully!</h2>
                   <p style={{ color: "#475569", fontSize: "14px", marginBottom: "24px" }}>
-                    Your customized subdomain has been generated and activated for a 1-year trial.
+                    Your customized subdomain has been generated and activated for a free 1-term trial.
                   </p>
 
                   <div style={{ background: "#f8fafc", borderRadius: "8px", padding: "20px", margin: "20px 0", textAlign: "left", border: "1px solid #cbd5e1" }}>

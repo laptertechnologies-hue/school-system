@@ -69,18 +69,39 @@ export function middleware(req: NextRequest) {
     subdomain = schoolParam;
   }
 
+  // Copy request headers to allow modification
+  const requestHeaders = new Headers(req.headers);
+  
+  // Enforce correct Origin header for Server Actions on custom subdomains/rewrite paths
+  if (req.method === "POST" && req.headers.has("next-action")) {
+    const origin = `https://${hostname}`;
+    requestHeaders.set("origin", origin);
+  }
+
   // Rewrite routes based on subdomain
   if (subdomain === "admin") {
     url.pathname = `/super-admin${path}`;
-    return NextResponse.rewrite(url);
+    return NextResponse.rewrite(url, {
+      request: {
+        headers: requestHeaders,
+      },
+    });
   }
 
   if (subdomain && subdomain !== "www") {
     url.pathname = `/school/${subdomain}${path}`;
-    return NextResponse.rewrite(url);
+    return NextResponse.rewrite(url, {
+      request: {
+        headers: requestHeaders,
+      },
+    });
   }
 
-  return NextResponse.next();
+  return NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
 }
 
 export const config = {

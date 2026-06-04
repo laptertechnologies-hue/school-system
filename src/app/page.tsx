@@ -226,7 +226,7 @@ export default function MarketingPage() {
                   The Future of Ugandan School Management & Grading
                 </h1>
                 <p style={{ fontSize: "18px", color: "#475569", maxWidth: "650px", margin: "0 auto 30px", lineHeight: 1.6 }}>
-                  A secure, multi-tenant SaaS built specifically for Ugandan primary and secondary institutions. Seamlessly generate PLE/CBC report cards, log finances, and automate tuition billing.
+                  Purpose-built for Ugandan primary and secondary schools. Generate PLE &amp; CBC report cards, manage school finances, and track tuition payments — all in one place.
                 </p>
                 <div className="flex justify-center gap-2 flex-mobile-col align-center flex-wrap">
                   <button onClick={() => setActiveTab("register")} className="btn btn-primary hover-scale" style={{ padding: "14px 32px", fontSize: "15px", width: "100%", maxWidth: "300px", justifyContent: "center" }}>

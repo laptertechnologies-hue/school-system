@@ -25,24 +25,7 @@ import type {
   Attendance
 } from "./types";
 
-// Re-export all types so consumers can import from either "services" or "types"
-export type {
-  School,
-  User,
-  Class,
-  Stream,
-  Student,
-  Subject,
-  TeacherSubject,
-  ExamPaper,
-  Mark,
-  GradeRange,
-  Payment,
-  FeeStructure,
-  StudentPayment,
-  Expense,
-  Attendance
-};
+
 
 
 const MOCK_DB_PATH = path.join(process.cwd(), "prisma", "mock_db.json");

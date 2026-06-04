@@ -9,10 +9,9 @@ import {
   updateSchoolStatus, 
   updateSchoolSubscription,
   checkDatabaseConnection,
-  authenticateUser,
-  School, 
-  Payment 
+  authenticateUser
 } from "../../lib/services";
+import type { School, Payment } from "../../lib/types";
 import { 
   Building2, 
   CheckCircle, 

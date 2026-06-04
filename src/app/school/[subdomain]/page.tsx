@@ -532,24 +532,18 @@ export default function SchoolPortal({ params }: PageProps) {
         setLoading(true);
         setLoadError(null);
         
-        // Wrap server action in a safe call to handle Next.js production error stripping
-        let s: any = null;
-        try {
-          s = await getSchoolBySubdomain(subdomain);
-        } catch (fetchErr: any) {
-          console.error("Server action error (getSchoolBySubdomain):", fetchErr);
-          setLoadError("Unable to connect to the school database. Please check that the server is configured correctly and try again.");
-          setSchool(null);
-          setLoading(false);
-          return;
+        const res = await fetch(`/api/school-data?subdomain=${subdomain}`);
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || `HTTP error! status: ${res.status}`);
         }
         
-        if (s && s.name === "DB_ERROR_INDICATOR") {
-          setLoadError(`Database Connection Error: ${s.id}`);
-          setSchool(null);
-          setLoading(false);
-          return;
+        const data = await res.json();
+        if (data.error) {
+          throw new Error(data.error);
         }
+
+        const s = data.school;
         setSchool(s);
         if (s) {
           setProfileName(s.name || "");
@@ -593,71 +587,20 @@ export default function SchoolPortal({ params }: PageProps) {
           setCbEtActive(s.cbEtActive !== false);
           setCbHpgActive(s.cbHpgActive !== false);
 
-          // Load custom grade ranges or pre-populate defaults
-          let ranges: any[] = [];
-          try {
-            ranges = await getGradeRanges(s.id);
-          } catch (gradeErr: any) {
-            console.error("Server action error (getGradeRanges):", gradeErr);
-            ranges = [];
-          }
-          if (ranges.length > 0 && ranges[0].id === "DB_ERROR_INDICATOR") {
-            setLoadError(`Database Connection Error: ${ranges[0].achievementLevel}`);
-            setSchool(null);
-            setLoading(false);
-            return;
-          }
-          if (ranges.length === 0) {
-            const defaultRanges = [
-              // SECONDARY (CBC Scale)
-              { systemType: "SECONDARY" as const, grade: "A", minMark: 80, maxMark: 100, achievementLevel: "Exceptional", descriptor: "Highly proficient in subject skills" },
-              { systemType: "SECONDARY" as const, grade: "B", minMark: 70, maxMark: 79.99, achievementLevel: "Outstanding", descriptor: "Consistently demonstrates subject skills" },
-              { systemType: "SECONDARY" as const, grade: "C", minMark: 55, maxMark: 69.99, achievementLevel: "Satisfactory", descriptor: "Demonstrates basic subject skills" },
-              { systemType: "SECONDARY" as const, grade: "D", minMark: 40, maxMark: 54.99, achievementLevel: "Basic", descriptor: "Beginning to develop subject skills" },
-              { systemType: "SECONDARY" as const, grade: "E", minMark: 0, maxMark: 39.99, achievementLevel: "Elementary", descriptor: "Needs guidance to develop skills" },
-              // PRIMARY (PLE Scale)
-              { systemType: "PRIMARY" as const, grade: "1", minMark: 90, maxMark: 100, achievementLevel: "Distinction", descriptor: "Outstanding performance" },
-              { systemType: "PRIMARY" as const, grade: "2", minMark: 80, maxMark: 89.99, achievementLevel: "Distinction", descriptor: "Very good performance" },
-              { systemType: "PRIMARY" as const, grade: "3", minMark: 70, maxMark: 79.99, achievementLevel: "Credit", descriptor: "Good performance" },
-              { systemType: "PRIMARY" as const, grade: "4", minMark: 60, maxMark: 69.99, achievementLevel: "Credit", descriptor: "Fairly good performance" },
-              { systemType: "PRIMARY" as const, grade: "5", minMark: 55, maxMark: 59.99, achievementLevel: "Credit", descriptor: "Average performance" },
-              { systemType: "PRIMARY" as const, grade: "6", minMark: 50, maxMark: 54.99, achievementLevel: "Credit", descriptor: "Satisfactory performance" },
-              { systemType: "PRIMARY" as const, grade: "7", minMark: 45, maxMark: 49.99, achievementLevel: "Pass", descriptor: "Pass level performance" },
-              { systemType: "PRIMARY" as const, grade: "8", minMark: 40, maxMark: 44.99, achievementLevel: "Pass", descriptor: "Weak pass performance" },
-              { systemType: "PRIMARY" as const, grade: "9", minMark: 0, maxMark: 39.99, achievementLevel: "Fail", descriptor: "Failure level performance" }
-            ];
-            try {
-              const saved = await saveGradeRanges(s.id, defaultRanges);
-              setGradeRanges(saved);
-              setEditingGradeRanges(saved);
-            } catch (saveErr: any) {
-              console.error("Server action error (saveGradeRanges):", saveErr);
-              // Use defaults in memory if save fails
-              setGradeRanges(defaultRanges as any);
-              setEditingGradeRanges(defaultRanges as any);
-            }
-          } else {
-            setGradeRanges(ranges);
-            setEditingGradeRanges(ranges);
-          }
+          const ranges = data.gradeRanges || [];
+          setGradeRanges(ranges);
+          setEditingGradeRanges(ranges);
 
           // Initialize design next term fees:
           setDesignerNextTermFeesDay(s.reportNextTermFeesDay || 150000);
           setDesignerNextTermFeesBoarding(s.reportNextTermFeesBoarding || 350000);
         }
         
-        let isConnected = false;
-        try {
-          isConnected = await checkDatabaseConnection();
-        } catch (dbErr: any) {
-          console.error("Server action error (checkDatabaseConnection):", dbErr);
-        }
-        setDbConnected(isConnected);
+        setDbConnected(!!data.dbConnected);
       } catch (err: any) {
         console.error("Error loading school portal data:", err);
         const msg = err?.message || "";
-        // Detect Next.js production error stripping and show a meaningful message
-        if (msg.includes("Server Components") || msg.includes("production builds")) {
+        if (msg.includes("Server Components") || msg.includes("production builds") || msg.includes("Digest")) {
           setLoadError("Unable to connect to the school database. The server may be starting up — please wait a moment and try again.");
         } else {
           setLoadError(msg || "An unexpected error occurred while connecting to the database server.");

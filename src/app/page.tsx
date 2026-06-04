@@ -6,9 +6,9 @@ import {
   createUser, 
   updateSchoolStatus, 
   checkDatabaseConnection, 
-  getSchools,
-  School 
+  getSchools
 } from "../lib/services";
+import type { School } from "../lib/types";
 import { 
   BookOpen, 
   CheckCircle, 

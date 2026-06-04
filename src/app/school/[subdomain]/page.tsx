@@ -12,7 +12,7 @@ import {
   processTeacherSalary, createPayment, getPayments, updateSchoolStatus, updateSchoolMetadata,
   initiateMarzpayCollection, checkMarzpayCollectionStatus, sendSmsBroadcast,
   updateStudent, deleteStudent, updateUser, deleteUser, getGradeRanges, saveGradeRanges,
-  getTeacherSubjects, createTeacherSubject, deleteTeacherSubject, resetUserPassword
+  getTeacherSubjects, createTeacherSubject, deleteTeacherSubject, resetUserPassword, runDiagnostics
 } from "../../../lib/services";
 
 import { Database, CreditCard, Building2, CheckCircle, MessageSquare, Sliders, User as UserIcon } from "lucide-react";
@@ -85,6 +85,9 @@ export default function SchoolPortal({ params }: PageProps) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [diagnostics, setDiagnostics] = useState<any>(null);
+  const [runningDiagnostics, setRunningDiagnostics] = useState(false);
+  const [diagError, setDiagError] = useState<string | null>(null);
 
   // Authentication states
   const [email, setEmail] = useState("");
@@ -665,6 +668,20 @@ export default function SchoolPortal({ params }: PageProps) {
     }
     fetchSchool();
   }, [subdomain]);
+
+  const handleRunDiagnostics = async () => {
+    setRunningDiagnostics(true);
+    setDiagError(null);
+    try {
+      const data = await runDiagnostics();
+      setDiagnostics(data);
+    } catch (err: any) {
+      console.error("Diagnostics error:", err);
+      setDiagError(err.message || String(err));
+    } finally {
+      setRunningDiagnostics(false);
+    }
+  };
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -1949,28 +1966,105 @@ export default function SchoolPortal({ params }: PageProps) {
   // Connection/Server Error during loading
   if (loadError) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0f172a", color: "white", padding: "20px", textAlign: "center" }}>
-        <div style={{ maxWidth: "500px", background: "#1e293b", padding: "40px", borderRadius: "12px", boxShadow: "0 10px 25px rgba(0,0,0,0.3)" }}>
-          <XCircle size={60} color="#f43f5e" style={{ marginBottom: "20px", marginLeft: "auto", marginRight: "auto" }} />
-          <h2 style={{ fontSize: "24px", fontWeight: "700", marginBottom: "12px" }}>Connection Error</h2>
-          <p style={{ color: "#94a3b8", fontSize: "15px", lineHeight: "1.6", marginBottom: "24px" }}>
-            {loadError}
-          </p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="btn btn-primary"
-            style={{ 
-              background: "#38bdf8", 
-              color: "#0f172a", 
-              border: "none", 
-              padding: "10px 24px", 
-              borderRadius: "6px", 
-              fontWeight: "600", 
-              cursor: "pointer" 
-            }}
-          >
-            Retry Connection
-          </button>
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0f172a", color: "white", padding: "20px" }}>
+        <div style={{ width: "100%", maxWidth: "600px", background: "#1e293b", padding: "40px", borderRadius: "12px", boxShadow: "0 10px 25px rgba(0,0,0,0.3)" }}>
+          <div style={{ textAlign: "center" }}>
+            <XCircle size={60} color="#f43f5e" style={{ marginBottom: "20px", marginLeft: "auto", marginRight: "auto" }} />
+            <h2 style={{ fontSize: "24px", fontWeight: "700", marginBottom: "12px" }}>Connection Error</h2>
+            <p style={{ color: "#94a3b8", fontSize: "15px", lineHeight: "1.6", marginBottom: "24px" }}>
+              {loadError}
+            </p>
+          </div>
+
+          {diagnostics && (
+            <div style={{ background: "#0f172a", padding: "20px", borderRadius: "8px", border: "1px solid #334155", marginBottom: "24px", textAlign: "left", fontSize: "14px" }}>
+              <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "12px", color: "#38bdf8", borderBottom: "1px solid #334155", paddingBottom: "6px" }}>Server Diagnostics Output</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: "8px 16px", fontFamily: "monospace", lineBreak: "anywhere" }}>
+                <span style={{ color: "#94a3b8" }}>DATABASE_URL Config:</span>
+                <span>
+                  {diagnostics.databaseUrlPresent ? (
+                    <span style={{ color: "#4ade80" }}>Present ({diagnostics.databaseUrlLength} chars, starting with {diagnostics.databaseUrlStart})</span>
+                  ) : (
+                    <span style={{ color: "#f43f5e" }}>Missing (Not set in Environment)</span>
+                  )}
+                </span>
+
+                <span style={{ color: "#94a3b8" }}>DB Host Lookup:</span>
+                <span>
+                  {diagnostics.dnsTest === "resolved" ? (
+                    <span style={{ color: "#4ade80" }}>Resolved host {diagnostics.dbHost}</span>
+                  ) : (
+                    <span style={{ color: "#f43f5e" }}>DNS Lookup Failed ({diagnostics.dnsError || "Unknown DNS resolution issue"})</span>
+                  )}
+                </span>
+
+                <span style={{ color: "#94a3b8" }}>Prisma Connection:</span>
+                <span>
+                  {diagnostics.prismaStatus.includes("connected") ? (
+                    <span style={{ color: "#4ade80" }}>Successful! {diagnostics.prismaStatus}</span>
+                  ) : (
+                    <span style={{ color: "#f43f5e" }}>Failed ({diagnostics.prismaError || "Unknown database error"})</span>
+                  )}
+                </span>
+
+                <span style={{ color: "#94a3b8" }}>Node.js Version:</span>
+                <span>{diagnostics.nodeVersion}</span>
+
+                <span style={{ color: "#94a3b8" }}>Loaded Env Keys:</span>
+                <span style={{ fontSize: "12px", color: "#cbd5e1" }}>{diagnostics.envKeys?.join(", ") || "None"}</span>
+              </div>
+
+              {diagnostics.prismaError && (
+                <div style={{ marginTop: "16px", paddingTop: "12px", borderTop: "1px dashed #334155" }}>
+                  <span style={{ color: "#f43f5e", fontWeight: "600", display: "block", marginBottom: "4px" }}>Error Stack Trace:</span>
+                  <pre style={{ margin: 0, padding: "8px", background: "#1e293b", borderRadius: "4px", color: "#cbd5e1", overflowX: "auto", fontSize: "12px", maxHeight: "150px" }}>
+                    {diagnostics.prismaStack || diagnostics.prismaError}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+
+          {diagError && (
+            <div style={{ background: "#4c0519", color: "#fda4af", padding: "12px 16px", borderRadius: "6px", border: "1px solid #9f1239", marginBottom: "24px", textAlign: "left", fontSize: "13px" }}>
+              <strong>Failed to run server diagnostics:</strong> {diagError}
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="btn btn-primary"
+              style={{ 
+                background: "#38bdf8", 
+                color: "#0f172a", 
+                border: "none", 
+                padding: "10px 24px", 
+                borderRadius: "6px", 
+                fontWeight: "600", 
+                cursor: "pointer" 
+              }}
+            >
+              Retry Connection
+            </button>
+
+            <button 
+              onClick={handleRunDiagnostics} 
+              disabled={runningDiagnostics}
+              className="btn"
+              style={{ 
+                background: "transparent", 
+                color: "#94a3b8", 
+                border: "1px solid #475569", 
+                padding: "10px 24px", 
+                borderRadius: "6px", 
+                fontWeight: "600", 
+                cursor: runningDiagnostics ? "not-allowed" : "pointer" 
+              }}
+            >
+              {runningDiagnostics ? "Running Diagnostics..." : "Run System Diagnostics"}
+            </button>
+          </div>
         </div>
       </div>
     );

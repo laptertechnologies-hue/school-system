@@ -183,6 +183,7 @@ export default function SchoolPortal({ params }: PageProps) {
   const [editStudentStreamId, setEditStudentStreamId] = useState("");
   const [editStudentType, setEditStudentType] = useState<"DAY" | "BOARDING">("DAY");
   const [editStudentPhoto, setEditStudentPhoto] = useState("");
+  const [editStudentPhotoChanged, setEditStudentPhotoChanged] = useState(false);
   const [editStudentLin, setEditStudentLin] = useState("");
 
   // Modals view/edit states for Staff
@@ -4447,6 +4448,7 @@ export default function SchoolPortal({ params }: PageProps) {
                                           setEditStudentStreamId(st.streamId);
                                           setEditStudentType(st.type);
                                           setEditStudentPhoto(st.photo || "");
+                                          setEditStudentPhotoChanged(false);
                                           setEditStudentLin(st.lin || "");
                                           setShowEditStudentModal(true);
                                         }}
@@ -7133,8 +7135,8 @@ export default function SchoolPortal({ params }: PageProps) {
                 classId: editStudentClassId,
                 streamId: editStudentStreamId,
                 type: editStudentType,
-                photo: editStudentPhoto || null,
-                lin: editStudentLin || null
+                lin: editStudentLin || null,
+                ...(editStudentPhotoChanged ? { photo: editStudentPhoto || null } : {})
               });
               setShowEditStudentModal(false);
               await loadSchoolData(school!.id);
@@ -7231,6 +7233,7 @@ export default function SchoolPortal({ params }: PageProps) {
                       const reader = new FileReader();
                       reader.onloadend = () => {
                         setEditStudentPhoto(reader.result as string);
+                        setEditStudentPhotoChanged(true);
                       };
                       reader.readAsDataURL(file);
                     }

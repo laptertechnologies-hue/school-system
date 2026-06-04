@@ -673,7 +673,12 @@ export default function SchoolPortal({ params }: PageProps) {
     setRunningDiagnostics(true);
     setDiagError(null);
     try {
-      const data = await runDiagnostics();
+      const res = await fetch("/api/diagnostics");
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text.substring(0, 300)}`);
+      }
+      const data = await res.json();
       setDiagnostics(data);
     } catch (err: any) {
       console.error("Diagnostics error:", err);

@@ -84,6 +84,7 @@ export default function SchoolPortal({ params }: PageProps) {
   const [school, setSchool] = useState<School | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Authentication states
   const [email, setEmail] = useState("");
@@ -524,89 +525,95 @@ export default function SchoolPortal({ params }: PageProps) {
 
   useEffect(() => {
     async function fetchSchool() {
-      setLoading(true);
-      const s = await getSchoolBySubdomain(subdomain);
-      setSchool(s);
-      if (s) {
-        setProfileName(s.name || "");
-        setProfilePoBox(s.poBox || "");
-        setProfilePhone(s.contactPhone || "");
-        setProfileHeadTeacher(s.headTeacher || "");
-        setProfileDeputyHeadTeacher(s.deputyHeadTeacher || "");
-        setProfileDirector(s.director || "");
-        setProfileLogoUrl(s.logoUrl || "");
-        setProfileThemeColor(s.themeColor || "#38bdf8");
-        setProfileSchoolType(s.schoolType as any || "COMBINED");
-        setNewClassLevel(s.schoolType === "SECONDARY" ? "SECONDARY" : "PRIMARY");
-        setNewExamIsNewCurriculum(s.schoolType === "SECONDARY");
+      try {
+        setLoading(true);
+        setLoadError(null);
+        const s = await getSchoolBySubdomain(subdomain);
+        setSchool(s);
+        if (s) {
+          setProfileName(s.name || "");
+          setProfilePoBox(s.poBox || "");
+          setProfilePhone(s.contactPhone || "");
+          setProfileHeadTeacher(s.headTeacher || "");
+          setProfileDeputyHeadTeacher(s.deputyHeadTeacher || "");
+          setProfileDirector(s.director || "");
+          setProfileLogoUrl(s.logoUrl || "");
+          setProfileThemeColor(s.themeColor || "#38bdf8");
+          setProfileSchoolType(s.schoolType as any || "COMBINED");
+          setNewClassLevel(s.schoolType === "SECONDARY" ? "SECONDARY" : "PRIMARY");
+          setNewExamIsNewCurriculum(s.schoolType === "SECONDARY");
 
-        setSetupName(s.name || "");
-        setSetupPhone(s.contactPhone || "");
-        setSetupPoBox(s.poBox || "");
-        setSetupHeadTeacher(s.headTeacher || "");
-        setSetupDeputyHeadTeacher(s.deputyHeadTeacher || "");
-        setSetupDirector(s.director || "");
-        setSetupLogoUrl(s.logoUrl || "");
-        setSetupThemeColor(s.themeColor || "#38bdf8");
+          setSetupName(s.name || "");
+          setSetupPhone(s.contactPhone || "");
+          setSetupPoBox(s.poBox || "");
+          setSetupHeadTeacher(s.headTeacher || "");
+          setSetupDeputyHeadTeacher(s.deputyHeadTeacher || "");
+          setSetupDirector(s.director || "");
+          setSetupLogoUrl(s.logoUrl || "");
+          setSetupThemeColor(s.themeColor || "#38bdf8");
 
-        setDesignerTitle(s.reportTitle || "OFFICIAL ACADEMIC REPORT CARD");
-        setDesignerMotto(s.reportMotto || "");
-        setDesignerShowBadge(s.reportShowBadge !== false);
-        setDesignerShowResidency(s.reportShowResidency !== false);
-        setDesignerShowSignatures(s.reportShowSignatures !== false);
-        setDesignerShowRules(s.reportShowRules !== false);
-        setDesignerLogoSize(s.reportLogoSize || 60);
-        setDesignerShowStudentPhoto(s.reportShowStudentPhoto !== false);
-        setDesignerHeaderColor(s.reportHeaderColor || "#1e3a8a");
-        setDesignerBorderType(s.reportBorderType || "double");
+          setDesignerTitle(s.reportTitle || "OFFICIAL ACADEMIC REPORT CARD");
+          setDesignerMotto(s.reportMotto || "");
+          setDesignerShowBadge(s.reportShowBadge !== false);
+          setDesignerShowResidency(s.reportShowResidency !== false);
+          setDesignerShowSignatures(s.reportShowSignatures !== false);
+          setDesignerShowRules(s.reportShowRules !== false);
+          setDesignerLogoSize(s.reportLogoSize || 60);
+          setDesignerShowStudentPhoto(s.reportShowStudentPhoto !== false);
+          setDesignerHeaderColor(s.reportHeaderColor || "#1e3a8a");
+          setDesignerBorderType(s.reportBorderType || "double");
 
-        setCbU1Max(s.cbU1Max ?? 3);
-        setCbU2Max(s.cbU2Max ?? 3);
-        setCbEtMax(s.cbEtMax ?? 3);
-        setCbHpgMax(s.cbHpgMax ?? 3);
-        setCbU1Active(s.cbU1Active !== false);
-        setCbU2Active(s.cbU2Active !== false);
-        setCbEtActive(s.cbEtActive !== false);
-        setCbHpgActive(s.cbHpgActive !== false);
+          setCbU1Max(s.cbU1Max ?? 3);
+          setCbU2Max(s.cbU2Max ?? 3);
+          setCbEtMax(s.cbEtMax ?? 3);
+          setCbHpgMax(s.cbHpgMax ?? 3);
+          setCbU1Active(s.cbU1Active !== false);
+          setCbU2Active(s.cbU2Active !== false);
+          setCbEtActive(s.cbEtActive !== false);
+          setCbHpgActive(s.cbHpgActive !== false);
 
-        // Load custom grade ranges or pre-populate defaults
-        const ranges = await getGradeRanges(s.id);
-        if (ranges.length === 0) {
-          const defaultRanges = [
-            // SECONDARY (CBC Scale)
-            { systemType: "SECONDARY" as const, grade: "A", minMark: 80, maxMark: 100, achievementLevel: "Exceptional", descriptor: "Highly proficient in subject skills" },
-            { systemType: "SECONDARY" as const, grade: "B", minMark: 70, maxMark: 79.99, achievementLevel: "Outstanding", descriptor: "Consistently demonstrates subject skills" },
-            { systemType: "SECONDARY" as const, grade: "C", minMark: 55, maxMark: 69.99, achievementLevel: "Satisfactory", descriptor: "Demonstrates basic subject skills" },
-            { systemType: "SECONDARY" as const, grade: "D", minMark: 40, maxMark: 54.99, achievementLevel: "Basic", descriptor: "Beginning to develop subject skills" },
-            { systemType: "SECONDARY" as const, grade: "E", minMark: 0, maxMark: 39.99, achievementLevel: "Elementary", descriptor: "Needs guidance to develop skills" },
-            // PRIMARY (PLE Scale)
-            { systemType: "PRIMARY" as const, grade: "1", minMark: 90, maxMark: 100, achievementLevel: "Distinction", descriptor: "Outstanding performance" },
-            { systemType: "PRIMARY" as const, grade: "2", minMark: 80, maxMark: 89.99, achievementLevel: "Distinction", descriptor: "Very good performance" },
-            { systemType: "PRIMARY" as const, grade: "3", minMark: 70, maxMark: 79.99, achievementLevel: "Credit", descriptor: "Good performance" },
-            { systemType: "PRIMARY" as const, grade: "4", minMark: 60, maxMark: 69.99, achievementLevel: "Credit", descriptor: "Fairly good performance" },
-            { systemType: "PRIMARY" as const, grade: "5", minMark: 55, maxMark: 59.99, achievementLevel: "Credit", descriptor: "Average performance" },
-            { systemType: "PRIMARY" as const, grade: "6", minMark: 50, maxMark: 54.99, achievementLevel: "Credit", descriptor: "Satisfactory performance" },
-            { systemType: "PRIMARY" as const, grade: "7", minMark: 45, maxMark: 49.99, achievementLevel: "Pass", descriptor: "Pass level performance" },
-            { systemType: "PRIMARY" as const, grade: "8", minMark: 40, maxMark: 44.99, achievementLevel: "Pass", descriptor: "Weak pass performance" },
-            { systemType: "PRIMARY" as const, grade: "9", minMark: 0, maxMark: 39.99, achievementLevel: "Fail", descriptor: "Failure level performance" }
-          ];
-          const saved = await saveGradeRanges(s.id, defaultRanges);
-          setGradeRanges(saved);
-          setEditingGradeRanges(saved);
-        } else {
-          setGradeRanges(ranges);
-          setEditingGradeRanges(ranges);
+          // Load custom grade ranges or pre-populate defaults
+          const ranges = await getGradeRanges(s.id);
+          if (ranges.length === 0) {
+            const defaultRanges = [
+              // SECONDARY (CBC Scale)
+              { systemType: "SECONDARY" as const, grade: "A", minMark: 80, maxMark: 100, achievementLevel: "Exceptional", descriptor: "Highly proficient in subject skills" },
+              { systemType: "SECONDARY" as const, grade: "B", minMark: 70, maxMark: 79.99, achievementLevel: "Outstanding", descriptor: "Consistently demonstrates subject skills" },
+              { systemType: "SECONDARY" as const, grade: "C", minMark: 55, maxMark: 69.99, achievementLevel: "Satisfactory", descriptor: "Demonstrates basic subject skills" },
+              { systemType: "SECONDARY" as const, grade: "D", minMark: 40, maxMark: 54.99, achievementLevel: "Basic", descriptor: "Beginning to develop subject skills" },
+              { systemType: "SECONDARY" as const, grade: "E", minMark: 0, maxMark: 39.99, achievementLevel: "Elementary", descriptor: "Needs guidance to develop skills" },
+              // PRIMARY (PLE Scale)
+              { systemType: "PRIMARY" as const, grade: "1", minMark: 90, maxMark: 100, achievementLevel: "Distinction", descriptor: "Outstanding performance" },
+              { systemType: "PRIMARY" as const, grade: "2", minMark: 80, maxMark: 89.99, achievementLevel: "Distinction", descriptor: "Very good performance" },
+              { systemType: "PRIMARY" as const, grade: "3", minMark: 70, maxMark: 79.99, achievementLevel: "Credit", descriptor: "Good performance" },
+              { systemType: "PRIMARY" as const, grade: "4", minMark: 60, maxMark: 69.99, achievementLevel: "Credit", descriptor: "Fairly good performance" },
+              { systemType: "PRIMARY" as const, grade: "5", minMark: 55, maxMark: 59.99, achievementLevel: "Credit", descriptor: "Average performance" },
+              { systemType: "PRIMARY" as const, grade: "6", minMark: 50, maxMark: 54.99, achievementLevel: "Credit", descriptor: "Satisfactory performance" },
+              { systemType: "PRIMARY" as const, grade: "7", minMark: 45, maxMark: 49.99, achievementLevel: "Pass", descriptor: "Pass level performance" },
+              { systemType: "PRIMARY" as const, grade: "8", minMark: 40, maxMark: 44.99, achievementLevel: "Pass", descriptor: "Weak pass performance" },
+              { systemType: "PRIMARY" as const, grade: "9", minMark: 0, maxMark: 39.99, achievementLevel: "Fail", descriptor: "Failure level performance" }
+            ];
+            const saved = await saveGradeRanges(s.id, defaultRanges);
+            setGradeRanges(saved);
+            setEditingGradeRanges(saved);
+          } else {
+            setGradeRanges(ranges);
+            setEditingGradeRanges(ranges);
+          }
+
+          // Initialize design next term fees:
+          setDesignerNextTermFeesDay(s.reportNextTermFeesDay || 150000);
+          setDesignerNextTermFeesBoarding(s.reportNextTermFeesBoarding || 350000);
         }
-
-        // Initialize design next term fees:
-        setDesignerNextTermFeesDay(s.reportNextTermFeesDay || 150000);
-        setDesignerNextTermFeesBoarding(s.reportNextTermFeesBoarding || 350000);
+        
+        const isConnected = await checkDatabaseConnection();
+        setDbConnected(isConnected);
+      } catch (err: any) {
+        console.error("Error loading school portal data:", err);
+        setLoadError(err?.message || "An unexpected error occurred while connecting to the database server.");
+      } finally {
+        setLoading(false);
       }
-      
-      const isConnected = await checkDatabaseConnection();
-      setDbConnected(isConnected);
-      
-      setLoading(false);
     }
     fetchSchool();
   }, [subdomain]);
@@ -1887,6 +1894,36 @@ export default function SchoolPortal({ params }: PageProps) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0f172a", color: "white" }}>
         <h2>Loading School Portal...</h2>
+      </div>
+    );
+  }
+
+  // Connection/Server Error during loading
+  if (loadError) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0f172a", color: "white", padding: "20px", textAlign: "center" }}>
+        <div style={{ maxWidth: "500px", background: "#1e293b", padding: "40px", borderRadius: "12px", boxShadow: "0 10px 25px rgba(0,0,0,0.3)" }}>
+          <XCircle size={60} color="#f43f5e" style={{ marginBottom: "20px", marginLeft: "auto", marginRight: "auto" }} />
+          <h2 style={{ fontSize: "24px", fontWeight: "700", marginBottom: "12px" }}>Connection Error</h2>
+          <p style={{ color: "#94a3b8", fontSize: "15px", lineHeight: "1.6", marginBottom: "24px" }}>
+            {loadError}
+          </p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="btn btn-primary"
+            style={{ 
+              background: "#38bdf8", 
+              color: "#0f172a", 
+              border: "none", 
+              padding: "10px 24px", 
+              borderRadius: "6px", 
+              fontWeight: "600", 
+              cursor: "pointer" 
+            }}
+          >
+            Retry Connection
+          </button>
+        </div>
       </div>
     );
   }

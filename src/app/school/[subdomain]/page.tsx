@@ -2107,23 +2107,6 @@ export default function SchoolPortal({ params }: PageProps) {
             </form>
           )}
 
-          {/* First-time setup banner/button */}
-          <div style={{ marginTop: "20px", padding: "16px", background: "rgba(56, 189, 248, 0.08)", border: "1px dashed rgba(56, 189, 248, 0.3)", borderRadius: "8px", fontSize: "13px", color: "#e0f2fe", textAlign: "left" }}>
-            <p style={{ margin: 0, marginBottom: "8px", lineHeight: "1.4" }}>
-              <strong>🏫 First-Time Administrator?</strong> Set up your school badge/logo, physical address, phone contacts, leader names, and custom accent colors right here.
-            </p>
-            <button 
-              type="button"
-              onClick={() => {
-                setSetupError("");
-                setShowFirstTimeSetup(true);
-              }}
-              className="btn btn-outline" 
-              style={{ width: "100%", padding: "8px 12px", fontSize: "12px", background: "transparent", color: "var(--primary)", borderColor: "var(--primary)", marginTop: "4px" }}
-            >
-              ⚙️ Configure School Branding & Details
-            </button>
-          </div>
 
           <div style={{ textAlign: "center", marginTop: "24px" }}>
             <a href="/" style={{ fontSize: "13px", color: "#9ca3af" }}>← Back to SchoolPro Main Website</a>

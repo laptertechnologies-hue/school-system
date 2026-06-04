@@ -1,0 +1,1882 @@
+diff --git a/src/app/school/[subdomain]/page.tsx b/src/app/school/[subdomain]/page.tsx
+index f58db58..e55369c 100644
+--- a/src/app/school/[subdomain]/page.tsx
++++ b/src/app/school/[subdomain]/page.tsx
+@@ -1,14 +1,16 @@
+ "use client";
+ import React, { useState, useEffect, use } from "react";
++import * as XLSX from "xlsx";
+ import { 
+-  School, User, Class, Stream, Student, Subject, ExamPaper, Mark, Payment, FeeStructure, StudentPayment, Expense, GradeRange,
++  School, User, Class, Stream, Student, Subject, ExamPaper, Mark, Payment, FeeStructure, StudentPayment, Expense, GradeRange, TeacherSubject,
+   checkDatabaseConnection, getSchoolBySubdomain, getUsers, getClasses, getStreams, getStudents, getSubjects,
+   getExamPapers, getMarks, getFeeStructures, getStudentPayments, getExpenses, getAttendance, authenticateUser,
+   createClass, createStream, createUser, createStudent, createSubject, createExamPaper, addMark,
+   createFeeStructure, recordStudentPayment, createExpense, recordAttendance, promoteStudents,
+   processTeacherSalary, createPayment, getPayments, updateSchoolStatus, updateSchoolMetadata,
+   initiateMarzpayCollection, checkMarzpayCollectionStatus, sendSmsBroadcast,
+-  updateStudent, deleteStudent, updateUser, deleteUser, getGradeRanges, saveGradeRanges
++  updateStudent, deleteStudent, updateUser, deleteUser, getGradeRanges, saveGradeRanges,
++  getTeacherSubjects, createTeacherSubject, deleteTeacherSubject, resetUserPassword
+ } from "../../../lib/services";
+ import { Database, CreditCard, Building2, CheckCircle, MessageSquare, Sliders } from "lucide-react";
+ import { 
+@@ -85,6 +87,22 @@ export default function SchoolPortal({ params }: PageProps) {
+   const [password, setPassword] = useState("");
+   const [authError, setAuthError] = useState("");
+ 
++  // Forgot Password flow states
++  const [showForgotPassword, setShowForgotPassword] = useState(false);
++  const [resetEmail, setResetEmail] = useState("");
++  const [resetNewPassword, setResetNewPassword] = useState("");
++  const [resetError, setResetError] = useState("");
++  const [resetSuccess, setResetSuccess] = useState("");
++  const [resetStep, setResetStep] = useState<0 | 1>(0);
++
++  // Teacher assignments state
++  const [teacherAssignments, setTeacherAssignments] = useState<TeacherSubject[]>([]);
++  const [newAssignmentTeacherId, setNewAssignmentTeacherId] = useState("");
++  const [newAssignmentClassId, setNewAssignmentClassId] = useState("");
++  const [newAssignmentStreamId, setNewAssignmentStreamId] = useState("");
++  const [newAssignmentSubjectId, setNewAssignmentSubjectId] = useState("");
++  const [staffSubTab, setStaffSubTab] = useState<"directory" | "assignments">("directory");
++
+   // Data collections
+   const [classes, setClasses] = useState<Class[]>([]);
+   const [streams, setStreams] = useState<Stream[]>([]);
+@@ -158,8 +176,8 @@ export default function SchoolPortal({ params }: PageProps) {
+   // Bulk upload states
+   const [showBulkStudentModal, setShowBulkStudentModal] = useState(false);
+   const [showBulkStaffModal, setShowBulkStaffModal] = useState(false);
+-  const [bulkStudentText, setBulkStudentText] = useState("");
+-  const [bulkStaffText, setBulkStaffText] = useState("");
++  const [studentExcelFile, setStudentExcelFile] = useState<File | null>(null);
++  const [staffExcelFile, setStaffExcelFile] = useState<File | null>(null);
+   const [bulkStudentClassId, setBulkStudentClassId] = useState("");
+   const [bulkStudentStreamId, setBulkStudentStreamId] = useState("");
+ 
+@@ -211,6 +229,7 @@ export default function SchoolPortal({ params }: PageProps) {
+   const [selectedReportClassId, setSelectedReportClassId] = useState("");
+   const [selectedReportTerm, setSelectedReportTerm] = useState("1");
+   const [selectedReportStudent, setSelectedReportStudent] = useState<Student | null>(null);
++  const [isBulkReportMode, setIsBulkReportMode] = useState(false);
+ 
+   // Student Promotion States
+   const [promoteFromClassId, setPromoteFromClassId] = useState("");
+@@ -231,6 +250,7 @@ export default function SchoolPortal({ params }: PageProps) {
+   const [profileDirector, setProfileDirector] = useState("");
+   const [profileLogoUrl, setProfileLogoUrl] = useState("");
+   const [profileThemeColor, setProfileThemeColor] = useState("#38bdf8");
++  const [profileSchoolType, setProfileSchoolType] = useState<"PRIMARY" | "SECONDARY" | "COMBINED">("COMBINED");
+   const [profileSuccessMsg, setProfileSuccessMsg] = useState("");
+ 
+   // First-time branding setup states
+@@ -303,6 +323,9 @@ export default function SchoolPortal({ params }: PageProps) {
+         setProfileDirector(s.director || "");
+         setProfileLogoUrl(s.logoUrl || "");
+         setProfileThemeColor(s.themeColor || "#38bdf8");
++        setProfileSchoolType(s.schoolType as any || "COMBINED");
++        setNewClassLevel(s.schoolType === "SECONDARY" ? "SECONDARY" : "PRIMARY");
++        setNewExamIsNewCurriculum(s.schoolType === "SECONDARY");
+ 
+         setSetupName(s.name || "");
+         setSetupPhone(s.contactPhone || "");
+@@ -394,6 +417,19 @@ export default function SchoolPortal({ params }: PageProps) {
+       setUsers(usrs);
+       setGradeRanges(await getGradeRanges(schoolId));
+ 
++      const assignments = await getTeacherSubjects(schoolId);
++      setTeacherAssignments(assignments);
++
++      const staffTeachers = usrs.filter(u => u.role === "TEACHER");
++      if (staffTeachers.length > 0) setNewAssignmentTeacherId(staffTeachers[0].id);
++      if (cls.length > 0) {
++        setNewAssignmentClassId(cls[0].id);
++        const clStreams = strms.filter(st => st.classId === cls[0].id);
++        if (clStreams.length > 0) setNewAssignmentStreamId(clStreams[0].id);
++        const clSubjects = subjs.filter(sb => sb.classId === cls[0].id);
++        if (clSubjects.length > 0) setNewAssignmentSubjectId(clSubjects[0].id);
++      }
++
+       // Pre-populate dynamic Student/Staff ID Numbers
+       const activeSchool = school || (await getSchoolBySubdomain(subdomain));
+       if (activeSchool) {
+@@ -597,6 +633,51 @@ export default function SchoolPortal({ params }: PageProps) {
+     }
+   };
+ 
++  const handleCreateAssignment = async (e: React.FormEvent) => {
++    e.preventDefault();
++    if (!school) return;
++    if (!newAssignmentTeacherId || !newAssignmentClassId || !newAssignmentStreamId || !newAssignmentSubjectId) {
++      alert("Please fill all assignment fields.");
++      return;
++    }
++    const duplicate = teacherAssignments.find(
++      ts => ts.teacherId === newAssignmentTeacherId &&
++            ts.classId === newAssignmentClassId &&
++            ts.streamId === newAssignmentStreamId &&
++            ts.subjectId === newAssignmentSubjectId
++    );
++    if (duplicate) {
++      alert("This teacher is already assigned to this class, stream, and subject!");
++      return;
++    }
++    try {
++      await createTeacherSubject({
++        teacherId: newAssignmentTeacherId,
++        classId: newAssignmentClassId,
++        streamId: newAssignmentStreamId,
++        subjectId: newAssignmentSubjectId
++      });
++      alert("Teacher assignment saved successfully!");
++      await loadSchoolData(school.id);
++    } catch (err: any) {
++      alert("Failed to create assignment: " + (err.message || err));
++    }
++  };
++
++  const handleDeleteAssignment = async (id: string) => {
++    if (!window.confirm("Are you sure you want to delete this teacher assignment?")) return;
++    if (!school) return;
++    try {
++      const ok = await deleteTeacherSubject(id);
++      if (ok) {
++        alert("Assignment deleted successfully.");
++        await loadSchoolData(school.id);
++      }
++    } catch (err: any) {
++      alert("Failed to delete assignment: " + (err.message || err));
++    }
++  };
++
+   // Update school settings and metadata handler
+   const handleUpdateProfile = async (e: React.FormEvent) => {
+     e.preventDefault();
+@@ -607,6 +688,7 @@ export default function SchoolPortal({ params }: PageProps) {
+         name: profileName,
+         poBox: profilePoBox,
+         contactPhone: profilePhone,
++        schoolType: profileSchoolType,
+         headTeacher: profileHeadTeacher,
+         deputyHeadTeacher: profileDeputyHeadTeacher,
+         director: profileDirector,
+@@ -614,6 +696,8 @@ export default function SchoolPortal({ params }: PageProps) {
+         themeColor: profileThemeColor
+       });
+       setSchool(updated);
++      setNewClassLevel(updated.schoolType === "SECONDARY" ? "SECONDARY" : "PRIMARY");
++      setNewExamIsNewCurriculum(updated.schoolType === "SECONDARY");
+       setProfileSuccessMsg("School profile and settings updated successfully!");
+     } catch (err) {
+       console.error(err);
+@@ -682,37 +766,90 @@ export default function SchoolPortal({ params }: PageProps) {
+     alert("Student registered successfully!");
+   };
+ 
++  // Excel Parsing and Template Downloads
++  const downloadStudentTemplate = () => {
++    const headers = [["Name", "Student Number (Optional)", "Residency (DAY or BOARDING)", "LIN (Optional)"]];
++    const sampleData = [
++      ["Namusoke Joy", "", "DAY", ""],
++      ["Opio Peter", "STU-0002", "BOARDING", "LIN-98765432"]
++    ];
++    const wb = XLSX.utils.book_new();
++    const ws = XLSX.utils.json_to_sheet([]);
++    XLSX.utils.sheet_add_aoa(ws, [...headers, ...sampleData]);
++    XLSX.utils.book_append_sheet(wb, ws, "Students");
++    XLSX.writeFile(wb, "Student_Upload_Template.xlsx");
++  };
++
++  const downloadStaffTemplate = () => {
++    const headers = [["Full Name", "Email Address", "Role (TEACHER, DOS, HEADTEACHER, DIRECTOR)", "Staff Number (Optional)"]];
++    const sampleData = [
++      ["Opio Peter", "peter@school.ug", "TEACHER", ""],
++      ["Nakafeero Sylvia", "sylvia@school.ug", "DOS", "STF-0012"]
++    ];
++    const wb = XLSX.utils.book_new();
++    const ws = XLSX.utils.json_to_sheet([]);
++    XLSX.utils.sheet_add_aoa(ws, [...headers, ...sampleData]);
++    XLSX.utils.book_append_sheet(wb, ws, "Staff");
++    XLSX.writeFile(wb, "Staff_Upload_Template.xlsx");
++  };
++
++  const handleParseExcel = (file: File): Promise<any[]> => {
++    return new Promise((resolve, reject) => {
++      const reader = new FileReader();
++      reader.onload = (e) => {
++        try {
++          const data = new Uint8Array(e.target?.result as ArrayBuffer);
++          const workbook = XLSX.read(data, { type: "array" });
++          const firstSheetName = workbook.SheetNames[0];
++          const worksheet = workbook.Sheets[firstSheetName];
++          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
++          resolve(jsonData);
++        } catch (err) {
++          reject(err);
++        }
++      };
++      reader.onerror = (err) => reject(err);
++      reader.readAsArrayBuffer(file);
++    });
++  };
++
+   // Bulk student upload handler
+   const handleBulkStudentUpload = async (e: React.FormEvent) => {
+     e.preventDefault();
+-    if (!school || !bulkStudentClassId || !bulkStudentStreamId || !bulkStudentText) {
+-      alert("Please fill in all details and paste student list.");
++    if (!school || !bulkStudentClassId || !bulkStudentStreamId || !studentExcelFile) {
++      alert("Please choose a class, stream, and select an Excel template file.");
+       return;
+     }
+     try {
+-      const lines = bulkStudentText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+-      if (lines.length === 0) {
+-        alert("Pasted list is empty.");
++      const rows = await handleParseExcel(studentExcelFile);
++      if (rows.length <= 1) {
++        alert("The uploaded Excel file has no student data rows.");
+         return;
+       }
++
+       let successCount = 0;
+       let existingCount = students.length;
+-      for (const line of lines) {
+-        const parts = line.split(/[,\t]/).map(p => p.trim());
+-        if (parts.length === 0 || !parts[0]) continue;
+-        const name = parts[0];
+-        let studentNumber = parts[1] || "";
+-        let typeStr = parts[2] || "DAY";
+-        let lin = parts[3] || "";
++
++      for (let i = 1; i < rows.length; i++) {
++        const row = rows[i];
++        if (!row || !row[0]) continue;
++
++        const name = String(row[0]).trim();
++        let studentNumber = row[1] ? String(row[1]).trim() : "";
++        let typeStr = row[2] ? String(row[2]).trim() : "DAY";
++        let lin = row[3] ? String(row[3]).trim() : "";
++
+         if (!studentNumber) {
+           existingCount++;
+           const initials = school.name.split(/\s+/).map(w => w[0]).join("").toUpperCase().replace(/[^A-Z]/g, "") || subdomain.toUpperCase();
+           studentNumber = `${initials}-STU-${String(existingCount).padStart(4, "0")}`;
+         }
++
+         let residencyType: "DAY" | "BOARDING" = "DAY";
+         if (typeStr.toUpperCase() === "BOARDING" || typeStr.toUpperCase() === "B") {
+           residencyType = "BOARDING";
+         }
++
+         await createStudent({
+           schoolId: school.id,
+           classId: bulkStudentClassId,
+@@ -725,7 +862,8 @@ export default function SchoolPortal({ params }: PageProps) {
+         });
+         successCount++;
+       }
+-      setBulkStudentText("");
++
++      setStudentExcelFile(null);
+       setShowBulkStudentModal(false);
+       await loadSchoolData(school.id);
+       alert(`Successfully imported ${successCount} students!`);
+@@ -737,37 +875,44 @@ export default function SchoolPortal({ params }: PageProps) {
+   // Bulk staff upload handler
+   const handleBulkStaffUpload = async (e: React.FormEvent) => {
+     e.preventDefault();
+-    if (!school || !bulkStaffText) {
+-      alert("Please paste staff list.");
++    if (!school || !staffExcelFile) {
++      alert("Please select an Excel template file.");
+       return;
+     }
+     try {
+-      const lines = bulkStaffText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+-      if (lines.length === 0) {
+-        alert("Pasted list is empty.");
++      const rows = await handleParseExcel(staffExcelFile);
++      if (rows.length <= 1) {
++        alert("The uploaded Excel file has no staff data rows.");
+         return;
+       }
++
+       let successCount = 0;
+       let existingCount = users.length;
+-      for (const line of lines) {
+-        const parts = line.split(/[,\t]/).map(p => p.trim());
+-        if (parts.length === 0 || !parts[0]) continue;
+-        const name = parts[0];
+-        const email = parts[1] || "";
+-        let roleStr = parts[2] || "TEACHER";
+-        let staffNumber = parts[3] || "";
++
++      for (let i = 1; i < rows.length; i++) {
++        const row = rows[i];
++        if (!row || !row[0]) continue;
++
++        const name = String(row[0]).trim();
++        const email = row[1] ? String(row[1]).trim() : "";
++        let roleStr = row[2] ? String(row[2]).trim() : "TEACHER";
++        let staffNumber = row[3] ? String(row[3]).trim() : "";
++
+         if (!email) continue;
++
+         let role: "ADMIN" | "TEACHER" | "DOS" | "HEADTEACHER" | "DIRECTOR" = "TEACHER";
+         const upperRole = roleStr.toUpperCase();
+         if (upperRole === "ADMIN") role = "ADMIN";
+         else if (upperRole === "DOS") role = "DOS";
+         else if (upperRole === "HEADTEACHER" || upperRole === "HEAD") role = "HEADTEACHER";
+         else if (upperRole === "DIRECTOR") role = "DIRECTOR";
++
+         if (!staffNumber) {
+           existingCount++;
+           const initials = school.name.split(/\s+/).map(w => w[0]).join("").toUpperCase().replace(/[^A-Z]/g, "") || subdomain.toUpperCase();
+           staffNumber = `${initials}-STF-${String(existingCount).padStart(4, "0")}`;
+         }
++
+         await createUser({
+           schoolId: school.id,
+           name,
+@@ -779,7 +924,8 @@ export default function SchoolPortal({ params }: PageProps) {
+         });
+         successCount++;
+       }
+-      setBulkStaffText("");
++
++      setStaffExcelFile(null);
+       setShowBulkStaffModal(false);
+       await loadSchoolData(school.id);
+       alert(`Successfully imported ${successCount} staff accounts!`);
+@@ -1123,8 +1269,8 @@ export default function SchoolPortal({ params }: PageProps) {
+     setMomoProvider("MTN");
+     setShowMoMoModal(true);
+ 
+-    // Split payment tracking (max 200k per transaction)
+-    const maxLimit = 200000;
++    // Split payment tracking (max 190k per transaction to stay strictly below 200k limit)
++    const maxLimit = 190000;
+     const splits: number[] = [];
+     let tempAmount = amount;
+     while (tempAmount > maxLimit) {
+@@ -1425,37 +1571,161 @@ export default function SchoolPortal({ params }: PageProps) {
+             </div>
+           )}
+ 
+-          <form onSubmit={handleLogin}>
+-            <div className="form-group">
+-              <label className="form-label" style={{ color: "#d1d5db" }}>Staff Email Address</label>
+-              <input 
+-                type="email" 
+-                className="input-field" 
+-                placeholder="e.g. teacher@greenhill.ug" 
+-                value={email}
+-                onChange={(e) => setEmail(e.target.value)}
+-                required
+-                style={{ background: "#0f172a", borderColor: "#374151", color: "white" }}
+-              />
+-            </div>
++          {showForgotPassword ? (
++            <div>
++              <h3 style={{ color: "white", marginBottom: "10px", fontSize: "18px" }}>Reset Password</h3>
++              <p style={{ color: "#9ca3af", fontSize: "13px", marginBottom: "20px" }}>
++                Provide your registered email address to verify your account and set a new password.
++              </p>
++
++              {resetError && (
++                <div style={{ background: "rgba(244, 63, 94, 0.15)", border: "1px solid rgba(244, 63, 94, 0.3)", borderRadius: "8px", padding: "12px", color: "var(--danger)", fontSize: "13px", marginBottom: "20px" }}>
++                  {resetError}
++                </div>
++              )}
++
++              {resetSuccess && (
++                <div style={{ background: "rgba(16, 185, 129, 0.15)", border: "1px solid rgba(16, 185, 129, 0.3)", borderRadius: "8px", padding: "12px", color: "var(--success)", fontSize: "13px", marginBottom: "20px" }}>
++                  {resetSuccess}
++                </div>
++              )}
+ 
+-            <div className="form-group" style={{ marginBottom: "24px" }}>
+-              <label className="form-label" style={{ color: "#d1d5db" }}>Password</label>
+-              <input 
+-                type="password" 
+-                className="input-field" 
+-                placeholder="••••••••" 
+-                value={password}
+-                onChange={(e) => setPassword(e.target.value)}
+-                required
+-                style={{ background: "#0f172a", borderColor: "#374151", color: "white" }}
+-              />
++              {resetStep === 0 ? (
++                <form onSubmit={async (e) => {
++                  e.preventDefault();
++                  setResetError("");
++                  if (!school) return;
++                  try {
++                    const allUsers = await getUsers(school.id);
++                    const matched = allUsers.find(u => u.email.toLowerCase() === resetEmail.toLowerCase());
++                    if (!matched) {
++                      setResetError("No staff account found with this email address.");
++                      return;
++                    }
++                    setResetStep(1);
++                  } catch (err) {
++                    setResetError("Error looking up account details.");
++                  }
++                }}>
++                  <div className="form-group" style={{ marginBottom: "20px" }}>
++                    <label className="form-label" style={{ color: "#d1d5db" }}>Staff Email Address</label>
++                    <input 
++                      type="email" 
++                      className="input-field" 
++                      placeholder="e.g. teacher@greenhill.ug" 
++                      value={resetEmail}
++                      onChange={(e) => setResetEmail(e.target.value)}
++                      required
++                      style={{ background: "#0f172a", borderColor: "#374151", color: "white" }}
++                    />
++                  </div>
++                  <div className="flex gap-2">
++                    <button type="button" onClick={() => { setShowForgotPassword(false); setResetStep(0); }} className="btn btn-outline" style={{ flex: 1, color: "#9ca3af", borderColor: "#4b5563", background: "transparent" }}>
++                      Cancel
++                    </button>
++                    <button type="submit" className="btn btn-primary" style={{ flex: 2 }}>
++                      Find Account
++                    </button>
++                  </div>
++                </form>
++              ) : (
++                <form onSubmit={async (e) => {
++                  e.preventDefault();
++                  setResetError("");
++                  if (!school) return;
++                  if (resetNewPassword.length < 4) {
++                    setResetError("Password must be at least 4 characters long.");
++                    return;
++                  }
++                  try {
++                    const done = await resetUserPassword(school.id, resetEmail, resetNewPassword);
++                    if (done) {
++                      setResetSuccess("Password reset successfully! You can now log in.");
++                      setTimeout(() => {
++                        setShowForgotPassword(false);
++                        setResetStep(0);
++                        setResetSuccess("");
++                        setPassword(resetNewPassword);
++                        setEmail(resetEmail);
++                      }, 2000);
++                    } else {
++                      setResetError("Failed to update password.");
++                    }
++                  } catch (err) {
++                    setResetError("Error executing password reset.");
++                  }
++                }}>
++                  <div className="form-group" style={{ marginBottom: "20px" }}>
++                    <label className="form-label" style={{ color: "#d1d5db" }}>New Password</label>
++                    <input 
++                      type="password" 
++                      className="input-field" 
++                      placeholder="••••••••" 
++                      value={resetNewPassword}
++                      onChange={(e) => setResetNewPassword(e.target.value)}
++                      required
++                      style={{ background: "#0f172a", borderColor: "#374151", color: "white" }}
++                    />
++                  </div>
++                  <div className="flex gap-2">
++                    <button type="button" onClick={() => setResetStep(0)} className="btn btn-outline" style={{ flex: 1, color: "#9ca3af", borderColor: "#4b5563", background: "transparent" }}>
++                      Back
++                    </button>
++                    <button type="submit" className="btn btn-primary" style={{ flex: 2 }}>
++                      Save Password
++                    </button>
++                  </div>
++                </form>
++              )}
+             </div>
++          ) : (
++            <form onSubmit={handleLogin}>
++              <div className="form-group">
++                <label className="form-label" style={{ color: "#d1d5db" }}>Staff Email Address</label>
++                <input 
++                  type="email" 
++                  className="input-field" 
++                  placeholder="e.g. teacher@greenhill.ug" 
++                  value={email}
++                  onChange={(e) => setEmail(e.target.value)}
++                  required
++                  style={{ background: "#0f172a", borderColor: "#374151", color: "white" }}
++                />
++              </div>
+ 
+-            <button type="submit" className="btn btn-primary" style={{ width: "100%", padding: "12px" }}>
+-              Sign In to Portal
+-            </button>
+-          </form>
++              <div className="form-group" style={{ marginBottom: "24px" }}>
++                <div className="flex justify-between align-center" style={{ marginBottom: "6px" }}>
++                  <label className="form-label" style={{ color: "#d1d5db", margin: 0 }}>Password</label>
++                  <button 
++                    type="button" 
++                    onClick={() => {
++                      setResetError("");
++                      setResetSuccess("");
++                      setResetEmail(email);
++                      setShowForgotPassword(true);
++                      setResetStep(0);
++                    }}
++                    style={{ background: "transparent", border: "none", color: "var(--primary)", fontSize: "12px", cursor: "pointer", padding: 0 }}
++                  >
++                    Forgot Password?
++                  </button>
++                </div>
++                <input 
++                  type="password" 
++                  className="input-field" 
++                  placeholder="••••••••" 
++                  value={password}
++                  onChange={(e) => setPassword(e.target.value)}
++                  required
++                  style={{ background: "#0f172a", borderColor: "#374151", color: "white" }}
++                />
++              </div>
++
++              <button type="submit" className="btn btn-primary" style={{ width: "100%", padding: "12px" }}>
++                Sign In to Portal
++              </button>
++            </form>
++          )}
+ 
+           {/* First-time setup banner/button */}
+           <div style={{ marginTop: "20px", padding: "16px", background: "rgba(56, 189, 248, 0.08)", border: "1px dashed rgba(56, 189, 248, 0.3)", borderRadius: "8px", fontSize: "13px", color: "#e0f2fe", textAlign: "left" }}>
+@@ -1683,6 +1953,49 @@ export default function SchoolPortal({ params }: PageProps) {
+     );
+   }
+ 
++  // Synchronize selections for TEACHER role when assignments or selections change
++  useEffect(() => {
++    if (currentUser?.role === "TEACHER" && teacherAssignments.length > 0 && classes.length > 0) {
++      const myClasses = classes.filter(c => teacherAssignments.some(ta => ta.teacherId === currentUser.id && ta.classId === c.id));
++      if (myClasses.length > 0) {
++        const firstClass = myClasses[0].id;
++        if (!selectedClassId || !myClasses.some(c => c.id === selectedClassId)) {
++          setSelectedClassId(firstClass);
++        }
++        const classIdToUse = !selectedClassId || !myClasses.some(c => c.id === selectedClassId) ? firstClass : selectedClassId;
++        
++        const myStreams = streams.filter(st => st.classId === classIdToUse && teacherAssignments.some(ta => ta.teacherId === currentUser.id && ta.classId === classIdToUse && ta.streamId === st.id));
++        if (myStreams.length > 0) {
++          const firstStream = myStreams[0].id;
++          if (!selectedStreamId || !myStreams.some(s => s.id === selectedStreamId)) {
++            setSelectedStreamId(firstStream);
++          }
++          const streamIdToUse = !selectedStreamId || !myStreams.some(s => s.id === selectedStreamId) ? firstStream : selectedStreamId;
++          
++          const mySubjects = subjects.filter(sub => sub.classId === classIdToUse && teacherAssignments.some(ta => ta.teacherId === currentUser.id && ta.classId === classIdToUse && ta.streamId === streamIdToUse && ta.subjectId === sub.id));
++          if (mySubjects.length > 0) {
++            if (!selectedSubjectId || !mySubjects.some(s => s.id === selectedSubjectId)) {
++              setSelectedSubjectId(mySubjects[0].id);
++            }
++          }
++        }
++      }
++    }
++  }, [currentUser, teacherAssignments, classes, streams, subjects, selectedClassId, selectedStreamId]);
++
++  // Filtered lists for Marks Upload if teacher
++  const teacherClasses = currentUser?.role === "TEACHER"
++    ? classes.filter(c => teacherAssignments.some(ta => ta.teacherId === currentUser.id && ta.classId === c.id))
++    : classes;
++  
++  const teacherStreams = currentUser?.role === "TEACHER"
++    ? streams.filter(st => st.classId === selectedClassId && teacherAssignments.some(ta => ta.teacherId === currentUser.id && ta.classId === selectedClassId && ta.streamId === st.id))
++    : streams.filter(st => st.classId === selectedClassId);
++  
++  const teacherSubjectsFiltered = currentUser?.role === "TEACHER"
++    ? subjects.filter(sub => sub.classId === selectedClassId && teacherAssignments.some(ta => ta.teacherId === currentUser.id && ta.classId === selectedClassId && ta.streamId === selectedStreamId && ta.subjectId === sub.id))
++    : subjects.filter(sub => sub.classId === selectedClassId);
++
+   // Dashboard layout
+   return (
+     <div data-theme="light" className="dashboard-layout" style={{ minHeight: "100vh", display: "flex", backgroundColor: "#f1f5f9", color: "#1e293b" }}>
+@@ -1715,9 +2028,12 @@ export default function SchoolPortal({ params }: PageProps) {
+             ) : (
+               <GraduationCap size={28} color="white" />
+             )}
+-            <div>
++            <div style={{ display: "flex", flexDirection: "column" }}>
+               <h3 style={{ color: "white", fontSize: "16px", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", maxWidth: "160px" }}>{school.name}</h3>
+               <span style={{ fontSize: "10px", color: "rgba(255, 255, 255, 0.75)", textTransform: "uppercase", letterSpacing: "1px" }}>{currentUser.role} Portal</span>
++              <span style={{ fontSize: "9px", color: "rgba(255, 255, 255, 0.8)", background: "rgba(0,0,0,0.18)", borderRadius: "4px", padding: "1px 6px", width: "fit-content", marginTop: "2px", fontWeight: "bold" }}>
++                {school.schoolType === "PRIMARY" ? "Primary School" : school.schoolType === "SECONDARY" ? "Secondary School" : "Combined School"}
++              </span>
+             </div>
+           </div>
+           {/* Mobile Close Button */}
+@@ -2194,7 +2510,7 @@ export default function SchoolPortal({ params }: PageProps) {
+               <div className="card">
+                 <h4 style={{ marginBottom: "20px" }}><Settings size={18} /> Official Profile Metadata</h4>
+                 <form onSubmit={handleUpdateProfile}>
+-                  <div className="grid grid-cols-2 gap-2">
++                  <div className="grid grid-cols-3 gap-2">
+                     <div className="form-group">
+                       <label className="form-label">School Official Name</label>
+                       <input 
+@@ -2215,6 +2531,19 @@ export default function SchoolPortal({ params }: PageProps) {
+                         required
+                       />
+                     </div>
++                    <div className="form-group">
++                      <label className="form-label">School Type / Level</label>
++                      <select 
++                        className="input-field" 
++                        value={profileSchoolType}
++                        onChange={(e) => setProfileSchoolType(e.target.value as any)}
++                        required
++                      >
++                        <option value="PRIMARY">Primary School (P1 - P7)</option>
++                        <option value="SECONDARY">Secondary School (S1 - S6)</option>
++                        <option value="COMBINED">Combined (Primary & Secondary)</option>
++                      </select>
++                    </div>
+                   </div>
+ 
+                   <div className="form-group">
+@@ -2390,8 +2719,12 @@ export default function SchoolPortal({ params }: PageProps) {
+                       value={newClassLevel}
+                       onChange={(e) => setNewClassLevel(e.target.value as "PRIMARY" | "SECONDARY")}
+                     >
+-                      <option value="PRIMARY">Primary Level (PLE / Standard Aggregates)</option>
+-                      <option value="SECONDARY">Secondary Level (New Curriculum CBC)</option>
++                      {(school.schoolType === "PRIMARY" || school.schoolType === "COMBINED") && (
++                        <option value="PRIMARY">Primary Level (PLE / Standard Aggregates)</option>
++                      )}
++                      {(school.schoolType === "SECONDARY" || school.schoolType === "COMBINED") && (
++                        <option value="SECONDARY">Secondary Level (New Curriculum CBC)</option>
++                      )}
+                     </select>
+                   </div>
+                   <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Create Class</button>
+@@ -2538,125 +2871,127 @@ export default function SchoolPortal({ params }: PageProps) {
+               )}
+             </div>
+ 
+-            <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "24px" }} className="flex-mobile-col">
++            <div style={{ display: "grid", gridTemplateColumns: currentUser.role === "TEACHER" ? "1fr" : "1fr 2fr", gap: "24px" }} className="flex-mobile-col">
+               {/* Register Student */}
+-              <div className="card" style={{ height: "fit-content" }}>
+-                <h4 style={{ marginBottom: "16px" }}><PlusCircle size={18} /> Register Student Details</h4>
+-                <form onSubmit={handleCreateStudent}>
+-                  <div className="form-group">
+-                    <label className="form-label">Student Full Name</label>
+-                    <input 
+-                      type="text" 
+-                      className="input-field" 
+-                      placeholder="e.g. Namusoke Joy" 
+-                      value={newStudentName}
+-                      onChange={(e) => setNewStudentName(e.target.value)}
+-                      required
+-                    />
+-                  </div>
+-                  <div className="grid grid-cols-2 gap-2">
++              {currentUser.role !== "TEACHER" && (
++                <div className="card" style={{ height: "fit-content" }}>
++                  <h4 style={{ marginBottom: "16px" }}><PlusCircle size={18} /> Register Student Details</h4>
++                  <form onSubmit={handleCreateStudent}>
+                     <div className="form-group">
+-                      <label className="form-label">Select Class</label>
+-                      <select 
++                      <label className="form-label">Student Full Name</label>
++                      <input 
++                        type="text" 
+                         className="input-field" 
+-                        value={newStudentClassId}
+-                        onChange={(e) => {
+-                          setNewStudentClassId(e.target.value);
+-                          const strms = streams.filter(s => s.classId === e.target.value);
+-                          if (strms.length > 0) setNewStudentStreamId(strms[0].id);
+-                        }}
+-                      >
+-                        <option value="">-- Choose class --</option>
+-                        {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+-                      </select>
++                        placeholder="e.g. Namusoke Joy" 
++                        value={newStudentName}
++                        onChange={(e) => setNewStudentName(e.target.value)}
++                        required
++                      />
+                     </div>
+-                    <div className="form-group">
+-                      <label className="form-label">Select Stream</label>
+-                      <select 
+-                        className="input-field" 
+-                        value={newStudentStreamId}
+-                        onChange={(e) => setNewStudentStreamId(e.target.value)}
+-                      >
+-                        <option value="">-- Choose stream --</option>
+-                        {streams.filter(st => st.classId === newStudentClassId).map(s => (
+-                          <option key={s.id} value={s.id}>{s.name}</option>
+-                        ))}
+-                      </select>
++                    <div className="grid grid-cols-2 gap-2">
++                      <div className="form-group">
++                        <label className="form-label">Select Class</label>
++                        <select 
++                          className="input-field" 
++                          value={newStudentClassId}
++                          onChange={(e) => {
++                            setNewStudentClassId(e.target.value);
++                            const strms = streams.filter(s => s.classId === e.target.value);
++                            if (strms.length > 0) setNewStudentStreamId(strms[0].id);
++                          }}
++                        >
++                          <option value="">-- Choose class --</option>
++                          {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
++                        </select>
++                      </div>
++                      <div className="form-group">
++                        <label className="form-label">Select Stream</label>
++                        <select 
++                          className="input-field" 
++                          value={newStudentStreamId}
++                          onChange={(e) => setNewStudentStreamId(e.target.value)}
++                        >
++                          <option value="">-- Choose stream --</option>
++                          {streams.filter(st => st.classId === newStudentClassId).map(s => (
++                            <option key={s.id} value={s.id}>{s.name}</option>
++                          ))}
++                        </select>
++                      </div>
+                     </div>
+-                  </div>
+ 
+-                  <div className="grid grid-cols-2 gap-2">
++                    <div className="grid grid-cols-2 gap-2">
++                      <div className="form-group">
++                        <label className="form-label">Student ID Number</label>
++                        <input 
++                          type="text" 
++                          className="input-field" 
++                          placeholder="e.g. STU-2026-0001" 
++                          value={newStudentNumber}
++                          onChange={(e) => setNewStudentNumber(e.target.value)}
++                          required
++                        />
++                      </div>
++                      <div className="form-group">
++                        <label className="form-label">Attendance Type</label>
++                        <select 
++                          className="input-field" 
++                          value={newStudentType}
++                          onChange={(e) => setNewStudentType(e.target.value as "DAY" | "BOARDING")}
++                        >
++                          <option value="DAY">Day Student</option>
++                          <option value="BOARDING">Boarding Student</option>
++                        </select>
++                      </div>
++                    </div>
+                     <div className="form-group">
+-                      <label className="form-label">Student ID Number</label>
++                      <label className="form-label">Learner Identification Number (LIN)</label>
+                       <input 
+                         type="text" 
+                         className="input-field" 
+-                        placeholder="e.g. STU-2026-0001" 
+-                        value={newStudentNumber}
+-                        onChange={(e) => setNewStudentNumber(e.target.value)}
+-                        required
++                        placeholder="e.g. LIN-12345678" 
++                        value={newStudentLin}
++                        onChange={(e) => setNewStudentLin(e.target.value)}
+                       />
+                     </div>
+-                    <div className="form-group">
+-                      <label className="form-label">Attendance Type</label>
+-                      <select 
++                    <div className="form-group" style={{ marginBottom: "16px" }}>
++                      <label className="form-label">Student Portrait Photo (Required)</label>
++                      <input 
++                        type="file" 
++                        accept="image/*"
+                         className="input-field" 
+-                        value={newStudentType}
+-                        onChange={(e) => setNewStudentType(e.target.value as "DAY" | "BOARDING")}
+-                      >
+-                        <option value="DAY">Day Student</option>
+-                        <option value="BOARDING">Boarding Student</option>
+-                      </select>
+-                    </div>
+-                  </div>
+-                  <div className="form-group">
+-                    <label className="form-label">Learner Identification Number (LIN)</label>
+-                    <input 
+-                      type="text" 
+-                      className="input-field" 
+-                      placeholder="e.g. LIN-12345678" 
+-                      value={newStudentLin}
+-                      onChange={(e) => setNewStudentLin(e.target.value)}
+-                    />
+-                  </div>
+-                  <div className="form-group" style={{ marginBottom: "16px" }}>
+-                    <label className="form-label">Student Portrait Photo (Required)</label>
+-                    <input 
+-                      type="file" 
+-                      accept="image/*"
+-                      className="input-field" 
+-                      onChange={(e) => {
+-                        const file = e.target.files?.[0];
+-                        if (file) {
+-                          if (file.size > 1024 * 1024) {
+-                            alert("Photo size should be less than 1MB to store directly in the database.");
+-                            return;
++                        onChange={(e) => {
++                          const file = e.target.files?.[0];
++                          if (file) {
++                            if (file.size > 1024 * 1024) {
++                              alert("Photo size should be less than 1MB to store directly in the database.");
++                              return;
++                            }
++                            const reader = new FileReader();
++                            reader.onloadend = () => {
++                              setNewStudentPhoto(reader.result as string);
++                            };
++                            reader.readAsDataURL(file);
+                           }
+-                          const reader = new FileReader();
+-                          reader.onloadend = () => {
+-                            setNewStudentPhoto(reader.result as string);
+-                          };
+-                          reader.readAsDataURL(file);
+-                        }
+-                      }}
+-                      required
+-                      style={{ padding: "8px" }}
+-                    />
+-                    {newStudentPhoto && (
+-                      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "8px" }}>
+-                        <div style={{ width: "50px", height: "50px", borderRadius: "8px", overflow: "hidden", border: "1px solid var(--border)" }}>
+-                          <img src={newStudentPhoto} alt="Student Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
++                        }}
++                        required
++                        style={{ padding: "8px" }}
++                      />
++                      {newStudentPhoto && (
++                        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "8px" }}>
++                          <div style={{ width: "50px", height: "50px", borderRadius: "8px", overflow: "hidden", border: "1px solid var(--border)" }}>
++                            <img src={newStudentPhoto} alt="Student Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
++                          </div>
++                          <span style={{ fontSize: "11px", color: "var(--success)" }}>✓ Image ready</span>
+                         </div>
+-                        <span style={{ fontSize: "11px", color: "var(--success)" }}>✓ Image ready</span>
+-                      </div>
+-                    )}
+-                  </div>
+-                  <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Register Student</button>
+-                </form>
+-              </div>
+-
+-              {/* Student Directory List */}
+-              <div className="card">
++                      )}
++                    </div>
++                    <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Register Student</button>
++                  </form>
++                </div>
++              )}
++
++              {/* Student Directory List */}
++              <div className="card">
+                 <h4 style={{ marginBottom: "16px" }}>Current Enrolled Students</h4>
+                 <div className="table-container">
+                   <table className="table">
+@@ -2710,35 +3045,39 @@ export default function SchoolPortal({ params }: PageProps) {
+                                   >
+                                     View
+                                   </button>
+-                                  <button 
+-                                    onClick={() => {
+-                                      setSelectedEditStudent(st);
+-                                      setEditStudentName(st.name);
+-                                      setEditStudentNumber(st.studentNumber);
+-                                      setEditStudentClassId(st.classId);
+-                                      setEditStudentStreamId(st.streamId);
+-                                      setEditStudentType(st.type);
+-                                      setEditStudentPhoto(st.photo || "");
+-                                      setEditStudentLin(st.lin || "");
+-                                      setShowEditStudentModal(true);
+-                                    }}
+-                                    className="btn btn-outline" 
+-                                    style={{ padding: "4px 8px", fontSize: "11px", color: "var(--primary)", borderColor: "var(--primary)" }}
+-                                  >
+-                                    Edit
+-                                  </button>
+-                                  <button 
+-                                    onClick={async () => {
+-                                      if (confirm(`Are you sure you want to delete student "${st.name}"?`)) {
+-                                        await deleteStudent(st.id);
+-                                        await loadSchoolData(school!.id);
+-                                      }
+-                                    }}
+-                                    className="btn btn-outline" 
+-                                    style={{ padding: "4px 8px", fontSize: "11px", color: "var(--danger)", borderColor: "var(--danger)" }}
+-                                  >
+-                                    Delete
+-                                  </button>
++                                  {currentUser.role !== "TEACHER" && (
++                                    <>
++                                      <button 
++                                        onClick={() => {
++                                          setSelectedEditStudent(st);
++                                          setEditStudentName(st.name);
++                                          setEditStudentNumber(st.studentNumber);
++                                          setEditStudentClassId(st.classId);
++                                          setEditStudentStreamId(st.streamId);
++                                          setEditStudentType(st.type);
++                                          setEditStudentPhoto(st.photo || "");
++                                          setEditStudentLin(st.lin || "");
++                                          setShowEditStudentModal(true);
++                                        }}
++                                        className="btn btn-outline" 
++                                        style={{ padding: "4px 8px", fontSize: "11px", color: "var(--primary)", borderColor: "var(--primary)" }}
++                                      >
++                                        Edit
++                                      </button>
++                                      <button 
++                                        onClick={async () => {
++                                          if (confirm(`Are you sure you want to delete student "${st.name}"?`)) {
++                                            await deleteStudent(st.id);
++                                            await loadSchoolData(school!.id);
++                                          }
++                                        }}
++                                        className="btn btn-outline" 
++                                        style={{ padding: "4px 8px", fontSize: "11px", color: "var(--danger)", borderColor: "var(--danger)" }}
++                                      >
++                                        Delete
++                                      </button>
++                                    </>
++                                  )}
+                                 </div>
+                               </td>
+                             </tr>
+@@ -2761,206 +3100,357 @@ export default function SchoolPortal({ params }: PageProps) {
+                 <h2 style={{ marginBottom: "6px" }}>Staff & User Accounts</h2>
+                 <p style={{ color: "#64748b", margin: 0 }}>Manage accounts and system access roles for teachers, DOS, and administrators.</p>
+               </div>
++              <div style={{ display: "flex", gap: "8px" }}>
++                <button 
++                  onClick={() => setShowBulkStaffModal(true)} 
++                  className="btn btn-outline"
++                  style={{ display: "flex", alignItems: "center", gap: "8px", background: "white" }}
++                >
++                  <PlusCircle size={16} /> Bulk Upload Staff
++                </button>
++              </div>
++            </div>
++
++            <div style={{ display: "flex", gap: "10px", borderBottom: "1px solid #e2e8f0", paddingBottom: "10px", marginBottom: "20px" }} className="no-print">
++              <button 
++                onClick={() => setStaffSubTab("directory")} 
++                className={`btn ${staffSubTab === "directory" ? "btn-primary" : "btn-outline"}`}
++                style={{ padding: "8px 16px", fontSize: "14px", border: "none" }}
++              >
++                Staff Directory
++              </button>
+               <button 
+-                onClick={() => setShowBulkStaffModal(true)} 
+-                className="btn btn-outline"
+-                style={{ display: "flex", alignItems: "center", gap: "8px", background: "white" }}
++                onClick={() => setStaffSubTab("assignments")} 
++                className={`btn ${staffSubTab === "assignments" ? "btn-primary" : "btn-outline"}`}
++                style={{ padding: "8px 16px", fontSize: "14px", border: "none" }}
+               >
+-                <PlusCircle size={16} /> Bulk Upload Staff
++                Teacher Class & Subject Assignments
+               </button>
+             </div>
+ 
+-            <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "24px" }} className="flex-mobile-col">
+-              {/* Create Staff */}
+-              <div className="card" style={{ height: "fit-content" }}>
+-                <h4 style={{ marginBottom: "16px" }}><PlusCircle size={18} /> Add Teacher & Staff Accounts</h4>
+-                <form onSubmit={handleCreateStaff}>
+-                  <div className="form-group">
+-                    <label className="form-label">Staff Name</label>
+-                    <input 
+-                      type="text" 
+-                      className="input-field" 
+-                      placeholder="e.g. Opio Peter" 
+-                      value={newTeacherName}
+-                      onChange={(e) => setNewTeacherName(e.target.value)}
+-                      required
+-                    />
+-                  </div>
+-                  <div className="form-group">
+-                    <label className="form-label">Login Email</label>
+-                    <input 
+-                      type="email" 
+-                      className="input-field" 
+-                      placeholder="opio@greenhill.ug" 
+-                      value={newTeacherEmail}
+-                      onChange={(e) => setNewTeacherEmail(e.target.value)}
+-                      required
+-                    />
+-                  </div>
+-                  <div className="grid grid-cols-2 gap-2">
++            {staffSubTab === "directory" && (
++              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "24px" }} className="flex-mobile-col tab-content-anim">
++                {/* Create Staff */}
++                <div className="card" style={{ height: "fit-content" }}>
++                  <h4 style={{ marginBottom: "16px" }}><PlusCircle size={18} /> Add Teacher & Staff Accounts</h4>
++                  <form onSubmit={handleCreateStaff}>
+                     <div className="form-group">
+-                      <label className="form-label">Temporary Password</label>
++                      <label className="form-label">Staff Name</label>
+                       <input 
+                         type="text" 
+                         className="input-field" 
+-                        value={newTeacherPassword}
+-                        onChange={(e) => setNewTeacherPassword(e.target.value)}
++                        placeholder="e.g. Opio Peter" 
++                        value={newTeacherName}
++                        onChange={(e) => setNewTeacherName(e.target.value)}
+                         required
+                       />
+                     </div>
+                     <div className="form-group">
+-                      <label className="form-label">Administrative Role</label>
+-                      <select 
++                      <label className="form-label">Login Email</label>
++                      <input 
++                        type="email" 
+                         className="input-field" 
+-                        value={newTeacherRole}
+-                        onChange={(e) => setNewTeacherRole(e.target.value as any)}
+-                      >
+-                        <option value="TEACHER">Subject Teacher</option>
+-                        <option value="DOS">Director of Studies (DOS)</option>
+-                        <option value="HEADTEACHER">Head Teacher</option>
+-                        <option value="DIRECTOR">Director (Financial View)</option>
+-                      </select>
++                        placeholder="opio@greenhill.ug" 
++                        value={newTeacherEmail}
++                        onChange={(e) => setNewTeacherEmail(e.target.value)}
++                        required
++                      />
+                     </div>
+-                  </div>
+-                  <div className="form-group" style={{ marginTop: "12px" }}>
+-                    <label className="form-label">Staff ID Number</label>
+-                    <input 
+-                      type="text" 
+-                      className="input-field" 
+-                      placeholder="e.g. STF-2026-0001" 
+-                      value={newTeacherStaffNumber}
+-                      onChange={(e) => setNewTeacherStaffNumber(e.target.value)}
+-                      required
+-                    />
+-                  </div>
+-                  <div className="form-group" style={{ marginBottom: "16px" }}>
+-                    <label className="form-label">Staff Portrait Photo</label>
+-                    <input 
+-                      type="file" 
+-                      accept="image/*"
+-                      className="input-field" 
+-                      onChange={(e) => {
+-                        const file = e.target.files?.[0];
+-                        if (file) {
+-                          if (file.size > 1024 * 1024) {
+-                            alert("Photo size should be less than 1MB to store directly in the database.");
+-                            return;
++                    <div className="grid grid-cols-2 gap-2">
++                      <div className="form-group">
++                        <label className="form-label">Temporary Password</label>
++                        <input 
++                          type="text" 
++                          className="input-field" 
++                          value={newTeacherPassword}
++                          onChange={(e) => setNewTeacherPassword(e.target.value)}
++                          required
++                        />
++                      </div>
++                      <div className="form-group">
++                        <label className="form-label">Administrative Role</label>
++                        <select 
++                          className="input-field" 
++                          value={newTeacherRole}
++                          onChange={(e) => setNewTeacherRole(e.target.value as any)}
++                        >
++                          <option value="TEACHER">Subject Teacher</option>
++                          <option value="DOS">Director of Studies (DOS)</option>
++                          <option value="HEADTEACHER">Head Teacher</option>
++                          <option value="DIRECTOR">Director (Financial View)</option>
++                        </select>
++                      </div>
++                    </div>
++                    <div className="form-group" style={{ marginTop: "12px" }}>
++                      <label className="form-label">Staff ID Number</label>
++                      <input 
++                        type="text" 
++                        className="input-field" 
++                        placeholder="e.g. STF-2026-0001" 
++                        value={newTeacherStaffNumber}
++                        onChange={(e) => setNewTeacherStaffNumber(e.target.value)}
++                        required
++                      />
++                    </div>
++                    <div className="form-group" style={{ marginBottom: "16px" }}>
++                      <label className="form-label">Staff Portrait Photo</label>
++                      <input 
++                        type="file" 
++                        accept="image/*"
++                        className="input-field" 
++                        onChange={(e) => {
++                          const file = e.target.files?.[0];
++                          if (file) {
++                            if (file.size > 1024 * 1024) {
++                              alert("Photo size should be less than 1MB to store directly in the database.");
++                              return;
++                            }
++                            const reader = new FileReader();
++                            reader.onloadend = () => {
++                              setNewTeacherPhoto(reader.result as string);
++                            };
++                            reader.readAsDataURL(file);
+                           }
+-                          const reader = new FileReader();
+-                          reader.onloadend = () => {
+-                            setNewTeacherPhoto(reader.result as string);
+-                          };
+-                          reader.readAsDataURL(file);
+-                        }
+-                      }}
+-                      style={{ padding: "8px" }}
+-                    />
+-                    {newTeacherPhoto && (
+-                      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "8px" }}>
+-                        <div style={{ width: "50px", height: "50px", borderRadius: "8px", overflow: "hidden", border: "1px solid var(--border)" }}>
+-                          <img src={newTeacherPhoto} alt="Staff Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
++                        }}
++                        style={{ padding: "8px" }}
++                      />
++                      {newTeacherPhoto && (
++                        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "8px" }}>
++                          <div style={{ width: "50px", height: "50px", borderRadius: "8px", overflow: "hidden", border: "1px solid var(--border)" }}>
++                            <img src={newTeacherPhoto} alt="Staff Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
++                          </div>
++                          <span style={{ fontSize: "11px", color: "var(--success)" }}>✓ Image ready</span>
+                         </div>
+-                        <span style={{ fontSize: "11px", color: "var(--success)" }}>✓ Image ready</span>
+-                      </div>
+-                    )}
++                      )}
++                    </div>
++                    <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Create User Credentials</button>
++                  </form>
++                </div>
++
++                {/* Staff Accounts Table */}
++                <div className="card">
++                  <h4 style={{ marginBottom: "16px" }}>Registered Staff Accounts</h4>
++                  <div className="table-container">
++                    <table className="table">
++                      <thead>
++                        <tr>
++                          <th>Photo</th>
++                          <th>Staff ID</th>
++                          <th>Name</th>
++                          <th>Email Address</th>
++                          <th>Role Access</th>
++                          <th>Joined Date</th>
++                          <th style={{ textAlign: "right" }}>Actions</th>
++                        </tr>
++                      </thead>
++                      <tbody>
++                        {users.length === 0 ? (
++                          <tr><td colSpan={7} style={{ textAlign: "center", color: "#64748b" }}>No staff accounts registered.</td></tr>
++                        ) : (
++                          users.map(u => (
++                            <tr key={u.id}>
++                              <td>
++                                <div style={{ width: "36px", height: "36px", borderRadius: "50%", overflow: "hidden", background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--border)" }}>
++                                  {u.photo ? (
++                                    <img src={u.photo} alt={u.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
++                                  ) : (
++                                    <Users size={16} color="#94a3b8" />
++                                  )}
++                                </div>
++                              </td>
++                              <td><code>{u.staffNumber || "N/A"}</code></td>
++                              <td><strong>{u.name}</strong></td>
++                              <td><code>{u.email}</code></td>
++                              <td>
++                                <span className={`badge ${u.role === "ADMIN" ? "badge-danger" : u.role === "DOS" ? "badge-success" : u.role === "DIRECTOR" ? "badge-warning" : "badge-primary"}`}>
++                                  {u.role}
++                                </span>
++                              </td>
++                              <td>{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "N/A"}</td>
++                              <td>
++                                <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
++                                  <button 
++                                    onClick={() => {
++                                      setSelectedViewStaff(u);
++                                      setShowViewStaffModal(true);
++                                    }}
++                                    className="btn btn-outline" 
++                                    style={{ padding: "4px 8px", fontSize: "11px" }}
++                                  >
++                                    View
++                                  </button>
++                                  <button 
++                                    onClick={() => {
++                                      setSelectedEditStaff(u);
++                                      setEditStaffName(u.name);
++                                      setEditStaffEmail(u.email);
++                                      setEditStaffRole(u.role);
++                                      setEditStaffNumber(u.staffNumber || "");
++                                      setEditStaffPhoto(u.photo || "");
++                                      setShowEditStaffModal(true);
++                                    }}
++                                    className="btn btn-outline" 
++                                    style={{ padding: "4px 8px", fontSize: "11px", color: "var(--primary)", borderColor: "var(--primary)" }}
++                                  >
++                                    Edit
++                                  </button>
++                                  <button 
++                                    onClick={async () => {
++                                      if (u.role === "ADMIN") {
++                                        alert("Super Administrator accounts cannot be deleted directly.");
++                                        return;
++                                      }
++                                      if (confirm(`Are you sure you want to delete staff account "${u.name}"?`)) {
++                                        await deleteUser(u.id);
++                                        await loadSchoolData(school!.id);
++                                      }
++                                    }}
++                                    className="btn btn-outline" 
++                                    style={{ padding: "4px 8px", fontSize: "11px", color: "var(--danger)", borderColor: "var(--danger)" }}
++                                  >
++                                    Delete
++                                  </button>
++                                </div>
++                              </td>
++                            </tr>
++                          ))
++                        )}
++                      </tbody>
++                    </table>
+                   </div>
+-                  <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Create User Credentials</button>
+-                </form>
++                </div>
+               </div>
++            )}
+ 
+-              {/* Staff Accounts Table */}
+-              <div className="card">
+-                <h4 style={{ marginBottom: "16px" }}>Registered Staff Accounts</h4>
+-                <div className="table-container">
+-                  <table className="table">
+-                    <thead>
+-                      <tr>
+-                        <th>Photo</th>
+-                        <th>Staff ID</th>
+-                        <th>Name</th>
+-                        <th>Email Address</th>
+-                        <th>Role Access</th>
+-                        <th>Joined Date</th>
+-                        <th style={{ textAlign: "right" }}>Actions</th>
+-                      </tr>
+-                    </thead>
+-                    <tbody>
+-                      {users.length === 0 ? (
+-                        <tr><td colSpan={7} style={{ textAlign: "center", color: "#64748b" }}>No staff accounts registered.</td></tr>
+-                      ) : (
+-                        users.map(u => (
+-                          <tr key={u.id}>
+-                            <td>
+-                              <div style={{ width: "36px", height: "36px", borderRadius: "50%", overflow: "hidden", background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--border)" }}>
+-                                {u.photo ? (
+-                                  <img src={u.photo} alt={u.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+-                                ) : (
+-                                  <Users size={16} color="#94a3b8" />
+-                                )}
+-                              </div>
+-                            </td>
+-                            <td><code>{u.staffNumber || "N/A"}</code></td>
+-                            <td><strong>{u.name}</strong></td>
+-                            <td><code>{u.email}</code></td>
+-                            <td>
+-                              <span className={`badge ${u.role === "ADMIN" ? "badge-danger" : u.role === "DOS" ? "badge-success" : u.role === "DIRECTOR" ? "badge-warning" : "badge-primary"}`}>
+-                                {u.role}
+-                              </span>
+-                            </td>
+-                            <td>{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "N/A"}</td>
+-                            <td>
+-                              <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+-                                <button 
+-                                  onClick={() => {
+-                                    setSelectedViewStaff(u);
+-                                    setShowViewStaffModal(true);
+-                                  }}
+-                                  className="btn btn-outline" 
+-                                  style={{ padding: "4px 8px", fontSize: "11px" }}
+-                                >
+-                                  View
+-                                </button>
+-                                <button 
+-                                  onClick={() => {
+-                                    setSelectedEditStaff(u);
+-                                    setEditStaffName(u.name);
+-                                    setEditStaffEmail(u.email);
+-                                    setEditStaffRole(u.role);
+-                                    setEditStaffNumber(u.staffNumber || "");
+-                                    setEditStaffPhoto(u.photo || "");
+-                                    setShowEditStaffModal(true);
+-                                  }}
+-                                  className="btn btn-outline" 
+-                                  style={{ padding: "4px 8px", fontSize: "11px", color: "var(--primary)", borderColor: "var(--primary)" }}
+-                                >
+-                                  Edit
+-                                </button>
+-                                <button 
+-                                  onClick={async () => {
+-                                    if (u.role === "ADMIN") {
+-                                      alert("Super Administrator accounts cannot be deleted directly.");
+-                                      return;
+-                                    }
+-                                    if (confirm(`Are you sure you want to delete staff account "${u.name}"?`)) {
+-                                      await deleteUser(u.id);
+-                                      await loadSchoolData(school!.id);
+-                                    }
+-                                  }}
+-                                  className="btn btn-outline" 
+-                                  style={{ padding: "4px 8px", fontSize: "11px", color: "var(--danger)", borderColor: "var(--danger)" }}
+-                                >
+-                                  Delete
+-                                </button>
+-                              </div>
+-                            </td>
+-                          </tr>
+-                        ))
+-                      )}
+-                    </tbody>
+-                  </table>
++            {staffSubTab === "assignments" && (
++              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "24px" }} className="flex-mobile-col tab-content-anim">
++                {/* Create Assignment Form */}
++                <div className="card" style={{ height: "fit-content" }}>
++                  <h4 style={{ marginBottom: "16px" }}><PlusCircle size={18} /> Assign Teacher to Class/Subject</h4>
++                  <form onSubmit={handleCreateAssignment}>
++                    <div className="form-group">
++                      <label className="form-label">Teacher</label>
++                      <select 
++                        className="input-field" 
++                        value={newAssignmentTeacherId} 
++                        onChange={(e) => setNewAssignmentTeacherId(e.target.value)}
++                        required
++                      >
++                        <option value="">-- Select Teacher --</option>
++                        {users.filter(u => u.role === "TEACHER").map(t => (
++                          <option key={t.id} value={t.id}>{t.name} ({t.staffNumber})</option>
++                        ))}
++                      </select>
++                    </div>
++
++                    <div className="form-group">
++                      <label className="form-label">Class</label>
++                      <select 
++                        className="input-field" 
++                        value={newAssignmentClassId} 
++                        onChange={(e) => {
++                          setNewAssignmentClassId(e.target.value);
++                          const clStreams = streams.filter(st => st.classId === e.target.value);
++                          if (clStreams.length > 0) setNewAssignmentStreamId(clStreams[0].id);
++                          const clSubjects = subjects.filter(sb => sb.classId === e.target.value);
++                          if (clSubjects.length > 0) setNewAssignmentSubjectId(clSubjects[0].id);
++                        }}
++                        required
++                      >
++                        <option value="">-- Select Class --</option>
++                        {classes.map(c => (
++                          <option key={c.id} value={c.id}>{c.name}</option>
++                        ))}
++                      </select>
++                    </div>
++
++                    <div className="form-group">
++                      <label className="form-label">Stream</label>
++                      <select 
++                        className="input-field" 
++                        value={newAssignmentStreamId} 
++                        onChange={(e) => setNewAssignmentStreamId(e.target.value)}
++                        required
++                      >
++                        <option value="">-- Select Stream --</option>
++                        {streams.filter(st => st.classId === newAssignmentClassId).map(s => (
++                          <option key={s.id} value={s.id}>{s.name}</option>
++                        ))}
++                      </select>
++                    </div>
++
++                    <div className="form-group">
++                      <label className="form-label">Subject</label>
++                      <select 
++                        className="input-field" 
++                        value={newAssignmentSubjectId} 
++                        onChange={(e) => setNewAssignmentSubjectId(e.target.value)}
++                        required
++                      >
++                        <option value="">-- Select Subject --</option>
++                        {subjects.filter(sb => sb.classId === newAssignmentClassId).map(s => (
++                          <option key={s.id} value={s.id}>{s.name} ({s.code || "No Code"})</option>
++                        ))}
++                      </select>
++                    </div>
++
++                    <button type="submit" className="btn btn-primary" style={{ width: "100%", marginTop: "10px" }}>
++                      Save Assignment
++                    </button>
++                  </form>
++                </div>
++
++                {/* Assignments List Table */}
++                <div className="card">
++                  <h4 style={{ marginBottom: "16px" }}>Active Assignments Directory</h4>
++                  <div className="table-container">
++                    <table className="table">
++                      <thead>
++                        <tr>
++                          <th>Teacher</th>
++                          <th>Class</th>
++                          <th>Stream</th>
++                          <th>Subject</th>
++                          <th style={{ textAlign: "right" }}>Actions</th>
++                        </tr>
++                      </thead>
++                      <tbody>
++                        {teacherAssignments.length === 0 ? (
++                          <tr><td colSpan={5} style={{ textAlign: "center", color: "#64748b" }}>No teacher assignments found.</td></tr>
++                        ) : (
++                          teacherAssignments.map(ta => {
++                            const teacher = users.find(u => u.id === ta.teacherId);
++                            const cls = classes.find(c => c.id === ta.classId);
++                            const stream = streams.find(s => s.id === ta.streamId);
++                            const subject = subjects.find(s => s.id === ta.subjectId);
++                            return (
++                              <tr key={ta.id}>
++                                <td>
++                                  <strong>{teacher?.name || "Unknown Teacher"}</strong>
++                                  <div style={{ fontSize: "11px", color: "#64748b" }}>{teacher?.email}</div>
++                                </td>
++                                <td><code>{cls?.name || "N/A"}</code></td>
++                                <td><code>{stream?.name || "N/A"}</code></td>
++                                <td><strong>{subject?.name || "N/A"}</strong> {subject?.code && `(${subject.code})`}</td>
++                                <td style={{ textAlign: "right" }}>
++                                  <button 
++                                    onClick={() => handleDeleteAssignment(ta.id)} 
++                                    className="btn btn-outline" 
++                                    style={{ padding: "4px 8px", fontSize: "11px", color: "var(--danger)", borderColor: "var(--danger)" }}
++                                  >
++                                    Remove
++                                  </button>
++                                </td>
++                              </tr>
++                            );
++                          })
++                        )}
++                      </tbody>
++                    </table>
++                  </div>
+                 </div>
+               </div>
+-            </div>
++            )}
+           </div>
+         )}
+ 
+@@ -3050,17 +3540,23 @@ export default function SchoolPortal({ params }: PageProps) {
+                     </div>
+                   </div>
+ 
+-                  <div className="form-group" style={{ flexDirection: "row", alignItems: "center", gap: "10px", margin: "14px 0" }}>
+-                    <input 
+-                      type="checkbox" 
+-                      id="cbc-check" 
+-                      checked={newExamIsNewCurriculum}
+-                      onChange={(e) => setNewExamIsNewCurriculum(e.target.checked)}
+-                    />
+-                    <label htmlFor="cbc-check" className="form-label" style={{ margin: 0, cursor: "pointer" }}>
+-                      New Curriculum CBC Exam (Grade Letters A-E)
+-                    </label>
+-                  </div>
++                  {school.schoolType === "COMBINED" ? (
++                    <div className="form-group" style={{ flexDirection: "row", alignItems: "center", gap: "10px", margin: "14px 0" }}>
++                      <input 
++                        type="checkbox" 
++                        id="cbc-check" 
++                        checked={newExamIsNewCurriculum}
++                        onChange={(e) => setNewExamIsNewCurriculum(e.target.checked)}
++                      />
++                      <label htmlFor="cbc-check" className="form-label" style={{ margin: 0, cursor: "pointer" }}>
++                        New Curriculum CBC Exam (Grade Letters A-E)
++                      </label>
++                    </div>
++                  ) : (
++                    <div style={{ background: "var(--primary-light)", border: "1px solid var(--primary-glow)", borderRadius: "6px", padding: "10px", margin: "14px 0", fontSize: "12px", color: "var(--foreground)" }}>
++                      <strong>Grading Standard:</strong> {school.schoolType === "PRIMARY" ? "Primary PLE Aggregates (1-9)" : "Secondary Lower Curriculum CBC (A-E)"}
++                    </div>
++                  )}
+ 
+                   <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Create Exam</button>
+                 </form>
+@@ -3123,12 +3619,14 @@ export default function SchoolPortal({ params }: PageProps) {
+                     value={selectedClassId} 
+                     onChange={(e) => {
+                       setSelectedClassId(e.target.value);
+-                      const filteredStreams = streams.filter(s => s.classId === e.target.value);
++                      const filteredStreams = currentUser?.role === "TEACHER"
++                        ? streams.filter(st => st.classId === e.target.value && teacherAssignments.some(ta => ta.teacherId === currentUser.id && ta.classId === e.target.value && ta.streamId === st.id))
++                        : streams.filter(s => s.classId === e.target.value);
+                       if (filteredStreams.length > 0) setSelectedStreamId(filteredStreams[0].id);
+                     }}
+                   >
+                     <option value="">-- Choose class --</option>
+-                    {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
++                    {teacherClasses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                   </select>
+                 </div>
+ 
+@@ -3136,7 +3634,7 @@ export default function SchoolPortal({ params }: PageProps) {
+                   <label className="form-label">3. Choose Stream</label>
+                   <select className="input-field" value={selectedStreamId} onChange={(e) => setSelectedStreamId(e.target.value)}>
+                     <option value="">-- Choose stream --</option>
+-                    {streams.filter(st => st.classId === selectedClassId).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
++                    {teacherStreams.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                   </select>
+                 </div>
+ 
+@@ -3144,7 +3642,7 @@ export default function SchoolPortal({ params }: PageProps) {
+                   <label className="form-label">4. Choose Subject</label>
+                   <select className="input-field" value={selectedSubjectId} onChange={(e) => setSelectedSubjectId(e.target.value)}>
+                     <option value="">-- Choose subject --</option>
+-                    {subjects.filter(sub => sub.classId === selectedClassId).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
++                    {teacherSubjectsFiltered.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                   </select>
+                 </div>
+               </div>
+@@ -3257,14 +3755,30 @@ export default function SchoolPortal({ params }: PageProps) {
+                   </select>
+                 </div>
+ 
++                <div style={{ margin: "14px 0" }}>
++                  <button 
++                    onClick={() => {
++                      setIsBulkReportMode(true);
++                      setSelectedReportStudent(null);
++                    }}
++                    className={`btn ${isBulkReportMode ? "btn-primary" : "btn-outline"}`}
++                    style={{ width: "100%", justifyContent: "center" }}
++                  >
++                    <Printer size={16} /> Bulk Print Class Reports
++                  </button>
++                </div>
++
+                 <h4 style={{ margin: "20px 0 10px" }}>Student List</h4>
+                 <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "300px", overflowY: "auto" }}>
+                   {students.filter(st => st.classId === selectedReportClassId).map(st => (
+                     <button 
+                       key={st.id}
+-                      onClick={() => setSelectedReportStudent(st)}
++                      onClick={() => {
++                        setSelectedReportStudent(st);
++                        setIsBulkReportMode(false);
++                      }}
+                       className="btn btn-outline"
+-                      style={{ justifyContent: "space-between", padding: "10px", width: "100%", textAlign: "left", borderColor: selectedReportStudent?.id === st.id ? "var(--primary)" : "var(--border)" }}
++                      style={{ justifyContent: "space-between", padding: "10px", width: "100%", textAlign: "left", borderColor: !isBulkReportMode && selectedReportStudent?.id === st.id ? "var(--primary)" : "var(--border)" }}
+                     >
+                       <span>{st.name}</span>
+                       <ChevronRight size={14} />
+@@ -3278,7 +3792,175 @@ export default function SchoolPortal({ params }: PageProps) {
+ 
+               {/* Preview Panel */}
+               <div className="card" style={{ gridColumn: "span 2" }}>
+-                {selectedReportStudent ? (
++                {isBulkReportMode ? (
++                  <div>
++                    {/* Header Controls */}
++                    <div className="flex justify-between align-center no-print" style={{ marginBottom: "24px", borderBottom: "1px solid var(--border)", paddingBottom: "16px" }}>
++                      <div>
++                        <h3>Bulk Print Preview</h3>
++                        <span style={{ fontSize: "12px", color: "#64748b" }}>
++                          Class: {classes.find(c => c.id === selectedReportClassId)?.name} • Total Students: {students.filter(st => st.classId === selectedReportClassId).length}
++                        </span>
++                      </div>
++                      <div className="flex gap-2">
++                        <button 
++                          onClick={() => {
++                            setIsBulkReportMode(false);
++                            const classSts = students.filter(st => st.classId === selectedReportClassId);
++                            if (classSts.length > 0) {
++                              setSelectedReportStudent(classSts[0]);
++                            }
++                          }}
++                          className="btn btn-outline"
++                        >
++                          Close Bulk Mode
++                        </button>
++                        <button onClick={triggerPrint} className="btn btn-primary">
++                          <Printer size={16} /> Print All Class Reports
++                        </button>
++                      </div>
++                    </div>
++
++                    {/* Bulk Reports Container */}
++                    <div className="bulk-printable-reports">
++                      {students.filter(st => st.classId === selectedReportClassId).map((st, index, arr) => {
++                        const isLast = index === arr.length - 1;
++                        return (
++                          <React.Fragment key={st.id}>
++                            <div className="bulk-report-card" style={{ background: "white", color: "black", borderColor: "#cbd5e1", padding: "40px", fontFamily: "Arial, sans-serif", marginBottom: "40px" }}>
++                              
++                              {/* School Heading */}
++                              <div style={{ textAlign: "center", borderBottom: school.reportBorderType === "solid" ? "1px solid black" : school.reportBorderType === "none" ? "none" : "3px double black", paddingBottom: "14px", marginBottom: "20px" }}>
++                                {school.reportShowBadge && (
++                                  <div style={{ display: "flex", justifyContent: "center", marginBottom: "10px" }}>
++                                    {school.logoUrl ? (
++                                      <img src={school.logoUrl} alt="Logo" style={{ width: `${school.reportLogoSize || 60}px`, height: `${school.reportLogoSize || 60}px`, objectFit: "contain" }} />
++                                    ) : (
++                                      <GraduationCap size={Math.round((school.reportLogoSize || 60) * 0.8)} color="var(--primary)" />
++                                    )}
++                                  </div>
++                                )}
++                                <h2 style={{ fontSize: "24px", margin: 0, textTransform: "uppercase", color: school.reportHeaderColor || "#1e3a8a" }}>{school.name}</h2>
++                                <p style={{ margin: "4px 0 0", fontSize: "12px", fontStyle: "italic" }}>
++                                  P.O. Box {school.poBox || "Kampala, Uganda"} • Tel: {school.contactPhone} • Email: {school.contactEmail}
++                                </p>
++                                {school.reportMotto && (
++                                  <p style={{ margin: "2px 0 0", fontSize: "11px", fontStyle: "italic", fontWeight: "bold", color: "#475569" }}>
++                                    Motto: "{school.reportMotto}"
++                                  </p>
++                                )}
++                                <h3 style={{ fontSize: "16px", margin: "10px 0 0", textTransform: "uppercase", textDecoration: "underline" }}>
++                                  {school.reportTitle || "OFFICIAL ACADEMIC REPORT CARD"}
++                                </h3>
++                              </div>
++
++                              {/* Student Meta details */}
++                              <div style={{ display: "flex", justifyContent: "space-between", gap: "20px", marginBottom: "20px", borderBottom: "1px solid #94a3b8", paddingBottom: "12px" }}>
++                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", fontSize: "13px", flex: 1 }}>
++                                  <div><strong>Student Name:</strong> {st.name}</div>
++                                  <div><strong>Class:</strong> {classes.find(c => c.id === st.classId)?.name}</div>
++                                  <div><strong>Student Number:</strong> {st.studentNumber}</div>
++                                  <div><strong>Academic Term:</strong> Term {selectedReportTerm} (2026)</div>
++                                  {school.reportShowResidency && (
++                                    <div><strong>Residency Type:</strong> {st.type}</div>
++                                  )}
++                                  <div><strong>Date Generated:</strong> {new Date().toLocaleDateString()}</div>
++                                </div>
++                                {school.reportShowStudentPhoto !== false && (
++                                  <div style={{ width: "75px", height: "80px", border: "1px solid #cbd5e1", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", background: "#f8fafc", flexShrink: 0 }}>
++                                    {st.photo ? (
++                                      <img src={st.photo} alt="Student" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
++                                    ) : (
++                                      <span style={{ fontSize: "9px", color: "#94a3b8", textAlign: "center" }}>No Photo</span>
++                                    )}
++                                  </div>
++                                )}
++                              </div>
++
++                              {/* Grades Table */}
++                              <h4 style={{ textTransform: "uppercase", fontSize: "14px", marginBottom: "8px" }}>Academic Marks Assessment</h4>
++                              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", marginBottom: "20px" }}>
++                                <thead>
++                                  <tr style={{ background: "#f1f5f9" }}>
++                                    <th style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "left" }}>Subject Title</th>
++                                    <th style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center" }}>Raw Mark (100)</th>
++                                    <th style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center" }}>Grade Column</th>
++                                    <th style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "left" }}>Teacher Comments</th>
++                                  </tr>
++                                </thead>
++                                <tbody>
++                                  {(() => {
++                                    const eotExam = exams.find(e => e.term === parseInt(selectedReportTerm));
++                                    if (!eotExam) return <tr><td colSpan={4} style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center", fontStyle: "italic" }}>No exams scheduled.</td></tr>;
++
++                                    const stMarks = marks.filter(m => m.studentId === st.id && m.examPaperId === eotExam.id);
++                                    if (stMarks.length === 0) return <tr><td colSpan={4} style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center", fontStyle: "italic" }}>No scores uploaded for this student yet.</td></tr>;
++
++                                    return stMarks.map(m => {
++                                      const sub = subjects.find(s => s.id === m.subjectId);
++                                      const isCBC = eotExam.isNewCurriculum;
++                                      
++                                      return (
++                                        <tr key={m.id}>
++                                          <td style={{ border: "1px solid #94a3b8", padding: "8px" }}>{sub?.name}</td>
++                                          <td style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center" }}>{m.score}%</td>
++                                          <td style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center", fontWeight: "bold" }}>
++                                            {isCBC ? `CBC: ${m.competencyGrade}` : `PLE: ${m.competencyGrade}`}
++                                          </td>
++                                          <td style={{ border: "1px solid #94a3b8", padding: "8px" }}>{m.comments}</td>
++                                        </tr>
++                                      );
++                                    });
++                                  })()}
++                                </tbody>
++                              </table>
++
++                              {/* PLE Summary if Primary */}
++                              {classes.find(c => c.id === st.classId)?.level === "PRIMARY" && (
++                                <div style={{ background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "12px", fontSize: "13px" }}>
++                                  {(() => {
++                                    const pleDetails = getPLEReportDetails(st.id);
++                                    if (!pleDetails) return <p style={{ fontStyle: "italic" }}>Report details unavailable.</p>;
++
++                                    return (
++                                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
++                                        <div><strong>UNEB PLE Aggregate (4 subjects):</strong> {pleDetails.aggregate}</div>
++                                        <div><strong>Final Division Level:</strong> Division {pleDetails.division}</div>
++                                      </div>
++                                    );
++                                  })()}
++                                </div>
++                              )}
++
++                              {/* CBC Info if Secondary */}
++                              {classes.find(c => c.id === st.classId)?.level === "SECONDARY" && school.reportShowRules && (
++                                <div style={{ background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "12px", fontSize: "12px", lineHeight: "1.4" }}>
++                                  <strong>CBC Grading Guideline:</strong> Grade A = Exceptional Competency, Grade B = Outstanding, Grade C = Satisfactory, Grade D = Basic, Grade E = Elementary.
++                                </div>
++                              )}
++
++                              {/* Signatures */}
++                              {school.reportShowSignatures && (
++                                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "40px", fontSize: "12px" }}>
++                                  <div style={{ borderTop: "1px solid black", width: "150px", textAlign: "center", paddingTop: "6px" }}>Class Teacher</div>
++                                  <div style={{ borderTop: "1px solid black", width: "150px", textAlign: "center", paddingTop: "6px" }}>Head Teacher</div>
++                                  <div style={{ borderTop: "1px solid black", width: "150px", textAlign: "center", paddingTop: "6px" }}>School Stamp</div>
++                                </div>
++                              )}
++
++                            </div>
++                            {!isLast && <div className="page-break" />}
++                          </React.Fragment>
++                        );
++                      })}
++                      {students.filter(st => st.classId === selectedReportClassId).length === 0 && (
++                        <div style={{ padding: "40px", textAlign: "center", color: "#64748b" }}>
++                          No students in this class to generate report cards.
++                        </div>
++                      )}
++                    </div>
++                  </div>
++                ) : selectedReportStudent ? (
+                   <div>
+                     {/* Header Controls */}
+                     <div className="flex justify-between align-center no-print" style={{ marginBottom: "24px", borderBottom: "1px solid var(--border)", paddingBottom: "16px" }}>
+@@ -5217,23 +5899,29 @@ export default function SchoolPortal({ params }: PageProps) {
+                 </div>
+               </div>
+ 
+-              <div className="form-group">
+-                <label className="form-label">Paste Students List (CSV/TSV Format)</label>
+-                <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "8px" }}>
+-                  Format: <code>Student Name, Student Number (Optional), Residency (DAY/BOARDING)</code><br/>
+-                  Example:<br/>
+-                  <code>Dimbuka Alvin,, DAY</code><br/>
+-                  <code>Namusoke Joy, GSS-STU-0010, BOARDING</code>
++              <div className="form-group" style={{ marginBottom: "20px" }}>
++                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
++                  <label className="form-label" style={{ margin: 0 }}>Select Excel Data File (.xlsx, .xls)</label>
++                  <button 
++                    type="button" 
++                    onClick={downloadStudentTemplate}
++                    className="btn btn-outline"
++                    style={{ padding: "4px 8px", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px", background: "#f8fafc" }}
++                  >
++                    ⬇ Download Excel Template
++                  </button>
+                 </div>
+-                <textarea 
++                <input 
++                  type="file" 
++                  accept=".xlsx, .xls"
+                   className="input-field" 
+-                  rows={8} 
+-                  placeholder="Paste student lines here..." 
+-                  value={bulkStudentText}
+-                  onChange={(e) => setBulkStudentText(e.target.value)}
++                  onChange={(e) => setStudentExcelFile(e.target.files?.[0] || null)}
+                   required
+-                  style={{ fontFamily: "monospace", fontSize: "12px", padding: "10px" }}
++                  style={{ padding: "8px" }}
+                 />
++                <div style={{ fontSize: "11px", color: "#64748b", marginTop: "8px", lineHeight: "1.4" }}>
++                  Please download the official template, input the details, and upload the completed workbook.
++                </div>
+               </div>
+ 
+               <div style={{ display: "flex", gap: "10px", marginTop: "24px" }}>
+@@ -5242,7 +5930,7 @@ export default function SchoolPortal({ params }: PageProps) {
+                   type="button" 
+                   onClick={() => {
+                     setShowBulkStudentModal(false);
+-                    setBulkStudentText("");
++                    setStudentExcelFile(null);
+                   }}
+                   className="btn btn-outline" 
+                   style={{ flex: 1 }}
+@@ -5262,23 +5950,29 @@ export default function SchoolPortal({ params }: PageProps) {
+             <h3 style={{ marginBottom: "16px", borderBottom: "1px solid var(--border)", paddingBottom: "10px" }}>Bulk Upload Staff</h3>
+             
+             <form onSubmit={handleBulkStaffUpload}>
+-              <div className="form-group">
+-                <label className="form-label">Paste Staff List (CSV/TSV Format)</label>
+-                <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "8px" }}>
+-                  Format: <code>Full Name, Email, Role (TEACHER/DOS/HEADTEACHER/DIRECTOR), Staff ID (Optional)</code><br/>
+-                  Example:<br/>
+-                  <code>Opio Peter, peter@school.ug, TEACHER</code><br/>
+-                  <code>Nakafeero Sylvia, sylvia@school.ug, DOS, GSS-STF-0012</code>
++              <div className="form-group" style={{ marginBottom: "20px" }}>
++                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
++                  <label className="form-label" style={{ margin: 0 }}>Select Excel Data File (.xlsx, .xls)</label>
++                  <button 
++                    type="button" 
++                    onClick={downloadStaffTemplate}
++                    className="btn btn-outline"
++                    style={{ padding: "4px 8px", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px", background: "#f8fafc" }}
++                  >
++                    ⬇ Download Excel Template
++                  </button>
+                 </div>
+-                <textarea 
++                <input 
++                  type="file" 
++                  accept=".xlsx, .xls"
+                   className="input-field" 
+-                  rows={8} 
+-                  placeholder="Paste staff lines here..." 
+-                  value={bulkStaffText}
+-                  onChange={(e) => setBulkStaffText(e.target.value)}
++                  onChange={(e) => setStaffExcelFile(e.target.files?.[0] || null)}
+                   required
+-                  style={{ fontFamily: "monospace", fontSize: "12px", padding: "10px" }}
++                  style={{ padding: "8px" }}
+                 />
++                <div style={{ fontSize: "11px", color: "#64748b", marginTop: "8px", lineHeight: "1.4" }}>
++                  Please download the official template, input the details, and upload the completed workbook.
++                </div>
+               </div>
+ 
+               <div style={{ display: "flex", gap: "10px", marginTop: "24px" }}>
+@@ -5287,7 +5981,7 @@ export default function SchoolPortal({ params }: PageProps) {
+                   type="button" 
+                   onClick={() => {
+                     setShowBulkStaffModal(false);
+-                    setBulkStaffText("");
++                    setStaffExcelFile(null);
+                   }}
+                   className="btn btn-outline" 
+                   style={{ flex: 1 }}

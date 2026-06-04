@@ -71,6 +71,7 @@ model User {
   createdAt    DateTime  @default(now())
   photo        String?
   staffNumber  String?
+  mustChangePassword Boolean @default(false)
   marksCreated Mark[]    @relation("MarkCreator")
   teacherSubjects TeacherSubject[]
 

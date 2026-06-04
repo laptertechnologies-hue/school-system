@@ -1,8 +1,10 @@
 "use client";
 import React, { useState, useEffect, use } from "react";
 import * as XLSX from "xlsx";
+import type { 
+  School, User, Class, Stream, Student, Subject, ExamPaper, Mark, Payment, FeeStructure, StudentPayment, Expense, GradeRange, TeacherSubject
+} from "../../../lib/types";
 import { 
-  School, User, Class, Stream, Student, Subject, ExamPaper, Mark, Payment, FeeStructure, StudentPayment, Expense, GradeRange, TeacherSubject,
   checkDatabaseConnection, getSchoolBySubdomain, getUsers, getClasses, getStreams, getStudents, getSubjects,
   getExamPapers, getMarks, getFeeStructures, getStudentPayments, getExpenses, getAttendance, authenticateUser,
   createClass, createStream, createUser, createStudent, createSubject, createExamPaper, addMark,
@@ -12,7 +14,8 @@ import {
   updateStudent, deleteStudent, updateUser, deleteUser, getGradeRanges, saveGradeRanges,
   getTeacherSubjects, createTeacherSubject, deleteTeacherSubject, resetUserPassword
 } from "../../../lib/services";
-import { Database, CreditCard, Building2, CheckCircle, MessageSquare, Sliders } from "lucide-react";
+
+import { Database, CreditCard, Building2, CheckCircle, MessageSquare, Sliders, User as UserIcon } from "lucide-react";
 import { 
   GraduationCap, 
   Users, 
@@ -94,6 +97,24 @@ export default function SchoolPortal({ params }: PageProps) {
   const [resetError, setResetError] = useState("");
   const [resetSuccess, setResetSuccess] = useState("");
   const [resetStep, setResetStep] = useState<0 | 1>(0);
+
+  // Force Password change states
+  const [forceNewPassword, setForceNewPassword] = useState("");
+  const [forceConfirmPassword, setForceConfirmPassword] = useState("");
+  const [forcePasswordError, setForcePasswordError] = useState("");
+  const [forcePasswordSuccess, setForcePasswordSuccess] = useState("");
+
+  // Logged-in profile edit states
+  const [profileEditName, setProfileEditName] = useState("");
+  const [profileEditPhoto, setProfileEditPhoto] = useState("");
+  const [profileNewPassword, setProfileNewPassword] = useState("");
+  const [profileConfirmPassword, setProfileConfirmPassword] = useState("");
+  const [profilePasswordError, setProfilePasswordError] = useState("");
+  const [profilePasswordSuccess, setProfilePasswordSuccess] = useState("");
+  const [profileDetailsSuccess, setProfileDetailsSuccess] = useState("");
+
+  // Administrative reset password states
+  const [adminResetPasswordVal, setAdminResetPasswordVal] = useState("");
 
   // Teacher assignments state
   const [teacherAssignments, setTeacherAssignments] = useState<TeacherSubject[]>([]);
@@ -823,6 +844,16 @@ export default function SchoolPortal({ params }: PageProps) {
     setEmail("");
     setPassword("");
   };
+
+  useEffect(() => {
+    if (currentUser) {
+      setProfileEditName(currentUser.name);
+      setProfileEditPhoto(currentUser.photo || "");
+    } else {
+      setProfileEditName("");
+      setProfileEditPhoto("");
+    }
+  }, [currentUser]);
 
   const handleFirstTimeSetup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2302,6 +2333,113 @@ export default function SchoolPortal({ params }: PageProps) {
     );
   }
 
+  // Force change password screen
+  if (currentUser && currentUser.mustChangePassword) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)", padding: "20px" }}>
+        {school?.themeColor && (
+          <style dangerouslySetInnerHTML={{ __html: `
+            :root {
+              --primary: ${school.themeColor} !important;
+              --primary-hover: ${school.themeColor}dd !important;
+              --primary-glow: ${school.themeColor}2e !important;
+            }
+          `}} />
+        )}
+        <div className="card animate-fade-in" style={{ width: "100%", maxWidth: "450px", background: "#1e293b", borderColor: "#334155", color: "white", padding: "30px", boxShadow: "var(--shadow-lg)" }}>
+          <div style={{ textAlign: "center", marginBottom: "24px" }}>
+            <div style={{ background: "rgba(245, 158, 11, 0.15)", padding: "16px", borderRadius: "50%", display: "inline-flex", justifyContent: "center", alignItems: "center", marginBottom: "16px" }}>
+              <Lock size={40} color="#f59e0b" />
+            </div>
+            <h2>Change Your Password</h2>
+            <p style={{ fontSize: "13px", color: "#9ca3af", marginTop: "8px" }}>
+              For security reasons, you are required to change your password after your first login or when your password is reset by the administrator.
+            </p>
+          </div>
+
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            setForcePasswordError("");
+            setForcePasswordSuccess("");
+            if (forceNewPassword.length < 4) {
+              setForcePasswordError("Password must be at least 4 characters long.");
+              return;
+            }
+            if (forceNewPassword !== forceConfirmPassword) {
+              setForcePasswordError("New passwords do not match.");
+              return;
+            }
+            try {
+              const resetDone = await resetUserPassword(school!.id, currentUser.email, forceNewPassword);
+              if (resetDone) {
+                await updateUser(currentUser.id, { mustChangePassword: false });
+                setForcePasswordSuccess("Password updated successfully! Redirecting...");
+                setTimeout(() => {
+                  const updatedUser = { ...currentUser, mustChangePassword: false };
+                  setCurrentUser(updatedUser);
+                }, 1500);
+              } else {
+                setForcePasswordError("Failed to update password. Please try again.");
+              }
+            } catch (err) {
+              setForcePasswordError("An error occurred during password change.");
+            }
+          }}>
+            {forcePasswordError && (
+              <div style={{ background: "rgba(244, 63, 94, 0.15)", border: "1px solid rgba(244, 63, 94, 0.3)", borderRadius: "8px", padding: "12px", color: "var(--danger)", fontSize: "13px", marginBottom: "20px" }}>
+                {forcePasswordError}
+              </div>
+            )}
+            {forcePasswordSuccess && (
+              <div style={{ background: "rgba(16, 185, 129, 0.15)", border: "1px solid rgba(16, 185, 129, 0.3)", borderRadius: "8px", padding: "12px", color: "var(--success)", fontSize: "13px", marginBottom: "20px" }}>
+                {forcePasswordSuccess}
+              </div>
+            )}
+
+            <div className="form-group" style={{ marginBottom: "16px", textAlign: "left" }}>
+              <label className="form-label" style={{ color: "#d1d5db" }}>New Password</label>
+              <input 
+                type="password" 
+                className="input-field" 
+                placeholder="Enter new password"
+                value={forceNewPassword} 
+                onChange={(e) => setForceNewPassword(e.target.value)} 
+                required 
+                style={{ background: "#0f172a", border: "1px solid #334155", color: "white" }}
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: "24px", textAlign: "left" }}>
+              <label className="form-label" style={{ color: "#d1d5db" }}>Confirm New Password</label>
+              <input 
+                type="password" 
+                className="input-field" 
+                placeholder="Confirm new password"
+                value={forceConfirmPassword} 
+                onChange={(e) => setForceConfirmPassword(e.target.value)} 
+                required 
+                style={{ background: "#0f172a", border: "1px solid #334155", color: "white" }}
+              />
+            </div>
+
+            <button type="submit" className="btn btn-primary" style={{ width: "100%", justifyContent: "center" }}>
+              Change Password & Continue
+            </button>
+            
+            <button 
+              type="button" 
+              onClick={handleLogout} 
+              className="btn btn-outline" 
+              style={{ width: "100%", justifyContent: "center", marginTop: "10px", color: "#9ca3af", borderColor: "#4b5563" }}
+            >
+              Cancel & Log Out
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
 
   // Filtered lists for Marks Upload if teacher
   const teacherClasses = currentUser?.role === "TEACHER"
@@ -2572,6 +2710,16 @@ export default function SchoolPortal({ params }: PageProps) {
               <CreditCard size={18} /> Subscription & Billing
             </button>
           )}
+          {/* My Profile Settings (Visible to all logged in users) */}
+          {currentUser && (
+            <button 
+              onClick={() => setActiveTab("profile")} 
+              className={`btn ${activeTab === "profile" ? "btn-primary" : "btn-outline"}`}
+              style={{ justifyContent: "flex-start", border: "none", background: activeTab === "profile" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "profile" ? 1 : 0.75, transition: "all 0.2s ease" }}
+            >
+              <UserIcon size={18} /> My Profile Settings
+            </button>
+          )}
         </nav>
 
         {/* User logout section */}
@@ -2618,6 +2766,196 @@ export default function SchoolPortal({ params }: PageProps) {
         {/* Main Workspace */}
         <main style={{ flex: 1, padding: "40px" }} className="main-workspace animate-fade-in">
         
+        {/* TAB: MY PROFILE SETTINGS */}
+        {activeTab === "profile" && currentUser && (
+          <div className="tab-content-anim">
+            <h2 style={{ marginBottom: "6px" }}>My Profile Settings</h2>
+            <p style={{ color: "#64748b", marginBottom: "30px" }}>Manage your account security, personal display details, and profile photo.</p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "24px" }} className="flex-mobile-col">
+              
+              {/* Profile Card & Info */}
+              <div className="card text-center" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "fit-content" }}>
+                <h4 style={{ marginBottom: "16px" }}>Current Profile Card</h4>
+                
+                <div style={{ width: "120px", height: "120px", borderRadius: "50%", background: "#f8fafc", border: "1px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", marginBottom: "16px", position: "relative" }}>
+                  {profileEditPhoto ? (
+                    <img src={profileEditPhoto} alt={currentUser.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : (
+                    <UserIcon size={64} color="#94a3b8" />
+                  )}
+                </div>
+
+                <h3 style={{ color: "#0f172a", marginBottom: "4px" }}>{currentUser.name}</h3>
+                <span style={{ fontSize: "12px", color: "var(--primary)", fontWeight: 700, textTransform: "uppercase" }}>{currentUser.role}</span>
+                
+                <div style={{ marginTop: "24px", padding: "16px", background: "#f8fafc", border: "1px solid var(--border)", borderRadius: "8px", width: "100%", textAlign: "left" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "13px" }}>
+                    <div><strong>Email Address:</strong> <code style={{ wordBreak: "break-all" }}>{currentUser.email}</code></div>
+                    {currentUser.staffNumber && (
+                      <div><strong>Staff Number:</strong> <code>{currentUser.staffNumber}</code></div>
+                    )}
+                    <div><strong>Joined Date:</strong> {currentUser.createdAt ? new Date(currentUser.createdAt).toLocaleDateString() : "N/A"}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Edit Panel */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                
+                {/* 1. Personal Details Form */}
+                <div className="card">
+                  <h4 style={{ marginBottom: "16px" }}>Edit Personal Information</h4>
+                  <form onSubmit={async (e) => {
+                    e.preventDefault();
+                    setProfileDetailsSuccess("");
+                    try {
+                      const updated = await updateUser(currentUser.id, {
+                        name: profileEditName,
+                        photo: profileEditPhoto || null
+                      });
+                      setCurrentUser({ ...currentUser, name: updated.name, photo: updated.photo });
+                      await loadSchoolData(school!.id);
+                      setProfileDetailsSuccess("Personal details updated successfully!");
+                      setTimeout(() => setProfileDetailsSuccess(""), 3000);
+                    } catch (err) {
+                      alert("Failed to update profile details.");
+                    }
+                  }}>
+                    {profileDetailsSuccess && (
+                      <div style={{ background: "rgba(16, 185, 129, 0.15)", border: "1px solid rgba(16, 185, 129, 0.3)", borderRadius: "8px", padding: "12px", color: "var(--success)", fontSize: "13px", marginBottom: "20px" }}>
+                        {profileDetailsSuccess}
+                      </div>
+                    )}
+
+                    <div className="form-group" style={{ marginBottom: "16px" }}>
+                      <label className="form-label">Full Name</label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        value={profileEditName}
+                        onChange={(e) => setProfileEditName(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: "20px" }}>
+                      <label className="form-label">Profile Photo (Portrait)</label>
+                      <input 
+                        type="file" 
+                        accept="image/*"
+                        className="input-field" 
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            if (file.size > 1024 * 1024) {
+                              alert("Logo image should be less than 1MB to store directly.");
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setProfileEditPhoto(reader.result as string);
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        style={{ padding: "8px" }}
+                      />
+                      {profileEditPhoto && (
+                        <button 
+                          type="button" 
+                          onClick={() => setProfileEditPhoto("")}
+                          className="btn btn-outline"
+                          style={{ padding: "4px 8px", fontSize: "11px", marginTop: "6px", color: "var(--danger)", borderColor: "var(--danger)" }}
+                        >
+                          Remove Photo
+                        </button>
+                      )}
+                    </div>
+
+                    <button type="submit" className="btn btn-primary" style={{ minWidth: "150px" }}>
+                      Save Details
+                    </button>
+                  </form>
+                </div>
+
+                {/* 2. Change Password Form */}
+                <div className="card">
+                  <h4 style={{ marginBottom: "16px" }}>Change Account Password</h4>
+                  <form onSubmit={async (e) => {
+                    e.preventDefault();
+                    setProfilePasswordError("");
+                    setProfilePasswordSuccess("");
+                    if (profileNewPassword.length < 4) {
+                      setProfilePasswordError("Password must be at least 4 characters long.");
+                      return;
+                    }
+                    if (profileNewPassword !== profileConfirmPassword) {
+                      setProfilePasswordError("New passwords do not match.");
+                      return;
+                    }
+                    try {
+                      const success = await resetUserPassword(school!.id, currentUser.email, profileNewPassword);
+                      if (success) {
+                        setProfilePasswordSuccess("Password changed successfully!");
+                        setProfileNewPassword("");
+                        setProfileConfirmPassword("");
+                        setTimeout(() => setProfilePasswordSuccess(""), 3000);
+                      } else {
+                        setProfilePasswordError("Failed to update password.");
+                      }
+                    } catch (err) {
+                      setProfilePasswordError("An error occurred while changing password.");
+                    }
+                  }}>
+                    {profilePasswordError && (
+                      <div style={{ background: "rgba(244, 63, 94, 0.15)", border: "1px solid rgba(244, 63, 94, 0.3)", borderRadius: "8px", padding: "12px", color: "var(--danger)", fontSize: "13px", marginBottom: "20px" }}>
+                        {profilePasswordError}
+                      </div>
+                    )}
+                    {profilePasswordSuccess && (
+                      <div style={{ background: "rgba(16, 185, 129, 0.15)", border: "1px solid rgba(16, 185, 129, 0.3)", borderRadius: "8px", padding: "12px", color: "var(--success)", fontSize: "13px", marginBottom: "20px" }}>
+                        {profilePasswordSuccess}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-2" style={{ marginBottom: "20px" }}>
+                      <div className="form-group">
+                        <label className="form-label">New Password</label>
+                        <input 
+                          type="password" 
+                          placeholder="At least 4 characters"
+                          className="input-field" 
+                          value={profileNewPassword}
+                          onChange={(e) => setProfileNewPassword(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Confirm New Password</label>
+                        <input 
+                          type="password" 
+                          placeholder="Confirm new password"
+                          className="input-field" 
+                          value={profileConfirmPassword}
+                          onChange={(e) => setProfileConfirmPassword(e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <button type="submit" className="btn btn-primary" style={{ minWidth: "150px" }}>
+                      Change Password
+                    </button>
+                  </form>
+                </div>
+
+              </div>
+
+            </div>
+          </div>
+        )}
+
         {/* TAB 1: OVERVIEW */}
         {activeTab === "overview" && (
           <div>
@@ -6615,6 +6953,43 @@ export default function SchoolPortal({ params }: PageProps) {
                   }}
                   style={{ padding: "8px" }}
                 />
+              </div>
+
+              <div style={{ height: "1px", background: "#e2e8f0", margin: "20px 0" }}></div>
+              <h4 style={{ marginBottom: "12px", fontSize: "14px", color: "#0f172a" }}>Administrative Password Controls</h4>
+              <div className="form-group" style={{ marginBottom: "16px" }}>
+                <label className="form-label">Set New Password / Reset Password</label>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <input 
+                    type="password" 
+                    placeholder="Enter new password" 
+                    className="input-field" 
+                    value={adminResetPasswordVal}
+                    onChange={(e) => setAdminResetPasswordVal(e.target.value)}
+                    style={{ flex: 1 }}
+                  />
+                  <button 
+                    type="button" 
+                    onClick={async () => {
+                      if (!adminResetPasswordVal || adminResetPasswordVal.length < 4) {
+                        alert("Please enter a password with at least 4 characters.");
+                        return;
+                      }
+                      const success = await resetUserPassword(school!.id, selectedEditStaff.email, adminResetPasswordVal);
+                      if (success) {
+                        await updateUser(selectedEditStaff.id, { mustChangePassword: true });
+                        alert(`Password for ${selectedEditStaff.name} reset successfully! User will be forced to change it on their next login.`);
+                        setAdminResetPasswordVal("");
+                      } else {
+                        alert("Failed to reset password.");
+                      }
+                    }}
+                    className="btn btn-outline"
+                    style={{ color: "var(--danger)", borderColor: "var(--danger)", padding: "8px 16px" }}
+                  >
+                    Reset
+                  </button>
+                </div>
               </div>
 
               <div style={{ display: "flex", gap: "10px", marginTop: "24px" }}>

@@ -5,184 +5,44 @@ import { prisma } from "./db";
 import fs from "fs";
 import path from "path";
 
-export interface School {
-  id: string;
-  name: string;
-  subdomain: string;
-  packageType: "BASIC" | "PREMIUM";
-  status: "PENDING" | "ACTIVE" | "INACTIVE";
-  schoolType: "PRIMARY" | "SECONDARY" | "COMBINED";
-  studentRange: string;
-  contactEmail: string;
-  contactPhone: string;
-  createdAt: Date;
-  expiresAt?: Date | null;
-  logoUrl?: string | null;
-  poBox?: string | null;
-  headTeacher?: string | null;
-  deputyHeadTeacher?: string | null;
-  director?: string | null;
-  themeColor?: string | null;
-  reportTitle?: string | null;
-  reportMotto?: string | null;
-  reportShowBadge?: boolean;
-  reportShowResidency?: boolean;
-  reportShowSignatures?: boolean;
-  reportShowRules?: boolean;
-  reportLogoSize?: number | null;
-  reportShowStudentPhoto?: boolean | null;
-  reportHeaderColor?: string | null;
-  reportBorderType?: string | null;
-  reportNextTermFeesDay?: number | null;
-  reportNextTermFeesBoarding?: number | null;
-  cbU1Max?: number | null;
-  cbU2Max?: number | null;
-  cbEtMax?: number | null;
-  cbHpgMax?: number | null;
-  cbU1Active?: boolean | null;
-  cbU2Active?: boolean | null;
-  cbEtActive?: boolean | null;
-  cbHpgActive?: boolean | null;
-}
+// Import all shared types from types.ts (neutral file, no "use server")
+import type {
+  School,
+  User,
+  Class,
+  Stream,
+  Student,
+  Subject,
+  TeacherSubject,
+  ExamPaper,
+  Mark,
+  GradeRange,
+  Payment,
+  FeeStructure,
+  StudentPayment,
+  Expense,
+  Attendance
+} from "./types";
 
-export interface User {
-  id: string;
-  schoolId: string;
-  name: string;
-  email: string;
-  passwordHash: string;
-  role: "ADMIN" | "HEADTEACHER" | "DIRECTOR" | "DOS" | "TEACHER";
-  createdAt: Date;
-  photo?: string | null;
-  staffNumber?: string | null;
-}
+// Re-export all types so consumers can import from either "services" or "types"
+export type {
+  School,
+  User,
+  Class,
+  Stream,
+  Student,
+  Subject,
+  TeacherSubject,
+  ExamPaper,
+  Mark,
+  GradeRange,
+  Payment,
+  FeeStructure,
+  StudentPayment,
+  Expense,
+  Attendance
+};
 
-export interface Class {
-  id: string;
-  schoolId: string;
-  name: string;
-  level: "PRIMARY" | "SECONDARY";
-}
-
-export interface Stream {
-  id: string;
-  classId: string;
-  name: string;
-}
-
-export interface Student {
-  id: string;
-  schoolId: string;
-  classId: string;
-  streamId: string;
-  name: string;
-  studentNumber: string;
-  type: "DAY" | "BOARDING";
-  photo?: string | null;
-  lin?: string | null;
-}
-
-export interface Subject {
-  id: string;
-  schoolId: string;
-  classId: string;
-  name: string;
-  code?: string;
-}
-
-export interface TeacherSubject {
-  id: string;
-  teacherId: string;
-  subjectId: string;
-  classId: string;
-  streamId: string;
-}
-
-export interface ExamPaper {
-  id: string;
-  schoolId: string;
-  term: number;
-  year: number;
-  name: string;
-  maxMarks: number;
-  isNewCurriculum: boolean;
-}
-
-export interface Mark {
-  id: string;
-  studentId: string;
-  examPaperId: string;
-  subjectId: string;
-  score: number;
-  competencyGrade?: string;
-  comments?: string;
-  createdAt: Date;
-  createdById: string;
-  u1?: number | null;
-  u2?: number | null;
-  u3?: number | null;
-  hpg?: number | null;
-  eoy?: number | null;
-}
-
-export interface GradeRange {
-  id: string;
-  schoolId: string;
-  systemType: "PRIMARY" | "SECONDARY";
-  grade: string;
-  minMark: number;
-  maxMark: number;
-  achievementLevel: string;
-  descriptor: string;
-}
-
-export interface Payment {
-  id: string;
-  schoolId: string;
-  amount: number;
-  method: string;
-  status: string;
-  date: Date;
-  txRef?: string;
-}
-
-export interface FeeStructure {
-  id: string;
-  schoolId: string;
-  classId: string;
-  term: number;
-  year: number;
-  tuitionAmount: number;
-  boardingAmount: number;
-}
-
-export interface StudentPayment {
-  id: string;
-  studentId: string;
-  term: number;
-  year: number;
-  amountPaid: number;
-  balance: number;
-  date: Date;
-}
-
-export interface Expense {
-  id: string;
-  schoolId: string;
-  category: string;
-  amount: number;
-  description: string;
-  date: Date;
-}
-
-export interface Attendance {
-  id: string;
-  studentId: string;
-  date: Date;
-  status: "PRESENT" | "ABSENT" | "SICK";
-  term: number;
-  year: number;
-}
 
 const MOCK_DB_PATH = path.join(process.cwd(), "prisma", "mock_db.json");
 
@@ -547,6 +407,7 @@ export async function createUser(data: Omit<User, "id" | "createdAt">): Promise<
           role: data.role,
           photo: data.photo || null,
           staffNumber: data.staffNumber || null,
+          mustChangePassword: data.mustChangePassword ?? true,
         },
       })) as User;
       return { success: true, data: serialize(created) };
@@ -562,6 +423,7 @@ export async function createUser(data: Omit<User, "id" | "createdAt">): Promise<
       ...data,
       id: "user-" + uuid(),
       createdAt: new Date(),
+      mustChangePassword: data.mustChangePassword ?? true,
     };
 
     db.users.push(newUser);

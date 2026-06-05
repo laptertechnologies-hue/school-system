@@ -208,7 +208,7 @@ export default function MarketingPage() {
             <img 
               src="/logo-full.png" 
               alt="SchoolPro Uganda" 
-              style={{ height: "64px", width: "auto", objectFit: "contain" }} 
+              style={{ height: "72px", width: "auto", objectFit: "contain" }} 
             />
           </div>
           <div className="flex align-center gap-2 flex-mobile-col">

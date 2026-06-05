@@ -746,6 +746,10 @@ export default function MarketingPage() {
         <div className="container">
           <p>© 2026 SchoolPro Uganda. All rights reserved.</p>
           <p style={{ marginTop: "8px", fontSize: "12px" }}>Providing modern grading software for UNEB PLE and the new CBC curriculum.</p>
+          <div style={{ marginTop: "16px", display: "flex", justifyContent: "center", gap: "24px", fontSize: "13px", color: "var(--primary)", fontWeight: 600 }}>
+            <span>📞 Phone: <a href="tel:0763821042" style={{ color: "inherit", textDecoration: "none" }}>0763821042</a></span>
+            <span>✉️ Email: <a href="mailto:laptertechnoloies@gmail.com" style={{ color: "inherit", textDecoration: "none" }}>laptertechnoloies@gmail.com</a></span>
+          </div>
         </div>
       </footer>
     </div>

@@ -2,8 +2,13 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "SchoolPro Uganda | School Management System for Primary & Secondary Schools",
-  description: "Purpose-built school management software for Ugandan primary and secondary schools. Generate PLE & CBC report cards, manage finances, track tuition payments — all in one place.",
+  title: "SchoolPro Uganda | #1 School Management System & Report Card Generator",
+  description: "Transform your school operations with Uganda's leading school software. Generate UNEB PLE & NLSC Competency-Based (CBC) report cards instantly, track school fees payments, manage staff accounts, and streamline parent communication. Get started for free today!",
+  icons: {
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/logo.png",
+  },
   keywords: [
     "school management system Uganda",
     "PLE report cards Uganda",
@@ -14,7 +19,8 @@ export const metadata: Metadata = {
     "UNEB PLE grading system",
     "lower secondary curriculum CBC",
     "school fees management Uganda",
-    "SchoolPro Uganda"
+    "SchoolPro Uganda",
+    "competency based assessment software"
   ],
   authors: [{ name: "Lapter Technologies", url: "https://portal.laptertech.store" }],
   creator: "Lapter Technologies",
@@ -27,8 +33,8 @@ export const metadata: Metadata = {
     google: "B-3NHVG-ZJQ7AHtCzKVxVIGPTR1qcacEtikgxGOapZs",
   },
   openGraph: {
-    title: "SchoolPro Uganda | School Management System",
-    description: "Generate PLE & CBC report cards, manage school finances, and track tuition payments — purpose-built for Ugandan schools.",
+    title: "SchoolPro Uganda | #1 School Management System & Report Card Generator",
+    description: "Transform your school operations with Uganda's leading school software. Generate PLE & NLSC CBC report cards instantly, track fees, and streamline administration.",
     url: "https://portal.laptertech.store",
     siteName: "SchoolPro Uganda",
     locale: "en_UG",
@@ -36,8 +42,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "SchoolPro Uganda | School Management System",
-    description: "Generate PLE & CBC report cards, manage school finances, and track tuition payments — purpose-built for Ugandan schools.",
+    title: "SchoolPro Uganda | #1 School Management System & Report Card Generator",
+    description: "Transform your school operations with Uganda's leading school software. Generate PLE & NLSC CBC report cards instantly, track fees, and streamline administration.",
     creator: "@laptertech",
   },
   robots: {

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import { getSchoolBySubdomain } from "../../../lib/services";
+
 // Dynamic per-school SEO using generateMetadata
 export async function generateMetadata({
   params,
@@ -17,9 +19,24 @@ export async function generateMetadata({
         .join(" ")
     : "School";
 
+  let iconUrl = "/favicon.png";
+  try {
+    const school = await getSchoolBySubdomain(subdomain);
+    if (school && school.logoUrl && school.name !== "DB_ERROR_INDICATOR") {
+      iconUrl = school.logoUrl;
+    }
+  } catch (err) {
+    console.error("Error fetching school logo for metadata icons:", err);
+  }
+
   return {
     title: `${schoolName} | School Portal — SchoolPro Uganda`,
     description: `Access the ${schoolName} school management portal. View report cards, academic results, fee statements and staff dashboards powered by SchoolPro Uganda.`,
+    icons: {
+      icon: iconUrl,
+      shortcut: "/favicon.png",
+      apple: iconUrl,
+    },
     robots: {
       // School portals are private — don't index individual school subpages
       index: false,

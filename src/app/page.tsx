@@ -204,14 +204,12 @@ export default function MarketingPage() {
       {/* Navigation Header */}
       <header style={{ padding: "20px 0", borderBottom: "1px solid #e2e8f0", backgroundColor: "#ffffff" }}>
         <div className="container flex justify-between align-center flex-mobile-col gap-2">
-          <div className="flex align-center gap-2">
-            <div style={{ background: "var(--primary)", padding: "10px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Award size={24} color="white" />
-            </div>
-            <div>
-              <h2 style={{ fontFamily: "Outfit", color: "#0f172a", fontSize: "22px", fontWeight: 800 }}>School<span style={{ color: "var(--primary)" }}>Pro</span></h2>
-              <span style={{ fontSize: "10px", letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--primary)", fontWeight: 700 }}>Uganda Edition</span>
-            </div>
+          <div className="flex align-center gap-2" style={{ cursor: "pointer" }} onClick={() => { setActiveTab("features"); setRegisteredSchool(null); }}>
+            <img 
+              src="/logo-full.png" 
+              alt="SchoolPro Uganda" 
+              style={{ height: "48px", width: "auto", objectFit: "contain" }} 
+            />
           </div>
           <div className="flex align-center gap-2 flex-mobile-col">
             <nav className="flex gap-2 flex-wrap justify-center">

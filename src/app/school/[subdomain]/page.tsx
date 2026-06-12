@@ -6631,7 +6631,7 @@ export default function SchoolPortal({ params }: PageProps) {
               {/* Income & Expenditure Statement */}
               <div className="card">
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px", alignItems: "center" }}>
-                  <h4 style={{ margin: 0 }}>ðŸ“Š Income & Expenditure Statement</h4>
+                  <h4 style={{ margin: 0 }}>Income & Expenditure Statement</h4>
                   <button className="btn btn-outline" style={{ fontSize: "11px", padding: "4px 10px" }} onClick={() => printReport("report-income-expenditure")}>
                     <Printer size={13} /> Print
                   </button>
@@ -6665,7 +6665,7 @@ export default function SchoolPortal({ params }: PageProps) {
               {/* Fee Collection Summary */}
               <div className="card">
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px", alignItems: "center" }}>
-                  <h4 style={{ margin: 0 }}>ðŸ§¾ Fee Collection Summary</h4>
+                  <h4 style={{ margin: 0 }}>Fee Collection Summary</h4>
                   <button className="btn btn-outline" style={{ fontSize: "11px", padding: "4px 10px" }} onClick={() => printReport("report-fee-collection")}>
                     <Printer size={13} /> Print
                   </button>
@@ -6711,7 +6711,7 @@ export default function SchoolPortal({ params }: PageProps) {
               {/* Outstanding Balances / Debtors Report */}
               <div className="card">
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px", alignItems: "center" }}>
-                  <h4 style={{ margin: 0 }}>âš ï¸ Debtors / Outstanding Balances Report</h4>
+                  <h4 style={{ margin: 0 }}>Debtors / Outstanding Balances Report</h4>
                   <button className="btn btn-outline" style={{ fontSize: "11px", padding: "4px 10px" }} onClick={() => printReport("report-debtors")}>
                     <Printer size={13} /> Print
                   </button>
@@ -6758,7 +6758,7 @@ export default function SchoolPortal({ params }: PageProps) {
               {/* Expense Breakdown */}
               <div className="card">
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px", alignItems: "center" }}>
-                  <h4 style={{ margin: 0 }}>ðŸ“‰ Expense Breakdown Report</h4>
+                  <h4 style={{ margin: 0 }}>Expense Breakdown Report</h4>
                   <button className="btn btn-outline" style={{ fontSize: "11px", padding: "4px 10px" }} onClick={() => printReport("report-expenses")}>
                     <Printer size={13} /> Print
                   </button>

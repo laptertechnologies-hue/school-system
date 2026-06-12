@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import React, { useState, useEffect, use } from "react";
 import * as XLSX from "xlsx";
 import type { 
@@ -271,6 +271,15 @@ export default function SchoolPortal({ params }: PageProps) {
   const [finFilterYear, setFinFilterYear] = useState(new Date().getFullYear().toString());
   const [finFilterClassId, setFinFilterClassId] = useState("");
   const [spTxFilter, setSpTxFilter] = useState<"ALL" | "MATCHED" | "UNMATCHED">("ALL");
+
+  // SchoolPay Auto-Import State
+  const [showAutoImportModal, setShowAutoImportModal] = useState(false);
+  const [autoImportTx, setAutoImportTx] = useState<SchoolPayTransaction | null>(null);
+  const [autoImportClassId, setAutoImportClassId] = useState("");
+  const [autoImportStreamId, setAutoImportStreamId] = useState("");
+  const [autoImportType, setAutoImportType] = useState<"DAY" | "BOARDING">("DAY");
+  const [autoImportTerm, setAutoImportTerm] = useState("1");
+  const [autoImportYear, setAutoImportYear] = useState(new Date().getFullYear().toString());
 
   const [expCategory, setExpCategory] = useState("Salaries");
   const [expAmount, setExpAmount] = useState("");
@@ -1606,18 +1615,70 @@ export default function SchoolPortal({ params }: PageProps) {
       });
       const data = await res.json();
       if (data.success) {
-        setSpSyncMsg(`âœ… Sync complete: ${data.result?.importedCount ?? 0} new transaction(s) imported.`);
+        setSpSyncMsg(`✅ Sync complete: ${data.result?.importedCount ?? 0} new transaction(s) imported.`);
         if (data.transactions) setSchoolPayTransactions(data.transactions);
         // Refresh student payments
         const spay = await getStudentPayments(school.id);
         setStudentPayments(spay);
       } else {
-        setSpSyncMsg(`âŒ ${data.error || "Sync failed. Check credentials."}`);
+        setSpSyncMsg(`❌ ${data.error || "Sync failed. Check credentials."}`);
       }
     } catch (err) {
-      setSpSyncMsg("âŒ Network error. Try again.");
+      setSpSyncMsg("❌ Network error. Try again.");
     } finally {
       setSpSyncing(false);
+    }
+  };
+
+  // Auto-import Student from SchoolPay Transaction
+  const handleAutoImportStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!school || !autoImportTx || !autoImportClassId || !autoImportStreamId) return;
+
+    try {
+      // 1. Create the student
+      const nameParts = autoImportTx.studentName.split(" ");
+      const newStudent = await createStudent({
+        schoolId: school.id,
+        classId: autoImportClassId,
+        streamId: autoImportStreamId,
+        name: autoImportTx.studentName,
+        type: autoImportType,
+        studentPaymentCode: autoImportTx.studentPaymentCode || "",
+        studentNumber: `STU-${Date.now().toString(36).toUpperCase()}`
+      });
+
+      // 2. Refresh students so we have the new ID
+      const updatedStudents = await getStudents(school.id);
+      setStudents(updatedStudents);
+      const matchedStudent = updatedStudents.find(s => s.studentPaymentCode === autoImportTx.studentPaymentCode);
+
+      if (matchedStudent) {
+        // 3. Record the payment and automatically reconcile
+        await recordStudentPayment({
+          studentId: matchedStudent.id,
+          term: parseInt(autoImportTerm),
+          year: parseInt(autoImportYear),
+          amountPaid: autoImportTx.amount,
+          balance: 0, // Simplified for auto-import, could be recalculated
+          paymentMethod: "SCHOOL_PAY",
+          receiptNumber: autoImportTx.receiptNumber,
+          notes: `Auto-imported and matched from SchoolPay transaction`,
+        });
+
+        // 4. Refresh data
+        setStudentPayments(await getStudentPayments(school.id));
+        setSchoolPayTransactions(await getSchoolPayTransactions(school.id));
+        alert(`Successfully imported ${autoImportTx.studentName} and recorded their payment of ${autoImportTx.amount.toLocaleString()} UGX!`);
+      } else {
+        alert("Student created, but there was an error matching the transaction.");
+      }
+
+      setShowAutoImportModal(false);
+      setAutoImportTx(null);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to auto-import student.");
     }
   };
 
@@ -6464,6 +6525,19 @@ export default function SchoolPortal({ params }: PageProps) {
                               : (
                                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                                   <span className="badge badge-danger">Unmatched</span>
+                                  <button
+                                    onClick={() => {
+                                      setAutoImportTx(tx);
+                                      setAutoImportClassId(classes[0]?.id || "");
+                                      setAutoImportStreamId(streams[0]?.id || "");
+                                      setShowAutoImportModal(true);
+                                    }}
+                                    className="btn btn-outline"
+                                    style={{ fontSize: "10px", padding: "2px 6px", borderColor: "var(--primary)", color: "var(--primary)", display: "flex", alignItems: "center", gap: "4px" }}
+                                    title="Add this student to the system and record payment"
+                                  >
+                                    <PlusCircle size={12} /> Import
+                                  </button>
                                   <select
                                     className="input-field"
                                     style={{ fontSize: "10px", padding: "2px 4px", width: "120px", height: "auto" }}
@@ -8101,6 +8175,86 @@ export default function SchoolPortal({ params }: PageProps) {
                   onClick={() => {
                     setShowBulkStaffModal(false);
                     setStaffExcelFile(null);
+                  }}
+                  className="btn btn-outline" 
+                  style={{ flex: 1 }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Auto-Import Student Modal */}
+      {showAutoImportModal && autoImportTx && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: "500px" }}>
+            <h3 style={{ marginBottom: "8px" }}>Import New Student</h3>
+            <p style={{ color: "#64748b", marginBottom: "20px", fontSize: "13px" }}>
+              Creating a profile for <strong>{autoImportTx.studentName}</strong> based on their SchoolPay transaction. This will automatically record their payment of <strong>{autoImportTx.amount.toLocaleString()} UGX</strong>.
+            </p>
+            <form onSubmit={handleAutoImportStudent}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
+                <div className="form-group">
+                  <label className="form-label">Reported Class</label>
+                  <input type="text" className="input-field" value={autoImportTx.studentClass || "Unknown"} disabled style={{ background: "#f8fafc" }} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Payment Code</label>
+                  <input type="text" className="input-field" value={autoImportTx.studentPaymentCode || ""} disabled style={{ background: "#f8fafc" }} />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div className="form-group">
+                  <label className="form-label">Assign Class</label>
+                  <select className="input-field" value={autoImportClassId} onChange={e => { setAutoImportClassId(e.target.value); const strms = streams.filter(s => s.classId === e.target.value); if(strms.length) setAutoImportStreamId(strms[0].id); }} required>
+                    {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Assign Stream</label>
+                  <select className="input-field" value={autoImportStreamId} onChange={e => setAutoImportStreamId(e.target.value)} required>
+                    {streams.filter(s => s.classId === autoImportClassId).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Student Type</label>
+                <select className="input-field" value={autoImportType} onChange={e => setAutoImportType(e.target.value as any)}>
+                  <option value="DAY">Day Scholar</option>
+                  <option value="BOARDING">Boarding Student</option>
+                </select>
+              </div>
+
+              <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "16px", marginTop: "16px" }}>
+                <h5 style={{ marginBottom: "12px" }}>Apply Transaction To:</h5>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <div className="form-group">
+                    <label className="form-label">Term</label>
+                    <select className="input-field" value={autoImportTerm} onChange={e => setAutoImportTerm(e.target.value)}>
+                      <option value="1">Term 1</option>
+                      <option value="2">Term 2</option>
+                      <option value="3">Term 3</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Year</label>
+                    <input type="number" className="input-field" value={autoImportYear} onChange={e => setAutoImportYear(e.target.value)} required />
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: "10px", marginTop: "24px" }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Create Student & Match</button>
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setShowAutoImportModal(false);
+                    setAutoImportTx(null);
                   }}
                   className="btn btn-outline" 
                   style={{ flex: 1 }}

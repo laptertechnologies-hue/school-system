@@ -166,6 +166,8 @@ export default function SchoolPortal({ params }: PageProps) {
   const [newStudentType, setNewStudentType] = useState<"DAY" | "BOARDING">("DAY");
   const [newStudentPhoto, setNewStudentPhoto] = useState("");
   const [newStudentLin, setNewStudentLin] = useState("");
+  const [newStudentPaymentCode, setNewStudentPaymentCode] = useState("");
+  const [newStudentRegNumber, setNewStudentRegNumber] = useState("");
 
   const [newTeacherPhoto, setNewTeacherPhoto] = useState("");
   const [newTeacherStaffNumber, setNewTeacherStaffNumber] = useState("");
@@ -277,6 +279,8 @@ export default function SchoolPortal({ params }: PageProps) {
   const [profileLogoUrl, setProfileLogoUrl] = useState("");
   const [profileThemeColor, setProfileThemeColor] = useState("#38bdf8");
   const [profileSchoolType, setProfileSchoolType] = useState<"PRIMARY" | "SECONDARY" | "COMBINED">("COMBINED");
+  const [profileSchoolPayCode, setProfileSchoolPayCode] = useState("");
+  const [profileSchoolPayPassword, setProfileSchoolPayPassword] = useState("");
   const [profileSuccessMsg, setProfileSuccessMsg] = useState("");
 
   // Continuous Assessment (CA) configurations
@@ -556,6 +560,8 @@ export default function SchoolPortal({ params }: PageProps) {
           setProfileLogoUrl(s.logoUrl || "");
           setProfileThemeColor(s.themeColor || "#38bdf8");
           setProfileSchoolType(s.schoolType as any || "COMBINED");
+          setProfileSchoolPayCode(s.schoolPayCode || "");
+          setProfileSchoolPayPassword(s.schoolPayPassword || "");
           setNewClassLevel(s.schoolType === "SECONDARY" ? "SECONDARY" : "PRIMARY");
           setNewExamIsNewCurriculum(s.schoolType === "SECONDARY");
 
@@ -910,6 +916,8 @@ export default function SchoolPortal({ params }: PageProps) {
       setProfileDirector(updated.director || "");
       setProfileLogoUrl(updated.logoUrl || "");
       setProfileThemeColor(updated.themeColor || "#38bdf8");
+      setProfileSchoolPayCode(updated.schoolPayCode || "");
+      setProfileSchoolPayPassword(updated.schoolPayPassword || "");
 
       alert("School branding and leaders configured successfully!");
       setShowFirstTimeSetup(false);
@@ -981,6 +989,8 @@ export default function SchoolPortal({ params }: PageProps) {
         director: profileDirector,
         logoUrl: profileLogoUrl,
         themeColor: profileThemeColor,
+        schoolPayCode: profileSchoolPayCode,
+        schoolPayPassword: profileSchoolPayPassword,
         cbU1Max,
         cbU2Max,
         cbEtMax,
@@ -1105,11 +1115,15 @@ export default function SchoolPortal({ params }: PageProps) {
         type: newStudentType,
         photo: newStudentPhoto || null,
         lin: newStudentLin || null,
+        studentPaymentCode: newStudentPaymentCode || null,
+        registrationNumber: newStudentRegNumber || null,
       });
       setNewStudentName("");
       setNewStudentNumber("");
       setNewStudentPhoto("");
       setNewStudentLin("");
+      setNewStudentPaymentCode("");
+      setNewStudentRegNumber("");
       await loadSchoolData(school.id);
       alert("Student registered successfully!");
     } catch (err: any) {
@@ -3440,6 +3454,38 @@ export default function SchoolPortal({ params }: PageProps) {
                     </div>
                   </div>
 
+                  <div className="grid grid-cols-2 gap-2" style={{ marginTop: "20px", background: "#f8fafc", padding: "16px", border: "1px solid #cbd5e1", borderRadius: "8px" }}>
+                    <div style={{ gridColumn: "span 2", marginBottom: "8px" }}>
+                      <h4 style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", color: "#0f172a" }}>
+                        <DollarSign size={16} color="var(--primary)" />
+                        SchoolPay Integration Settings
+                      </h4>
+                      <p style={{ color: "#64748b", fontSize: "11px" }}>Enter API credentials for daily transaction sync.</p>
+                    </div>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label" style={{ fontSize: "11px" }}>SchoolPay API Code</label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        placeholder="e.g. 19457"
+                        value={profileSchoolPayCode}
+                        onChange={(e) => setProfileSchoolPayCode(e.target.value)}
+                        style={{ fontSize: "12px", padding: "6px" }}
+                      />
+                    </div>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label" style={{ fontSize: "11px" }}>SchoolPay API Password</label>
+                      <input 
+                        type="password" 
+                        className="input-field" 
+                        placeholder="Password"
+                        value={profileSchoolPayPassword}
+                        onChange={(e) => setProfileSchoolPayPassword(e.target.value)}
+                        style={{ fontSize: "12px", padding: "6px" }}
+                      />
+                    </div>
+                  </div>
+
                   {/* CONTINUOUS ASSESSMENT CONFIG (Secondary/Combined only) */}
                   {(profileSchoolType === "SECONDARY" || profileSchoolType === "COMBINED") && (
                     <div style={{ marginTop: "20px", padding: "16px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px" }}>
@@ -4343,6 +4389,26 @@ export default function SchoolPortal({ params }: PageProps) {
                         placeholder="e.g. LIN-12345678" 
                         value={newStudentLin}
                         onChange={(e) => setNewStudentLin(e.target.value)}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: "16px" }}>
+                      <label className="form-label">SchoolPay Payment Code</label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        placeholder="e.g. 194570001" 
+                        value={newStudentPaymentCode}
+                        onChange={(e) => setNewStudentPaymentCode(e.target.value)}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: "16px" }}>
+                      <label className="form-label">Registration Number</label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        placeholder="e.g. REG-123" 
+                        value={newStudentRegNumber}
+                        onChange={(e) => setNewStudentRegNumber(e.target.value)}
                       />
                     </div>
                     <div className="form-group" style={{ marginBottom: "16px" }}>

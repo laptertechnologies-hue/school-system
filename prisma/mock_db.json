@@ -1,15 +1,39 @@
 {
   "schools": [
     {
-      "id": "super",
-      "name": "Lapter System Admin School",
-      "subdomain": "super-admin-system",
+      "id": "school-1",
+      "name": "Greenhill Academy",
+      "subdomain": "greenhill",
       "packageType": "PREMIUM",
       "status": "ACTIVE",
-      "studentRange": "N/A",
-      "contactEmail": "admin@schoolpro.ug",
-      "contactPhone": "+256 000 000000",
-      "createdAt": "2026-01-01T00:00:00.000Z",
+      "studentRange": "500-1000",
+      "contactEmail": "info@greenhill.ac.ug",
+      "contactPhone": "+256 414 342678",
+      "createdAt": "2026-01-15T00:00:00.000Z",
+      "expiresAt": "2027-01-15T00:00:00.000Z"
+    },
+    {
+      "id": "school-2",
+      "name": "Kampala Parents Primary School",
+      "subdomain": "kpps",
+      "packageType": "BASIC",
+      "status": "ACTIVE",
+      "studentRange": "200-500",
+      "contactEmail": "admin@kpps.ac.ug",
+      "contactPhone": "+256 414 250100",
+      "createdAt": "2026-02-10T00:00:00.000Z",
+      "expiresAt": "2027-02-10T00:00:00.000Z"
+    },
+    {
+      "id": "school-3",
+      "name": "St. Mary's College Kisubi",
+      "subdomain": "smack",
+      "packageType": "PREMIUM",
+      "status": "PENDING",
+      "studentRange": "1000+",
+      "contactEmail": "smack@gmail.com",
+      "contactPhone": "+256 701 568392",
+      "createdAt": "2026-05-28T00:00:00.000Z",
       "expiresAt": null
     }
   ],
@@ -22,18 +46,121 @@
       "passwordHash": "admin",
       "role": "ADMIN",
       "createdAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "user-gh-admin",
+      "schoolId": "school-1",
+      "name": "Kakooza Ronald",
+      "email": "admin@greenhill.ug",
+      "passwordHash": "password",
+      "role": "ADMIN",
+      "createdAt": "2026-01-15T00:00:00.000Z"
+    },
+    {
+      "id": "user-gh-dos",
+      "schoolId": "school-1",
+      "name": "Nassolo Sylvia",
+      "email": "dos@greenhill.ug",
+      "passwordHash": "password",
+      "role": "DOS",
+      "createdAt": "2026-01-16T00:00:00.000Z"
+    },
+    {
+      "id": "user-gh-teacher",
+      "schoolId": "school-1",
+      "name": "Okwera Joseph",
+      "email": "teacher@greenhill.ug",
+      "passwordHash": "password",
+      "role": "TEACHER",
+      "createdAt": "2026-01-16T00:00:00.000Z"
+    },
+    {
+      "id": "user-gh-head",
+      "schoolId": "school-1",
+      "name": "Dr. Lwanga Moses",
+      "email": "head@greenhill.ug",
+      "passwordHash": "password",
+      "role": "HEADTEACHER",
+      "createdAt": "2026-01-15T00:00:00.000Z"
+    },
+    {
+      "id": "user-gh-director",
+      "schoolId": "school-1",
+      "name": "Hajji Bulwadda",
+      "email": "director@greenhill.ug",
+      "passwordHash": "password",
+      "role": "DIRECTOR",
+      "createdAt": "2026-01-15T00:00:00.000Z"
     }
   ],
-  "classes": [],
-  "streams": [],
-  "students": [],
-  "subjects": [],
-  "teacherSubjects": [],
-  "examPapers": [],
-  "marks": [],
-  "payments": [],
-  "feeStructures": [],
-  "studentPayments": [],
-  "expenses": [],
+  "classes": [
+    { "id": "class-p7", "schoolId": "school-1", "name": "P7", "level": "PRIMARY" },
+    { "id": "class-p6", "schoolId": "school-1", "name": "P6", "level": "PRIMARY" },
+    { "id": "class-s4", "schoolId": "school-1", "name": "S4", "level": "SECONDARY" },
+    { "id": "class-s1", "schoolId": "school-1", "name": "S1", "level": "SECONDARY" }
+  ],
+  "streams": [
+    { "id": "stream-blue", "classId": "class-p7", "name": "Blue" },
+    { "id": "stream-red", "classId": "class-p7", "name": "Red" },
+    { "id": "stream-east", "classId": "class-s4", "name": "East" },
+    { "id": "stream-west", "classId": "class-s4", "name": "West" }
+  ],
+  "students": [
+    { "id": "stud-1", "schoolId": "school-1", "classId": "class-p7", "streamId": "stream-blue", "name": "Mukasa John", "studentNumber": "GH-2026-001", "type": "BOARDING" },
+    { "id": "stud-2", "schoolId": "school-1", "classId": "class-p7", "streamId": "stream-blue", "name": "Nakato Brenda", "studentNumber": "GH-2026-002", "type": "DAY" },
+    { "id": "stud-3", "schoolId": "school-1", "classId": "class-s4", "streamId": "stream-east", "name": "Nsubuga Sarah", "studentNumber": "GH-2026-003", "type": "BOARDING" },
+    { "id": "stud-4", "schoolId": "school-1", "classId": "class-s4", "streamId": "stream-west", "name": "Ochen David", "studentNumber": "GH-2026-004", "type": "DAY" }
+  ],
+  "subjects": [
+    { "id": "subj-mtc", "schoolId": "school-1", "classId": "class-p7", "name": "Mathematics", "code": "MTC" },
+    { "id": "subj-eng", "schoolId": "school-1", "classId": "class-p7", "name": "English", "code": "ENG" },
+    { "id": "subj-sci", "schoolId": "school-1", "classId": "class-p7", "name": "Integrated Science", "code": "SCI" },
+    { "id": "subj-sst", "schoolId": "school-1", "classId": "class-p7", "name": "Social Studies", "code": "SST" },
+    { "id": "subj-s-mtc", "schoolId": "school-1", "classId": "class-s4", "name": "Mathematics", "code": "MTH" },
+    { "id": "subj-s-phy", "schoolId": "school-1", "classId": "class-s4", "name": "Physics", "code": "PHY" },
+    { "id": "subj-s-che", "schoolId": "school-1", "classId": "class-s4", "name": "Chemistry", "code": "CHE" },
+    { "id": "subj-s-bio", "schoolId": "school-1", "classId": "class-s4", "name": "Biology", "code": "BIO" },
+    { "id": "subj-s-eng", "schoolId": "school-1", "classId": "class-s4", "name": "English Language", "code": "ENG" }
+  ],
+  "teacherSubjects": [
+    { "id": "ts-1", "teacherId": "user-gh-teacher", "subjectId": "subj-mtc", "classId": "class-p7", "streamId": "stream-blue" },
+    { "id": "ts-2", "teacherId": "user-gh-teacher", "subjectId": "subj-s-mtc", "classId": "class-s4", "streamId": "stream-east" }
+  ],
+  "examPapers": [
+    { "id": "exam-bot-1", "schoolId": "school-1", "term": 1, "year": 2026, "name": "Beginning of Term (BOT)", "maxMarks": 100, "isNewCurriculum": false },
+    { "id": "exam-mot-1", "schoolId": "school-1", "term": 1, "year": 2026, "name": "Mid-Term Examination (MOT)", "maxMarks": 100, "isNewCurriculum": false },
+    { "id": "exam-eot-1", "schoolId": "school-1", "term": 1, "year": 2026, "name": "End of Term (EOT)", "maxMarks": 100, "isNewCurriculum": false },
+    { "id": "exam-s4-cbc", "schoolId": "school-1", "term": 1, "year": 2026, "name": "S4 Continuous Assessment & Projects", "maxMarks": 20, "isNewCurriculum": true }
+  ],
+  "marks": [
+    { "id": "mark-1", "studentId": "stud-1", "examPaperId": "exam-eot-1", "subjectId": "subj-mtc", "score": 85, "competencyGrade": "1", "comments": "Excellent performance, keep it up", "createdAt": "2026-05-30T10:00:00.000Z", "createdById": "user-gh-teacher" },
+    { "id": "mark-2", "studentId": "stud-1", "examPaperId": "exam-eot-1", "subjectId": "subj-eng", "score": 76, "competencyGrade": "2", "comments": "Very good grammar", "createdAt": "2026-05-30T10:00:00.000Z", "createdById": "user-gh-teacher" },
+    { "id": "mark-3", "studentId": "stud-1", "examPaperId": "exam-eot-1", "subjectId": "subj-sci", "score": 92, "competencyGrade": "1", "comments": "Superb scientific knowledge", "createdAt": "2026-05-30T10:00:00.000Z", "createdById": "user-gh-teacher" },
+    { "id": "mark-4", "studentId": "stud-1", "examPaperId": "exam-eot-1", "subjectId": "subj-sst", "score": 80, "competencyGrade": "1", "comments": "Outstanding understanding of history", "createdAt": "2026-05-30T10:00:00.000Z", "createdById": "user-gh-teacher" },
+    { "id": "mark-5", "studentId": "stud-2", "examPaperId": "exam-eot-1", "subjectId": "subj-mtc", "score": 48, "competencyGrade": "7", "comments": "Requires extra guidance in equations", "createdAt": "2026-05-30T10:00:00.000Z", "createdById": "user-gh-teacher" },
+    { "id": "mark-6", "studentId": "stud-2", "examPaperId": "exam-eot-1", "subjectId": "subj-eng", "score": 62, "competencyGrade": "4", "comments": "Good, but work on handwriting", "createdAt": "2026-05-30T10:00:00.000Z", "createdById": "user-gh-teacher" },
+    { "id": "mark-7", "studentId": "stud-2", "examPaperId": "exam-eot-1", "subjectId": "subj-sci", "score": 55, "competencyGrade": "6", "comments": "Fair trial", "createdAt": "2026-05-30T10:00:00.000Z", "createdById": "user-gh-teacher" },
+    { "id": "mark-8", "studentId": "stud-2", "examPaperId": "exam-eot-1", "subjectId": "subj-sst", "score": 68, "competencyGrade": "3", "comments": "Promising performance", "createdAt": "2026-05-30T10:00:00.000Z", "createdById": "user-gh-teacher" },
+    { "id": "mark-9", "studentId": "stud-3", "examPaperId": "exam-s4-cbc", "subjectId": "subj-s-mtc", "score": 18, "competencyGrade": "A", "comments": "Exceeds expectations in mathematics concepts", "createdAt": "2026-05-30T10:00:00.000Z", "createdById": "user-gh-teacher" },
+    { "id": "mark-10", "studentId": "stud-3", "examPaperId": "exam-s4-cbc", "subjectId": "subj-s-phy", "score": 14, "competencyGrade": "C", "comments": "Satisfactory electrical circuit calculations", "createdAt": "2026-05-30T10:00:00.000Z", "createdById": "user-gh-teacher" }
+  ],
+  "payments": [
+    { "id": "pay-1", "schoolId": "school-1", "amount": 350000, "method": "MOBILE_MONEY", "status": "COMPLETED", "date": "2026-02-15T00:00:00.000Z", "txRef": "TX-MM-12894" },
+    { "id": "pay-2", "schoolId": "school-1", "amount": 350000, "method": "BANK", "status": "COMPLETED", "date": "2026-05-15T00:00:00.000Z", "txRef": "TX-BK-89021" },
+    { "id": "pay-3", "schoolId": "school-2", "amount": 150000, "method": "MOBILE_MONEY", "status": "COMPLETED", "date": "2026-03-01T00:00:00.000Z", "txRef": "TX-MM-77291" }
+  ],
+  "feeStructures": [
+    { "id": "fs-1", "schoolId": "school-1", "classId": "class-p7", "term": 1, "year": 2026, "tuitionAmount": 400000, "boardingAmount": 750000 },
+    { "id": "fs-2", "schoolId": "school-1", "classId": "class-s4", "term": 1, "year": 2026, "tuitionAmount": 600000, "boardingAmount": 950000 }
+  ],
+  "studentPayments": [
+    { "id": "sp-1", "studentId": "stud-1", "term": 1, "year": 2026, "amountPaid": 1150000, "balance": 0, "date": "2026-02-02T00:00:00.000Z" },
+    { "id": "sp-2", "studentId": "stud-2", "term": 1, "year": 2026, "amountPaid": 250000, "balance": 150000, "date": "2026-02-05T00:00:00.000Z" },
+    { "id": "sp-3", "studentId": "stud-3", "term": 1, "year": 2026, "amountPaid": 950000, "balance": 0, "date": "2026-02-03T00:00:00.000Z" }
+  ],
+  "expenses": [
+    { "id": "exp-1", "schoolId": "school-1", "category": "Salaries", "amount": 1200000, "description": "Teacher wages for Feb", "date": "2026-02-28T00:00:00.000Z" },
+    { "id": "exp-2", "schoolId": "school-1", "category": "Food & Boarding", "amount": 850000, "description": "Beans & Posho supply", "date": "2026-03-05T00:00:00.000Z" }
+  ],
   "attendances": []
 }

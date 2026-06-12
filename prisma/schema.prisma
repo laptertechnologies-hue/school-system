@@ -29,6 +29,8 @@ model School {
   expenses     Expense[]
   feeStructures FeeStructure[]
 
+  schoolPayTransactions SchoolPayTransaction[]
+
   // Custom metadata fields
   logoUrl            String?
   poBox              String?
@@ -36,6 +38,10 @@ model School {
   deputyHeadTeacher  String?
   director           String?
   themeColor         String?   @default("#38bdf8")
+
+  // SchoolPay Integration
+  schoolPayCode      String?
+  schoolPayPassword  String?
 
   // Custom report template config
   reportTitle        String?   @default("OFFICIAL ACADEMIC REPORT CARD")
@@ -114,6 +120,8 @@ model Student {
   type             String    // "DAY", "BOARDING"
   photo            String?
   lin              String?
+  studentPaymentCode String?
+  registrationNumber String?
   marks            Mark[]
   studentPayments  StudentPayment[]
   attendances      Attendance[]
@@ -242,4 +250,22 @@ model GradeRange {
   maxMark          Float
   achievementLevel String
   descriptor       String   @default("")
+}
+
+model SchoolPayTransaction {
+  id                    String   @id @default(uuid())
+  schoolId              String
+  school                School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  receiptNumber         String   @unique
+  amount                Float
+  paymentDate           DateTime
+  studentName           String
+  studentPaymentCode    String
+  settlementBankCode    String?
+  sourceChannelTransId  String?
+  sourcePaymentChannel  String?
+  studentClass          String?
+  studentRegistrationNum String?
+  reconciled            Boolean  @default(false)
+  createdAt             DateTime @default(now())
 }

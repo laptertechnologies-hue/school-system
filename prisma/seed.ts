@@ -8,6 +8,7 @@ async function main() {
   console.log("Clearing existing data...");
   // Delete in reverse order of foreign key dependencies
   await prisma.attendance.deleteMany({});
+  await prisma.schoolPayTransaction.deleteMany({});
   await prisma.studentPayment.deleteMany({});
   await prisma.expense.deleteMany({});
   await prisma.mark.deleteMany({});

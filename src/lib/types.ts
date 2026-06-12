@@ -77,6 +77,8 @@ export interface Student {
   type: "DAY" | "BOARDING";
   photo?: string | null;
   lin?: string | null;
+  studentPaymentCode?: string | null;
+  registrationNumber?: string | null;
 }
 
 export interface Subject {

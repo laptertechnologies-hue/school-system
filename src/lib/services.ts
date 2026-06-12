@@ -336,6 +336,8 @@ export async function updateSchoolMetadata(
     name?: string;
     contactPhone?: string;
     schoolType?: "PRIMARY" | "SECONDARY" | "COMBINED";
+    schoolPayCode?: string | null;
+    schoolPayPassword?: string | null;
     reportTitle?: string | null;
     reportMotto?: string | null;
     reportShowBadge?: boolean;

@@ -841,6 +841,10 @@ export async function recordStudentPayment(data: Omit<StudentPayment, "id" | "da
         year: data.year,
         amountPaid: data.amountPaid,
         balance: data.balance,
+        balanceBF: data.balanceBF ?? 0,
+        notes: data.notes ?? null,
+        paymentMethod: data.paymentMethod ?? "CASH",
+        receiptNumber: data.receiptNumber ?? null,
       },
     })) as StudentPayment);
   }
@@ -855,6 +859,26 @@ export async function recordStudentPayment(data: Omit<StudentPayment, "id" | "da
   db.studentPayments.push(newSP);
   saveLocalDB(db);
   return serialize(newSP);
+}
+
+export async function deleteStudentPayment(paymentId: string): Promise<void> {
+  if (await hasDB()) {
+    await prisma.studentPayment.delete({ where: { id: paymentId } });
+    return;
+  }
+  const db = getLocalDB();
+  db.studentPayments = db.studentPayments.filter((sp: StudentPayment) => sp.id !== paymentId);
+  saveLocalDB(db);
+}
+
+export async function getSchoolPayTransactions(schoolId: string): Promise<any[]> {
+  if (await hasDB()) {
+    return serialize(await prisma.schoolPayTransaction.findMany({
+      where: { schoolId },
+      orderBy: { paymentDate: 'desc' }
+    }));
+  }
+  return [];
 }
 
 // --- Expenses ---

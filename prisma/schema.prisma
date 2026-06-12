@@ -210,14 +210,18 @@ model FeeStructure {
 }
 
 model StudentPayment {
-  id           String    @id @default(uuid())
-  studentId    String
-  student      Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  term         Int
-  year         Int
-  amountPaid   Float
-  balance      Float
-  date         DateTime  @default(now())
+  id             String    @id @default(uuid())
+  studentId      String
+  student        Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  term           Int
+  year           Int
+  amountPaid     Float
+  balance        Float
+  balanceBF      Float     @default(0) // Balance Brought Forward from previous term
+  notes          String?   // Optional notes / receipt reference
+  paymentMethod  String?   @default("CASH") // CASH, BANK, SCHOOL_PAY, MOBILE_MONEY
+  receiptNumber  String?   // Manual or auto receipt number
+  date           DateTime  @default(now())
 }
 
 model Expense {

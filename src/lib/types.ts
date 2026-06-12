@@ -164,7 +164,28 @@ export interface StudentPayment {
   year: number;
   amountPaid: number;
   balance: number;
+  balanceBF?: number;
+  notes?: string | null;
+  paymentMethod?: string | null;
+  receiptNumber?: string | null;
   date: Date;
+}
+
+export interface SchoolPayTransaction {
+  id: string;
+  schoolId: string;
+  receiptNumber: string;
+  amount: number;
+  paymentDate: Date;
+  studentName: string;
+  studentPaymentCode: string;
+  settlementBankCode?: string | null;
+  sourceChannelTransId?: string | null;
+  sourcePaymentChannel?: string | null;
+  studentClass?: string | null;
+  studentRegistrationNum?: string | null;
+  reconciled: boolean;
+  createdAt: Date;
 }
 
 export interface Expense {

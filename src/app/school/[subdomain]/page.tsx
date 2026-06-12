@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 import React, { useState, useEffect, use } from "react";
 import * as XLSX from "xlsx";
 import type { 
-  School, User, Class, Stream, Student, Subject, ExamPaper, Mark, Payment, FeeStructure, StudentPayment, Expense, GradeRange, TeacherSubject
+  School, User, Class, Stream, Student, Subject, ExamPaper, Mark, Payment, FeeStructure, StudentPayment, Expense, GradeRange, TeacherSubject, SchoolPayTransaction
 } from "../../../lib/types";
 import { 
   checkDatabaseConnection, getSchoolBySubdomain, getUsers, getClasses, getStreams, getStudents, getSubjects,
@@ -12,7 +12,8 @@ import {
   processTeacherSalary, createPayment, getPayments, updateSchoolStatus, updateSchoolMetadata,
   initiateMarzpayCollection, checkMarzpayCollectionStatus, sendSmsBroadcast,
   updateStudent, deleteStudent, updateUser, deleteUser, getGradeRanges, saveGradeRanges,
-  getTeacherSubjects, createTeacherSubject, deleteTeacherSubject, resetUserPassword, runDiagnostics
+  getTeacherSubjects, createTeacherSubject, deleteTeacherSubject, resetUserPassword, runDiagnostics,
+  deleteStudentPayment, getSchoolPayTransactions
 } from "../../../lib/services";
 
 import { Database, CreditCard, Building2, CheckCircle, MessageSquare, Sliders, User as UserIcon } from "lucide-react";
@@ -37,7 +38,14 @@ import {
   XCircle,
   FileText,
   Menu,
-  X
+  X,
+  RefreshCw,
+  Receipt,
+  BarChart2,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  AlertTriangle,
+  Download
 } from "lucide-react";
 
 const computeGradeFromRanges = (score: number, systemType: "PRIMARY" | "SECONDARY", ranges: GradeRange[]) => {
@@ -142,6 +150,9 @@ export default function SchoolPortal({ params }: PageProps) {
   const [studentPayments, setStudentPayments] = useState<StudentPayment[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [schoolPayTransactions, setSchoolPayTransactions] = useState<SchoolPayTransaction[]>([]);
+  const [spSyncing, setSpSyncing] = useState(false);
+  const [spSyncMsg, setSpSyncMsg] = useState("");
   const [dbConnected, setDbConnected] = useState<boolean | null>(null);
 
   // Navigation state inside dashboard
@@ -248,6 +259,18 @@ export default function SchoolPortal({ params }: PageProps) {
   
   const [selectedPayStudentId, setSelectedPayStudentId] = useState("");
   const [payAmountPaid, setPayAmountPaid] = useState("");
+  const [payMethod, setPayMethod] = useState("CASH");
+  const [payNotes, setPayNotes] = useState("");
+  const [payReceiptNum, setPayReceiptNum] = useState("");
+  const [payBBF, setPayBBF] = useState("0");
+  const [payTerm, setPayTerm] = useState("1");
+  const [payYear, setPayYear] = useState(new Date().getFullYear().toString());
+
+  // Finance filter/report states
+  const [finFilterTerm, setFinFilterTerm] = useState("1");
+  const [finFilterYear, setFinFilterYear] = useState(new Date().getFullYear().toString());
+  const [finFilterClassId, setFinFilterClassId] = useState("");
+  const [spTxFilter, setSpTxFilter] = useState<"ALL" | "MATCHED" | "UNMATCHED">("ALL");
 
   const [expCategory, setExpCategory] = useState("Salaries");
   const [expAmount, setExpAmount] = useState("");
@@ -608,7 +631,7 @@ export default function SchoolPortal({ params }: PageProps) {
         console.error("Error loading school portal data:", err);
         const msg = err?.message || "";
         if (msg.includes("Server Components") || msg.includes("production builds") || msg.includes("Digest")) {
-          setLoadError("Unable to connect to the school database. The server may be starting up — please wait a moment and try again.");
+          setLoadError("Unable to connect to the school database. The server may be starting up â€” please wait a moment and try again.");
         } else {
           setLoadError(msg || "An unexpected error occurred while connecting to the database server.");
         }
@@ -739,6 +762,11 @@ export default function SchoolPortal({ params }: PageProps) {
         setFeeStructures(await getFeeStructures(schoolId));
         setStudentPayments(await getStudentPayments(schoolId));
         setExpenses(await getExpenses(schoolId));
+        // Load SchoolPay transactions (if configured)
+        try {
+          const spTx = await getSchoolPayTransactions(schoolId);
+          setSchoolPayTransactions(spTx);
+        } catch {}
         if (studs.length > 0) {
           setSelectedPayStudentId(studs[0].id);
         }
@@ -1520,12 +1548,11 @@ export default function SchoolPortal({ params }: PageProps) {
     alert("Fee structure saved!");
   };
 
-  // Record student fee payment
+  // Record student fee payment (enhanced)
   const handleRecordStudentPay = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPayStudentId || !payAmountPaid || !school) return;
 
-    // Find class of student to calculate balance
     const stud = students.find(s => s.id === selectedPayStudentId);
     if (!stud) return;
 
@@ -1535,24 +1562,63 @@ export default function SchoolPortal({ params }: PageProps) {
       : (fs?.tuitionAmount || 0);
 
     const paidVal = parseFloat(payAmountPaid);
-    
-    // Find prior payment
-    const prevPayment = studentPayments.find(p => p.studentId === selectedPayStudentId);
-    const alreadyPaid = prevPayment ? prevPayment.amountPaid : 0;
+    const bbfVal = parseFloat(payBBF) || 0;
+
+    // Calculate balance: total due - BBF credit - new payment
+    const prevPayments = studentPayments.filter(p => p.studentId === selectedPayStudentId && p.term === parseInt(payTerm) && p.year === parseInt(payYear));
+    const alreadyPaid = prevPayments.reduce((sum, p) => sum + p.amountPaid, 0);
     const newTotalPaid = alreadyPaid + paidVal;
-    const balance = Math.max(0, totalDue - newTotalPaid);
+    const balance = Math.max(0, totalDue - bbfVal - newTotalPaid);
+
+    // Auto-generate receipt number if not provided
+    const receipt = payReceiptNum || `RCP-${Date.now().toString(36).toUpperCase()}`;
 
     await recordStudentPayment({
       studentId: selectedPayStudentId,
-      term: 1,
-      year: 2026,
-      amountPaid: newTotalPaid,
+      term: parseInt(payTerm),
+      year: parseInt(payYear),
+      amountPaid: paidVal,
       balance,
+      balanceBF: bbfVal,
+      notes: payNotes || null,
+      paymentMethod: payMethod,
+      receiptNumber: receipt,
     });
 
     setPayAmountPaid("");
+    setPayNotes("");
+    setPayReceiptNum("");
+    setPayBBF("0");
     await loadSchoolData(school.id);
-    alert("Student payment recorded!");
+    alert(`Payment recorded! Receipt: ${receipt}`);
+  };
+
+  // Manual SchoolPay Sync
+  const handleSchoolPaySync = async () => {
+    if (!school) return;
+    setSpSyncing(true);
+    setSpSyncMsg("");
+    try {
+      const res = await fetch("/api/finance/sync-schoolpay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ schoolId: school.id }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSpSyncMsg(`âœ… Sync complete: ${data.result?.importedCount ?? 0} new transaction(s) imported.`);
+        if (data.transactions) setSchoolPayTransactions(data.transactions);
+        // Refresh student payments
+        const spay = await getStudentPayments(school.id);
+        setStudentPayments(spay);
+      } else {
+        setSpSyncMsg(`âŒ ${data.error || "Sync failed. Check credentials."}`);
+      }
+    } catch (err) {
+      setSpSyncMsg("âŒ Network error. Try again.");
+    } finally {
+      setSpSyncing(false);
+    }
   };
 
   // Record expense
@@ -2085,7 +2151,7 @@ export default function SchoolPortal({ params }: PageProps) {
           {/* Trial / Demo Guidance */}
           {(subdomain === "greenhill" || subdomain === "kpps") && (
             <div style={{ background: "rgba(59, 130, 246, 0.08)", border: "1px solid rgba(59, 130, 246, 0.15)", borderRadius: "8px", padding: "12px", marginBottom: "20px", fontSize: "12px", color: "#93c5fd" }}>
-              <strong style={{ display: "block", marginBottom: "4px" }}>🔑 Trial Demo Quick Credentials:</strong>
+              <strong style={{ display: "block", marginBottom: "4px" }}>ðŸ”‘ Trial Demo Quick Credentials:</strong>
               <div><strong>Admin:</strong> admin@greenhill.ug (password: password)</div>
               <div><strong>Teacher:</strong> teacher@greenhill.ug (password: password)</div>
               <div><strong>DOS:</strong> dos@greenhill.ug (password: password)</div>
@@ -2182,7 +2248,7 @@ export default function SchoolPortal({ params }: PageProps) {
                     <input 
                       type="password" 
                       className="input-field" 
-                      placeholder="••••••••" 
+                      placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" 
                       value={resetNewPassword}
                       onChange={(e) => setResetNewPassword(e.target.value)}
                       required
@@ -2235,7 +2301,7 @@ export default function SchoolPortal({ params }: PageProps) {
                 <input 
                   type="password" 
                   className="input-field" 
-                  placeholder="••••••••" 
+                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" 
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -2269,7 +2335,7 @@ export default function SchoolPortal({ params }: PageProps) {
                 }
               }}
               style={{ fontSize: "13px", color: "#9ca3af", textDecoration: "underline", cursor: "pointer" }}>
-              — Back to SchoolPro Main Website
+              â€” Back to SchoolPro Main Website
             </a>
           </div>
 
@@ -2282,9 +2348,9 @@ export default function SchoolPortal({ params }: PageProps) {
               
               <div className="flex justify-between align-center" style={{ borderBottom: "1px solid #334155", paddingBottom: "14px", marginBottom: "20px" }}>
                 <h3 style={{ fontFamily: "Outfit", fontWeight: 800, fontSize: "20px", display: "flex", alignItems: "center", gap: "8px" }}>
-                  🏫 School Portal Initial Setup
+                  ðŸ« School Portal Initial Setup
                 </h3>
-                <button onClick={() => setShowFirstTimeSetup(false)} style={{ background: "transparent", border: "none", color: "#cbd5e1", fontWeight: "bold", cursor: "pointer", fontSize: "18px" }}>✕</button>
+                <button onClick={() => setShowFirstTimeSetup(false)} style={{ background: "transparent", border: "none", color: "#cbd5e1", fontWeight: "bold", cursor: "pointer", fontSize: "18px" }}>âœ•</button>
               </div>
 
               {setupError && (
@@ -2296,7 +2362,7 @@ export default function SchoolPortal({ params }: PageProps) {
               <form onSubmit={handleFirstTimeSetup}>
                 
                 <div style={{ marginBottom: "16px", padding: "12px", background: "rgba(56, 189, 248, 0.05)", border: "1px solid rgba(56, 189, 248, 0.1)", borderRadius: "6px", fontSize: "12px", color: "#93c5fd" }}>
-                  🔒 Enter your school's Administrator credentials to authorize these updates.
+                  ðŸ”’ Enter your school's Administrator credentials to authorize these updates.
                 </div>
 
                 <div className="grid grid-cols-2 gap-2" style={{ marginBottom: "20px" }}>
@@ -2317,7 +2383,7 @@ export default function SchoolPortal({ params }: PageProps) {
                     <input 
                       type="password" 
                       className="input-field" 
-                      placeholder="••••••••" 
+                      placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" 
                       value={setupAdminPassword} 
                       onChange={(e) => setSetupAdminPassword(e.target.value)} 
                       required 
@@ -2326,7 +2392,7 @@ export default function SchoolPortal({ params }: PageProps) {
                   </div>
                 </div>
 
-                <h4 style={{ color: "var(--primary)", fontSize: "14px", marginBottom: "12px", borderBottom: "1px solid #334155", paddingBottom: "4px", fontWeight: 700 }}>🏫 School Information</h4>
+                <h4 style={{ color: "var(--primary)", fontSize: "14px", marginBottom: "12px", borderBottom: "1px solid #334155", paddingBottom: "4px", fontWeight: 700 }}>ðŸ« School Information</h4>
                 <div className="grid grid-cols-2 gap-2" style={{ marginBottom: "12px" }}>
                   <div className="form-group">
                     <label className="form-label" style={{ color: "#d1d5db" }}>School Name</label>
@@ -2429,7 +2495,7 @@ export default function SchoolPortal({ params }: PageProps) {
                   </div>
                 </div>
 
-                <h4 style={{ color: "var(--primary)", fontSize: "14px", marginBottom: "12px", borderBottom: "1px solid #334155", paddingBottom: "4px", fontWeight: 700 }}>👥 Administrative Leaders</h4>
+                <h4 style={{ color: "var(--primary)", fontSize: "14px", marginBottom: "12px", borderBottom: "1px solid #334155", paddingBottom: "4px", fontWeight: 700 }}>ðŸ‘¥ Administrative Leaders</h4>
                 <div className="grid grid-cols-3 gap-2" style={{ marginBottom: "24px" }}>
                   <div className="form-group">
                     <label className="form-label" style={{ color: "#d1d5db" }}>Head Teacher</label>
@@ -2851,6 +2917,22 @@ export default function SchoolPortal({ params }: PageProps) {
                 style={{ justifyContent: "flex-start", border: "none", background: activeTab === "payroll" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "payroll" ? 1 : 0.75, transition: "all 0.2s ease", padding: "8px 12px", fontSize: "13px" }}
               >
                 <Users size={16} /> Staff Payroll Ledger
+              </button>
+
+              <button 
+                onClick={() => setActiveTab("schoolpay_register")} 
+                className={`btn ${activeTab === "schoolpay_register" ? "btn-primary" : "btn-outline"}`}
+                style={{ justifyContent: "flex-start", border: "none", background: activeTab === "schoolpay_register" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "schoolpay_register" ? 1 : 0.75, transition: "all 0.2s ease", padding: "8px 12px", fontSize: "13px" }}
+              >
+                <RefreshCw size={16} /> SchoolPay Register
+              </button>
+
+              <button 
+                onClick={() => setActiveTab("fin_reports")} 
+                className={`btn ${activeTab === "fin_reports" ? "btn-primary" : "btn-outline"}`}
+                style={{ justifyContent: "flex-start", border: "none", background: activeTab === "fin_reports" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "fin_reports" ? 1 : 0.75, transition: "all 0.2s ease", padding: "8px 12px", fontSize: "13px" }}
+              >
+                <BarChart2 size={16} /> Financial Reports
               </button>
             </>
           )}
@@ -3653,9 +3735,9 @@ export default function SchoolPortal({ params }: PageProps) {
                 
                 <div style={{ marginTop: "24px", padding: "12px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", width: "100%", textAlign: "left" }}>
                   <div style={{ fontSize: "11px", color: "#64748b" }}>Admin Team:</div>
-                  <div style={{ fontSize: "12px", color: "#0f172a", marginTop: "4px" }}>👤 **Head:** {profileHeadTeacher || "Not set"}</div>
-                  <div style={{ fontSize: "12px", color: "#0f172a", marginTop: "2px" }}>👤 **Deputy:** {profileDeputyHeadTeacher || "Not set"}</div>
-                  <div style={{ fontSize: "12px", color: "#0f172a", marginTop: "2px" }}>👤 **Director:** {profileDirector || "Not set"}</div>
+                  <div style={{ fontSize: "12px", color: "#0f172a", marginTop: "4px" }}>ðŸ‘¤ **Head:** {profileHeadTeacher || "Not set"}</div>
+                  <div style={{ fontSize: "12px", color: "#0f172a", marginTop: "2px" }}>ðŸ‘¤ **Deputy:** {profileDeputyHeadTeacher || "Not set"}</div>
+                  <div style={{ fontSize: "12px", color: "#0f172a", marginTop: "2px" }}>ðŸ‘¤ **Director:** {profileDirector || "Not set"}</div>
                 </div>
               </div>
             </div>
@@ -3675,7 +3757,7 @@ export default function SchoolPortal({ params }: PageProps) {
                 {(profileSchoolType === "SECONDARY" || profileSchoolType === "COMBINED") && (
                   <div style={{ marginBottom: "24px", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "16px", background: "#fff" }}>
                     <h5 style={{ fontSize: "13px", fontWeight: "bold", color: "#1e293b", marginBottom: "12px", borderBottom: "1px solid #f1f5f9", paddingBottom: "6px" }}>
-                      📖 Secondary Curriculum Competency System (Grades A - E)
+                      ðŸ“– Secondary Curriculum Competency System (Grades A - E)
                     </h5>
                     <div style={{ overflowX: "auto" }}>
                       <table className="table" style={{ fontSize: "12px", minWidth: "650px", borderCollapse: "collapse" }}>
@@ -3749,7 +3831,7 @@ export default function SchoolPortal({ params }: PageProps) {
                 {(profileSchoolType === "PRIMARY" || profileSchoolType === "COMBINED") && (
                   <div style={{ marginBottom: "24px", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "16px", background: "#fff" }}>
                     <h5 style={{ fontSize: "13px", fontWeight: "bold", color: "#1e293b", marginBottom: "12px", borderBottom: "1px solid #f1f5f9", paddingBottom: "6px" }}>
-                      📖 Primary PLE Standard System (Aggregates 1 - 9)
+                      ðŸ“– Primary PLE Standard System (Aggregates 1 - 9)
                     </h5>
                     <div style={{ overflowX: "auto" }}>
                       <table className="table" style={{ fontSize: "12px", minWidth: "650px", borderCollapse: "collapse" }}>
@@ -3980,12 +4062,12 @@ export default function SchoolPortal({ params }: PageProps) {
               </p>
 
               <form onSubmit={handleSaveCustomGradeRanges}>
-                {/* Secondary A–E */}
+                {/* Secondary Aâ€“E */}
                 {(school.schoolType === "SECONDARY" || school.schoolType === "COMBINED") && (
                   <div style={{ marginBottom: "28px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px", padding: "10px 14px", background: "linear-gradient(90deg, var(--primary-light) 0%, #f8fafc 100%)", borderRadius: "8px", border: "1px solid var(--primary-glow)" }}>
                       <BookOpen size={16} color="var(--primary)" />
-                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a" }}>Secondary — Competency Grades (A to E)</span>
+                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a" }}>Secondary â€” Competency Grades (A to E)</span>
                       <span style={{ fontSize: "11px", color: "#64748b", marginLeft: "auto" }}>CBC Lower Secondary Curriculum</span>
                     </div>
                     <div style={{ overflowX: "auto" }}>
@@ -4044,12 +4126,12 @@ export default function SchoolPortal({ params }: PageProps) {
                   </div>
                 )}
 
-                {/* Primary PLE 1–9 */}
+                {/* Primary PLE 1â€“9 */}
                 {(school.schoolType === "PRIMARY" || school.schoolType === "COMBINED") && (
                   <div style={{ marginBottom: "28px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px", padding: "10px 14px", background: "linear-gradient(90deg, #fef9c3 0%, #f8fafc 100%)", borderRadius: "8px", border: "1px solid #fde68a" }}>
                       <Award size={16} color="#d97706" />
-                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a" }}>Primary — PLE Aggregates (1 to 9)</span>
+                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a" }}>Primary â€” PLE Aggregates (1 to 9)</span>
                       <span style={{ fontSize: "11px", color: "#64748b", marginLeft: "auto" }}>UNEB PLE Standard Grading</span>
                     </div>
                     <div style={{ overflowX: "auto" }}>
@@ -4131,7 +4213,7 @@ export default function SchoolPortal({ params }: PageProps) {
                         <div style={{ fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: "4px" }}>{sys === "SECONDARY" ? "Secondary (CBC)" : "Primary (PLE)"}</div>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                           <span style={{ fontSize: "22px", fontWeight: 800, color: "var(--primary)" }}>75%</span>
-                          <span style={{ fontSize: "13px", color: "#475569" }}>→</span>
+                          <span style={{ fontSize: "13px", color: "#475569" }}>â†’</span>
                           <span style={{ fontSize: "18px", fontWeight: 800, color: result ? "#16a34a" : "#dc2626" }}>
                             {result ? `${result.grade}` : "No match"}
                           </span>
@@ -4141,7 +4223,7 @@ export default function SchoolPortal({ params }: PageProps) {
                     );
                   })}
                 </div>
-                <p style={{ fontSize: "11px", color: "#94a3b8", marginTop: "10px" }}>💡 Preview uses 75% as a sample mark. Save your ranges to see them take effect.</p>
+                <p style={{ fontSize: "11px", color: "#94a3b8", marginTop: "10px" }}>ðŸ’¡ Preview uses 75% as a sample mark. Save your ranges to see them take effect.</p>
               </div>
             </div>
           </div>
@@ -4458,7 +4540,7 @@ export default function SchoolPortal({ params }: PageProps) {
                           <div style={{ width: "50px", height: "50px", borderRadius: "8px", overflow: "hidden", border: "1px solid var(--border)" }}>
                             <img src={newStudentPhoto} alt="Student Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                           </div>
-                          <span style={{ fontSize: "11px", color: "var(--success)" }}>✓ Image ready</span>
+                          <span style={{ fontSize: "11px", color: "var(--success)" }}>âœ“ Image ready</span>
                         </div>
                       )}
                     </div>
@@ -4697,7 +4779,7 @@ export default function SchoolPortal({ params }: PageProps) {
                           <div style={{ width: "50px", height: "50px", borderRadius: "8px", overflow: "hidden", border: "1px solid var(--border)" }}>
                             <img src={newTeacherPhoto} alt="Staff Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                           </div>
-                          <span style={{ fontSize: "11px", color: "var(--success)" }}>✓ Image ready</span>
+                          <span style={{ fontSize: "11px", color: "var(--success)" }}>âœ“ Image ready</span>
                         </div>
                       )}
                     </div>
@@ -5363,7 +5445,7 @@ export default function SchoolPortal({ params }: PageProps) {
                       <div>
                         <h3>Bulk Print Preview</h3>
                         <span style={{ fontSize: "12px", color: "#64748b" }}>
-                          Class: {classes.find(c => c.id === selectedReportClassId)?.name} • Total Students: {students.filter(st => st.classId === selectedReportClassId).length}
+                          Class: {classes.find(c => c.id === selectedReportClassId)?.name} â€¢ Total Students: {students.filter(st => st.classId === selectedReportClassId).length}
                         </span>
                       </div>
                       <div className="flex gap-2">
@@ -5408,7 +5490,7 @@ export default function SchoolPortal({ params }: PageProps) {
                                 )}
                                 <h2 style={{ fontSize: "24px", margin: 0, textTransform: "uppercase", color: school.reportHeaderColor || "#1e3a8a" }}>{school.name}</h2>
                                 <p style={{ margin: "4px 0 0", fontSize: "12px", fontStyle: "italic" }}>
-                                  P.O. Box {school.poBox || "Kampala, Uganda"} • Tel: {school.contactPhone} • Email: {school.contactEmail}
+                                  P.O. Box {school.poBox || "Kampala, Uganda"} â€¢ Tel: {school.contactPhone} â€¢ Email: {school.contactEmail}
                                 </p>
                                 {school.reportMotto && (
                                   <p style={{ margin: "2px 0 0", fontSize: "11px", fontStyle: "italic", fontWeight: "bold", color: "#475569" }}>
@@ -5589,7 +5671,7 @@ export default function SchoolPortal({ params }: PageProps) {
                           )}
                           <h2 style={{ fontSize: "24px", margin: 0, textTransform: "uppercase", color: school.reportHeaderColor || "#1e3a8a" }}>{school.name}</h2>
                           <p style={{ margin: "4px 0 0", fontSize: "12px", fontStyle: "italic" }}>
-                            P.O. Box {school.poBox || "Kampala, Uganda"} • Tel: {school.contactPhone} • Email: {school.contactEmail}
+                            P.O. Box {school.poBox || "Kampala, Uganda"} â€¢ Tel: {school.contactPhone} â€¢ Email: {school.contactEmail}
                           </p>
                           {school.reportMotto && (
                             <p style={{ margin: "2px 0 0", fontSize: "11px", fontStyle: "italic", fontWeight: "bold", color: "#475569" }}>
@@ -5746,112 +5828,151 @@ export default function SchoolPortal({ params }: PageProps) {
         )}
 
         {/* TAB 6A: FINANCIAL OVERVIEW */}
-        {activeTab === "finance_overview" && school.packageType === "PREMIUM" && (
-          <div className="tab-content-anim">
-            <h2 style={{ marginBottom: "10px" }}>Financial Overview & Accounts Ledger</h2>
-            <p style={{ color: "#64748b", marginBottom: "30px" }}>Monitor overall term cash flows, balance sheets, and review unified transactions timeline.</p>
+        {activeTab === "finance_overview" && school.packageType === "PREMIUM" && (() => {
+          const totalCollected = studentPayments.reduce((sum, p) => sum + p.amountPaid, 0);
+          const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+          const netBalance = totalCollected - totalExpenses;
+          const totalStudents = students.length;
+          const paidStudents = students.filter(st => studentPayments.some(p => p.studentId === st.id)).length;
+          const spMatched = schoolPayTransactions.filter(t => t.reconciled).length;
+          const spUnmatched = schoolPayTransactions.filter(t => !t.reconciled).length;
 
-            {/* Account Metrics */}
-            <div className="grid grid-cols-3 gap-2" style={{ marginBottom: "35px" }}>
+          return (
+          <div className="tab-content-anim">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px", flexWrap: "wrap", gap: "8px" }}>
+              <div>
+                <h2 style={{ marginBottom: "4px" }}>Financial Overview & Accounts Ledger</h2>
+                <p style={{ color: "#64748b" }}>Monitor term cash flows, balance sheets, and unified transactions timeline.</p>
+              </div>
+              {/* SchoolPay Sync Button */}
+              {school.schoolPayCode && (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
+                  <button
+                    onClick={handleSchoolPaySync}
+                    disabled={spSyncing}
+                    className="btn btn-primary"
+                    style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 16px" }}
+                  >
+                    <RefreshCw size={16} style={{ animation: spSyncing ? "spin 1s linear infinite" : "none" }} />
+                    {spSyncing ? "Syncing..." : "Fetch SchoolPay Transactions"}
+                  </button>
+                  {spSyncMsg && <span style={{ fontSize: "12px", color: spSyncMsg.startsWith("âœ…") ? "var(--success)" : "var(--danger)" }}>{spSyncMsg}</span>}
+                </div>
+              )}
+              {!school.schoolPayCode && (
+                <div style={{ background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: "8px", padding: "8px 14px", fontSize: "12px", color: "#92400e" }}>
+                  <AlertTriangle size={14} style={{ display: "inline", marginRight: "4px" }} />
+                  SchoolPay not configured. Go to <strong>School Profile</strong> to add credentials.
+                </div>
+              )}
+            </div>
+
+            {/* KPI Cards */}
+            <div className="grid grid-cols-3 gap-2" style={{ marginBottom: "24px", marginTop: "20px" }}>
               <div className="card" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <DollarSign size={24} color="var(--success)" />
+                <ArrowDownCircle size={28} color="var(--success)" />
                 <div>
-                  <span style={{ fontSize: "12px", color: "#64748b" }}>TOTAL TUITION COLLECTED</span>
-                  <h3>{studentPayments.reduce((sum, p) => sum + p.amountPaid, 0).toLocaleString()} UGX</h3>
+                  <span style={{ fontSize: "11px", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>Total Collected</span>
+                  <h3 style={{ margin: 0, color: "var(--success)" }}>{totalCollected.toLocaleString()} UGX</h3>
                 </div>
               </div>
               <div className="card" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <DollarSign size={24} color="var(--danger)" />
+                <ArrowUpCircle size={28} color="var(--danger)" />
                 <div>
-                  <span style={{ fontSize: "12px", color: "#64748b" }}>TOTAL EXPENDITURE OUT</span>
-                  <h3>{expenses.reduce((sum, e) => sum + e.amount, 0).toLocaleString()} UGX</h3>
+                  <span style={{ fontSize: "11px", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>Total Expenditure</span>
+                  <h3 style={{ margin: 0, color: "var(--danger)" }}>{totalExpenses.toLocaleString()} UGX</h3>
                 </div>
               </div>
               <div className="card" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <TrendingUp size={24} color="var(--primary)" />
+                <TrendingUp size={28} color={netBalance >= 0 ? "var(--primary)" : "var(--danger)"} />
                 <div>
-                  <span style={{ fontSize: "12px", color: "#64748b" }}>NET BALANCE IN HAND</span>
-                  <h3>
-                    {(
-                      studentPayments.reduce((sum, p) => sum + p.amountPaid, 0) -
-                      expenses.reduce((sum, e) => sum + e.amount, 0)
-                    ).toLocaleString()} UGX
-                  </h3>
+                  <span style={{ fontSize: "11px", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>Net Balance in Hand</span>
+                  <h3 style={{ margin: 0, color: netBalance >= 0 ? "var(--primary)" : "var(--danger)" }}>{netBalance.toLocaleString()} UGX</h3>
+                </div>
+              </div>
+              <div className="card" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <Users size={24} color="var(--primary)" />
+                <div>
+                  <span style={{ fontSize: "11px", color: "#64748b" }}>STUDENTS PAID</span>
+                  <h3 style={{ margin: 0 }}>{paidStudents} / {totalStudents}</h3>
+                </div>
+              </div>
+              <div className="card" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <CheckCircle size={24} color="var(--success)" />
+                <div>
+                  <span style={{ fontSize: "11px", color: "#64748b" }}>SCHOOLPAY MATCHED</span>
+                  <h3 style={{ margin: 0, color: "var(--success)" }}>{spMatched}</h3>
+                </div>
+              </div>
+              <div className="card" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <AlertTriangle size={24} color="var(--warning, #f59e0b)" />
+                <div>
+                  <span style={{ fontSize: "11px", color: "#64748b" }}>UNMATCHED TRANSACTIONS</span>
+                  <h3 style={{ margin: 0, color: spUnmatched > 0 ? "var(--danger)" : "#64748b" }}>{spUnmatched}</h3>
                 </div>
               </div>
             </div>
 
-            {/* Unified ledger list */}
+            {/* Unified ledger */}
             <div className="card">
-              <h4 style={{ marginBottom: "16px" }}>Unified Ledger Timeline</h4>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px", flexWrap: "wrap", gap: "8px" }}>
+                <h4 style={{ margin: 0 }}>Unified Ledger Timeline</h4>
+                <button className="btn btn-outline" style={{ fontSize: "12px", padding: "6px 12px", display: "flex", alignItems: "center", gap: "4px" }} onClick={() => window.print()}>
+                  <Printer size={14} /> Print Ledger
+                </button>
+              </div>
               <div className="table-container">
                 <table className="table">
                   <thead>
                     <tr>
                       <th>Date</th>
                       <th>Type</th>
-                      <th>Category/Details</th>
+                      <th>Category / Student</th>
                       <th>Description</th>
-                      <th>Transaction Reference</th>
-                      <th>Amount</th>
+                      <th>Receipt / Ref</th>
+                      <th>Amount (UGX)</th>
+                      <th>Running Balance</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {/* Combine payments and expenses, sort by date descending */}
                     {(() => {
-                      const ledgerItems: any[] = [];
+                      const items: any[] = [];
                       studentPayments.forEach(p => {
                         const stud = students.find(s => s.id === p.studentId);
-                        ledgerItems.push({
-                          date: p.date,
-                          type: "RECEIPT",
-                          category: "Tuition Fee",
-                          description: stud ? `Fee payment by ${stud.name} (${stud.studentNumber})` : "Fee payment",
-                          ref: "REC-T1-2026",
-                          amount: p.amountPaid,
-                          isIncome: true
-                        });
+                        items.push({ date: p.date, type: "INCOME", category: "Tuition Fee", desc: stud ? `${stud.name} â€” ${stud.studentNumber}` : "Fee payment", ref: p.receiptNumber || "REC-" + p.id.substring(0,8).toUpperCase(), amount: p.amountPaid, isIncome: true });
                       });
                       expenses.forEach(e => {
-                        ledgerItems.push({
-                          date: e.date,
-                          type: "EXPENSE",
-                          category: e.category,
-                          description: e.description,
-                          ref: "EXP-" + e.id.substring(4, 10).toUpperCase(),
-                          amount: e.amount,
-                          isIncome: false
-                        });
+                        items.push({ date: e.date, type: "EXPENSE", category: e.category, desc: e.description, ref: "EXP-" + e.id.substring(0,8).toUpperCase(), amount: e.amount, isIncome: false });
                       });
-                      ledgerItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                      items.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
                       
-                      if (ledgerItems.length === 0) {
-                        return <tr><td colSpan={6} style={{ textAlign: "center", color: "#64748b" }}>No ledger transactions captured yet.</td></tr>;
-                      }
+                      if (items.length === 0) return <tr><td colSpan={7} style={{ textAlign: "center", color: "#64748b" }}>No ledger transactions yet.</td></tr>;
 
-                      return ledgerItems.map((item, idx) => (
-                        <tr key={idx}>
-                          <td>{new Date(item.date).toLocaleDateString()}</td>
-                          <td>
-                            <span className={`badge ${item.isIncome ? "badge-success" : "badge-danger"}`}>
-                              {item.type}
-                            </span>
-                          </td>
-                          <td><strong>{item.category}</strong></td>
-                          <td>{item.description}</td>
-                          <td><code style={{ fontSize: "11px" }}>{item.ref}</code></td>
-                          <td style={{ fontWeight: 700, color: item.isIncome ? "var(--success)" : "var(--danger)" }}>
-                            {item.isIncome ? "+" : "-"}{item.amount.toLocaleString()} UGX
-                          </td>
-                        </tr>
-                      ));
+                      let running = 0;
+                      return items.reverse().map((item, idx) => {
+                        running += item.isIncome ? item.amount : -item.amount;
+                        return (
+                          <tr key={idx}>
+                            <td>{new Date(item.date).toLocaleDateString()}</td>
+                            <td><span className={`badge ${item.isIncome ? "badge-success" : "badge-danger"}`}>{item.type}</span></td>
+                            <td><strong>{item.category}</strong></td>
+                            <td style={{ fontSize: "12px" }}>{item.desc}</td>
+                            <td><code style={{ fontSize: "11px" }}>{item.ref}</code></td>
+                            <td style={{ fontWeight: 700, color: item.isIncome ? "var(--success)" : "var(--danger)" }}>
+                              {item.isIncome ? "+" : "-"}{item.amount.toLocaleString()}
+                            </td>
+                            <td style={{ fontWeight: 600, color: running >= 0 ? "var(--primary)" : "var(--danger)" }}>{running.toLocaleString()}</td>
+                          </tr>
+                        );
+                      });
                     })()}
                   </tbody>
                 </table>
               </div>
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* TAB 6B: TUITION & FEES STRUCTURE */}
         {activeTab === "tuition_fees" && school.packageType === "PREMIUM" && (
@@ -5865,53 +5986,27 @@ export default function SchoolPortal({ params }: PageProps) {
                 <form onSubmit={handleSaveFee}>
                   <div className="form-group">
                     <label className="form-label">Select Class</label>
-                    <select 
-                      className="input-field" 
-                      value={selectedFeeClassId}
-                      onChange={(e) => setSelectedFeeClassId(e.target.value)}
-                      required
-                    >
+                    <select className="input-field" value={selectedFeeClassId} onChange={(e) => setSelectedFeeClassId(e.target.value)} required>
                       {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Tuition / Day Student Fee (UGX)</label>
-                    <input 
-                      type="number" 
-                      className="input-field" 
-                      placeholder="e.g. 450000"
-                      value={tuitionAmount}
-                      onChange={(e) => setTuitionAmount(e.target.value)}
-                      required
-                    />
+                    <label className="form-label">Day Student Tuition (UGX)</label>
+                    <input type="number" className="input-field" placeholder="e.g. 450000" value={tuitionAmount} onChange={(e) => setTuitionAmount(e.target.value)} required />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Extra Boarding Student Fee (UGX)</label>
-                    <input 
-                      type="number" 
-                      className="input-field" 
-                      placeholder="e.g. 700000"
-                      value={boardingAmount}
-                      onChange={(e) => setBoardingAmount(e.target.value)}
-                      required
-                    />
+                    <label className="form-label">Boarding Surcharge (UGX)</label>
+                    <input type="number" className="input-field" placeholder="e.g. 700000" value={boardingAmount} onChange={(e) => setBoardingAmount(e.target.value)} required />
                   </div>
                   <button type="submit" className="btn btn-primary" style={{ width: "100%", marginTop: "10px" }}>Save Fee Rules</button>
                 </form>
               </div>
 
               <div className="card">
-                <h4 style={{ marginBottom: "16px" }}>Current Term Fee Structures</h4>
+                <h4 style={{ marginBottom: "16px" }}>Current Fee Structures</h4>
                 <div className="table-container">
                   <table className="table">
-                    <thead>
-                      <tr>
-                        <th>Class Level</th>
-                        <th>Day Student Tuition</th>
-                        <th>Boarding Surcharge</th>
-                        <th>Total Boarding Cost</th>
-                      </tr>
-                    </thead>
+                    <thead><tr><th>Class</th><th>Day Tuition</th><th>Boarding Extra</th><th>Total (Boarding)</th></tr></thead>
                     <tbody>
                       {feeStructures.map(fs => {
                         const clName = classes.find(c => c.id === fs.classId)?.name || "Unknown";
@@ -5924,9 +6019,7 @@ export default function SchoolPortal({ params }: PageProps) {
                           </tr>
                         );
                       })}
-                      {feeStructures.length === 0 && (
-                        <tr><td colSpan={4} style={{ textAlign: "center", color: "#64748b" }}>No structures recorded yet. Set term fees for classes first.</td></tr>
-                      )}
+                      {feeStructures.length === 0 && <tr><td colSpan={4} style={{ textAlign: "center", color: "#64748b" }}>No fee structures configured yet.</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -5935,94 +6028,137 @@ export default function SchoolPortal({ params }: PageProps) {
           </div>
         )}
 
-        {/* TAB 6C: STUDENT BILLING & PAYMENTS */}
+        {/* TAB 6C: STUDENT BILLING & PAYMENTS (Enhanced) */}
         {activeTab === "student_billing" && school.packageType === "PREMIUM" && (
           <div className="tab-content-anim">
-            <h2 style={{ marginBottom: "10px" }}>Record Tuition Payments</h2>
-            <p style={{ color: "#64748b", marginBottom: "30px" }}>Log tuition receipts or trigger simulated payment prompts for Mobile Money and Credit Cards.</p>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px", flexWrap: "wrap", gap: "8px" }}>
+              <div>
+                <h2 style={{ marginBottom: "4px" }}>Student Fee Payments</h2>
+                <p style={{ color: "#64748b" }}>Record, track, and manage student fee payments with full ledger history.</p>
+              </div>
+              <button className="btn btn-outline" style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px" }} onClick={() => window.print()}>
+                <Printer size={14} /> Print Collections
+              </button>
+            </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "24px" }} className="flex-mobile-col">
+            <div style={{ display: "grid", gridTemplateColumns: "380px 1fr", gap: "24px" }} className="flex-mobile-col">
+              {/* Form */}
               <div className="card" style={{ height: "fit-content" }}>
-                <h4 style={{ marginBottom: "16px" }}>Record Receipt Payment</h4>
+                <h4 style={{ marginBottom: "16px" }}>
+                  <Receipt size={16} style={{ marginRight: "6px", verticalAlign: "middle" }} />
+                  Record Fee Payment
+                </h4>
                 <form onSubmit={handleRecordStudentPay}>
                   <div className="form-group">
-                    <label className="form-label">Select Student</label>
-                    <select 
-                      className="input-field" 
-                      value={selectedPayStudentId}
-                      onChange={(e) => setSelectedPayStudentId(e.target.value)}
-                      required
-                    >
-                      {students.map(s => <option key={s.id} value={s.id}>{s.name} ({s.studentNumber})</option>)}
+                    <label className="form-label">Student</label>
+                    <select className="input-field" value={selectedPayStudentId} onChange={(e) => setSelectedPayStudentId(e.target.value)} required>
+                      {students.map(s => {
+                        const cl = classes.find(c => c.id === s.classId)?.name || "";
+                        return <option key={s.id} value={s.id}>{s.name} â€” {cl} ({s.studentNumber})</option>;
+                      })}
                     </select>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                    <div className="form-group">
+                      <label className="form-label">Term</label>
+                      <select className="input-field" value={payTerm} onChange={(e) => setPayTerm(e.target.value)}>
+                        <option value="1">Term 1</option>
+                        <option value="2">Term 2</option>
+                        <option value="3">Term 3</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Year</label>
+                      <input type="number" className="input-field" value={payYear} onChange={(e) => setPayYear(e.target.value)} min="2020" max="2040" />
+                    </div>
                   </div>
                   <div className="form-group">
                     <label className="form-label">Amount Paid (UGX)</label>
-                    <input 
-                      type="number" 
-                      className="input-field" 
-                      placeholder="e.g. 300000"
-                      value={payAmountPaid}
-                      onChange={(e) => setPayAmountPaid(e.target.value)}
-                      required
-                    />
+                    <input type="number" className="input-field" placeholder="e.g. 300000" value={payAmountPaid} onChange={(e) => setPayAmountPaid(e.target.value)} required />
                   </div>
-                  <button type="submit" className="btn btn-primary" style={{ width: "100%", marginBottom: "10px" }}>Log Cash Payment Receipt</button>
-                  
-                  <button 
-                    type="button" 
-                    onClick={async () => {
-                      const stud = students.find(s => s.id === selectedPayStudentId);
-                      if (stud) {
-                        const fs = feeStructures.find(f => f.classId === stud.classId);
-                        const totalDue = stud.type === "BOARDING" 
-                          ? (fs?.tuitionAmount || 0) + (fs?.boardingAmount || 0)
-                          : (fs?.tuitionAmount || 0);
-                        const sp = studentPayments.find(p => p.studentId === stud.id);
-                        const balance = sp ? sp.balance : totalDue;
-                        handleTriggerMoMoPayment(balance, "TUITION", stud.id);
-                      }
-                    }} 
-                    className="btn btn-secondary" 
-                    style={{ width: "100%", borderColor: "var(--success)", color: "var(--success)", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
-                  >
-                    💸 Pay via Mobile Money (Simulated API)
-                  </button>
+                  <div className="form-group">
+                    <label className="form-label">Balance Brought Forward (UGX)</label>
+                    <input type="number" className="input-field" placeholder="Arrears from prev term (0 if none)" value={payBBF} onChange={(e) => setPayBBF(e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Payment Method</label>
+                    <select className="input-field" value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
+                      <option value="CASH">Cash</option>
+                      <option value="BANK">Bank Transfer</option>
+                      <option value="MOBILE_MONEY">Mobile Money</option>
+                      <option value="SCHOOL_PAY">SchoolPay</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Receipt No. (auto if blank)</label>
+                    <input type="text" className="input-field" placeholder="e.g. RCP-2026-001" value={payReceiptNum} onChange={(e) => setPayReceiptNum(e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Notes (optional)</label>
+                    <input type="text" className="input-field" placeholder="e.g. Partial payment, balance next week" value={payNotes} onChange={(e) => setPayNotes(e.target.value)} />
+                  </div>
+
+                  {/* Quick balance preview */}
+                  {selectedPayStudentId && (() => {
+                    const stud = students.find(s => s.id === selectedPayStudentId);
+                    if (!stud) return null;
+                    const fs = feeStructures.find(f => f.classId === stud.classId);
+                    const totalDue = stud.type === "BOARDING" ? (fs?.tuitionAmount || 0) + (fs?.boardingAmount || 0) : (fs?.tuitionAmount || 0);
+                    const prevPaid = studentPayments.filter(p => p.studentId === stud.id && p.term === parseInt(payTerm) && p.year === parseInt(payYear)).reduce((s, p) => s + p.amountPaid, 0);
+                    const bbf = parseFloat(payBBF) || 0;
+                    const thisPay = parseFloat(payAmountPaid) || 0;
+                    const remaining = Math.max(0, totalDue + bbf - prevPaid - thisPay);
+                    return (
+                      <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "8px", padding: "12px", marginBottom: "12px", fontSize: "12px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}><span>Fee Due (Term {payTerm}):</span><strong>{totalDue.toLocaleString()} UGX</strong></div>
+                        {bbf > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px", color: "var(--danger)" }}><span>+ Arrears (BBF):</span><strong>{bbf.toLocaleString()} UGX</strong></div>}
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px", color: "var(--success)" }}><span>Previously Paid:</span><strong>{prevPaid.toLocaleString()} UGX</strong></div>
+                        <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid #bbf7d0", paddingTop: "6px" }}><span><strong>Remaining After This Payment:</strong></span><strong style={{ color: remaining > 0 ? "var(--danger)" : "var(--success)" }}>{remaining.toLocaleString()} UGX</strong></div>
+                      </div>
+                    );
+                  })()}
+
+                  <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Record Payment & Generate Receipt</button>
                 </form>
               </div>
 
+              {/* Collections Log */}
               <div className="card">
-                <h4 style={{ marginBottom: "16px" }}>Term Collections Logs</h4>
+                <h4 style={{ marginBottom: "16px" }}>Payment Collections Log</h4>
                 <div className="table-container">
                   <table className="table">
                     <thead>
                       <tr>
                         <th>Date</th>
-                        <th>Student Number</th>
-                        <th>Student Name</th>
+                        <th>Receipt</th>
+                        <th>Student</th>
                         <th>Class</th>
-                        <th>Amount Settled</th>
-                        <th>Remaining Balance</th>
+                        <th>Term/Yr</th>
+                        <th>Method</th>
+                        <th>BBF</th>
+                        <th>Paid</th>
+                        <th>Balance</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {studentPayments.map(p => {
+                      {[...studentPayments].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(p => {
                         const stud = students.find(s => s.id === p.studentId);
-                        const cl = classes.find(c => c.id === stud?.classId)?.name || "Unknown";
+                        const cl = classes.find(c => c.id === stud?.classId)?.name || "?";
                         return (
                           <tr key={p.id}>
                             <td>{new Date(p.date).toLocaleDateString()}</td>
-                            <td><code>{stud?.studentNumber}</code></td>
+                            <td><code style={{ fontSize: "10px" }}>{p.receiptNumber || "â€”"}</code></td>
                             <td><strong>{stud?.name}</strong></td>
                             <td>{cl}</td>
-                            <td style={{ color: "var(--success)", fontWeight: "bold" }}>+{p.amountPaid.toLocaleString()} UGX</td>
-                            <td>{p.balance > 0 ? `${p.balance.toLocaleString()} UGX` : <span className="badge badge-success">Cleared</span>}</td>
+                            <td>T{p.term} {p.year}</td>
+                            <td><span className="badge badge-primary" style={{ fontSize: "10px" }}>{p.paymentMethod || "CASH"}</span></td>
+                            <td style={{ color: "var(--warning, #f59e0b)", fontSize: "12px" }}>{(p.balanceBF || 0) > 0 ? `+${(p.balanceBF || 0).toLocaleString()}` : "â€”"}</td>
+                            <td style={{ color: "var(--success)", fontWeight: "bold" }}>+{p.amountPaid.toLocaleString()}</td>
+                            <td><span className={`badge ${p.balance > 0 ? "badge-danger" : "badge-success"}`}>{p.balance > 0 ? `${p.balance.toLocaleString()}` : "Cleared"}</span></td>
                           </tr>
                         );
                       })}
-                      {studentPayments.length === 0 && (
-                        <tr><td colSpan={6} style={{ textAlign: "center", color: "#64748b" }}>No tuition payments recorded this term.</td></tr>
-                      )}
+                      {studentPayments.length === 0 && <tr><td colSpan={9} style={{ textAlign: "center", color: "#64748b" }}>No payments recorded yet.</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -6031,162 +6167,155 @@ export default function SchoolPortal({ params }: PageProps) {
           </div>
         )}
 
-        {/* TAB 6D: FEE DEFAULTERS DIRECTORY */}
+        {/* TAB 6D: FEE DEFAULTERS (Enhanced) */}
         {activeTab === "defaulters_list" && school.packageType === "PREMIUM" && (
           <div className="tab-content-anim">
-            <h2 style={{ marginBottom: "10px" }}>Fees Defaulters Directory</h2>
-            <p style={{ color: "#64748b", marginBottom: "30px" }}>Monitor and audit students with outstanding tuition balances for this term.</p>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px", flexWrap: "wrap", gap: "8px" }}>
+              <div>
+                <h2 style={{ marginBottom: "4px" }}>Fee Defaulters Directory</h2>
+                <p style={{ color: "#64748b" }}>Track students with outstanding balances including arrears (BBF) from prior terms.</p>
+              </div>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <select className="input-field" style={{ width: "auto", fontSize: "12px" }} value={finFilterTerm} onChange={e => setFinFilterTerm(e.target.value)}>
+                  <option value="1">Term 1</option>
+                  <option value="2">Term 2</option>
+                  <option value="3">Term 3</option>
+                </select>
+                <input type="number" className="input-field" style={{ width: "80px", fontSize: "12px" }} value={finFilterYear} onChange={e => setFinFilterYear(e.target.value)} />
+                <button className="btn btn-outline" style={{ fontSize: "12px", display: "flex", alignItems: "center", gap: "4px" }} onClick={() => window.print()}>
+                  <Printer size={14} /> Print Defaulters
+                </button>
+              </div>
+            </div>
 
             <div className="card">
-              <h4 style={{ marginBottom: "16px" }}>Outstanding Balances Ledger</h4>
-              <div className="table-container">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Student Number</th>
-                      <th>Student Name</th>
-                      <th>Class Stream</th>
-                      <th>Residency Type</th>
-                      <th>Total Fee Due</th>
-                      <th>Amount Paid</th>
-                      <th>Deficit Balance</th>
-                      <th>Status Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(() => {
-                      const defaulters = students.map(st => {
-                        const fs = feeStructures.find(f => f.classId === st.classId);
-                        const totalDue = st.type === "BOARDING" 
-                          ? (fs?.tuitionAmount || 0) + (fs?.boardingAmount || 0)
-                          : (fs?.tuitionAmount || 0);
+              {(() => {
+                const rows = students.map(st => {
+                  const fs = feeStructures.find(f => f.classId === st.classId);
+                  const totalDue = st.type === "BOARDING" ? (fs?.tuitionAmount || 0) + (fs?.boardingAmount || 0) : (fs?.tuitionAmount || 0);
+                  const pays = studentPayments.filter(p => p.studentId === st.id && p.term === parseInt(finFilterTerm) && p.year === parseInt(finFilterYear));
+                  const totalPaid = pays.reduce((sum, p) => sum + p.amountPaid, 0);
+                  const maxBBF = pays.reduce((max, p) => Math.max(max, p.balanceBF || 0), 0);
+                  const balance = Math.max(0, totalDue + maxBBF - totalPaid);
+                  const cl = classes.find(c => c.id === st.classId)?.name || "N/A";
+                  const strm = streams.find(s => s.id === st.streamId)?.name || "N/A";
+                  return { st, totalDue, totalPaid, balance, maxBBF, cl, strm };
+                }).sort((a, b) => b.balance - a.balance);
 
-                        const sp = studentPayments.find(p => p.studentId === st.id);
-                        const totalPaid = sp ? sp.amountPaid : 0;
-                        const balance = sp ? sp.balance : totalDue;
+                const totalOutstanding = rows.reduce((sum, r) => sum + r.balance, 0);
 
-                        const cl = classes.find(c => c.id === st.classId)?.name || "N/A";
-                        const strm = streams.find(s => s.id === st.streamId)?.name || "N/A";
-
-                        return { st, totalDue, totalPaid, balance, cl, strm };
-                      });
-
-                      if (defaulters.length === 0) {
-                        return <tr><td colSpan={8} style={{ textAlign: "center", color: "#64748b" }}>No registered students available.</td></tr>;
-                      }
-
-                      return defaulters.map(({ st, totalDue, totalPaid, balance, cl, strm }) => (
-                        <tr key={st.id}>
-                          <td><code>{st.studentNumber}</code></td>
-                          <td><strong>{st.name}</strong></td>
-                          <td>{cl} ({strm})</td>
-                          <td>
-                            <span className={`badge ${st.type === "BOARDING" ? "badge-warning" : "badge-primary"}`}>
-                              {st.type}
-                            </span>
-                          </td>
-                          <td>{totalDue.toLocaleString()} UGX</td>
-                          <td>{totalPaid.toLocaleString()} UGX</td>
-                          <td>
-                            <span className={`badge ${balance > 0 ? "badge-danger" : "badge-success"}`}>
-                              {balance > 0 ? `${balance.toLocaleString()} UGX` : "Cleared"}
-                            </span>
-                          </td>
-                          <td>
-                            {balance > 0 ? (
-                              <button 
-                                onClick={() => {
-                                  setSelectedPayStudentId(st.id);
-                                  setActiveTab("student_billing");
-                                }}
-                                className="btn btn-outline"
-                                style={{ padding: "6px 12px", fontSize: "11px", borderColor: "var(--danger)", color: "var(--danger)" }}
-                              >
-                                Collect Fees
-                              </button>
-                            ) : (
-                              <span style={{ color: "var(--success)", fontSize: "12px", fontWeight: "bold" }}>Paid In Full</span>
-                            )}
-                          </td>
-                        </tr>
-                      ));
-                    })()}
-                  </tbody>
-                </table>
-              </div>
+                return (
+                  <>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "16px", flexWrap: "wrap", gap: "8px" }}>
+                      <h4 style={{ margin: 0 }}>Outstanding Balances â€” Term {finFilterTerm} {finFilterYear}</h4>
+                      <div style={{ background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: "6px", padding: "6px 14px", fontSize: "13px", fontWeight: 700, color: "var(--danger)" }}>
+                        Total Outstanding: {totalOutstanding.toLocaleString()} UGX
+                      </div>
+                    </div>
+                    <div className="table-container">
+                      <table className="table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>Student No.</th>
+                            <th>Name</th>
+                            <th>Class</th>
+                            <th>Type</th>
+                            <th>Fee Due</th>
+                            <th>Arrears (BBF)</th>
+                            <th>Paid</th>
+                            <th>Balance</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map(({ st, totalDue, totalPaid, balance, maxBBF, cl, strm }, idx) => (
+                            <tr key={st.id} style={{ background: balance > 0 ? (idx % 2 === 0 ? "#fff5f5" : "#fff") : "inherit" }}>
+                              <td>{idx + 1}</td>
+                              <td><code>{st.studentNumber}</code></td>
+                              <td><strong>{st.name}</strong></td>
+                              <td>{cl} / {strm}</td>
+                              <td><span className={`badge ${st.type === "BOARDING" ? "badge-warning" : "badge-primary"}`}>{st.type}</span></td>
+                              <td>{totalDue.toLocaleString()}</td>
+                              <td style={{ color: maxBBF > 0 ? "var(--danger)" : "#64748b" }}>{maxBBF > 0 ? `+${maxBBF.toLocaleString()}` : "â€”"}</td>
+                              <td style={{ color: "var(--success)" }}>{totalPaid.toLocaleString()}</td>
+                              <td><strong style={{ color: balance > 0 ? "var(--danger)" : "var(--success)" }}>{balance > 0 ? balance.toLocaleString() : "Cleared"}</strong></td>
+                              <td><span className={`badge ${balance > 0 ? "badge-danger" : "badge-success"}`}>{balance > 0 ? "OWING" : "PAID"}</span></td>
+                              <td>
+                                {balance > 0 ? (
+                                  <button onClick={() => { setSelectedPayStudentId(st.id); setActiveTab("student_billing"); }} className="btn btn-outline" style={{ padding: "4px 10px", fontSize: "11px", borderColor: "var(--primary)", color: "var(--primary)" }}>
+                                    Collect
+                                  </button>
+                                ) : (
+                                  <span style={{ color: "var(--success)", fontSize: "12px" }}>âœ“ Full</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                          {rows.length === 0 && <tr><td colSpan={11} style={{ textAlign: "center", color: "#64748b" }}>No students registered.</td></tr>}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         )}
 
-        {/* TAB 6E: EXPENDITURES & EXPENSES */}
+        {/* TAB 6E: EXPENDITURES */}
         {activeTab === "expenditures" && school.packageType === "PREMIUM" && (
           <div className="tab-content-anim">
-            <h2 style={{ marginBottom: "10px" }}>School Expenditures Outflows</h2>
-            <p style={{ color: "#64748b", marginBottom: "30px" }}>Log utility bills, academic supplies purchases, repairs, and general operational expenses.</p>
-
+            <h2 style={{ marginBottom: "10px" }}>School Expenditures</h2>
+            <p style={{ color: "#64748b", marginBottom: "30px" }}>Log utility bills, purchases, repairs, and general operational expenses.</p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "24px" }} className="flex-mobile-col">
               <div className="card" style={{ height: "fit-content" }}>
-                <h4 style={{ marginBottom: "16px" }}>Record Expenditure Outflow</h4>
+                <h4 style={{ marginBottom: "16px" }}>Record Expense</h4>
                 <form onSubmit={handleCreateExpense}>
                   <div className="form-group">
-                    <label className="form-label">Expense Category</label>
+                    <label className="form-label">Category</label>
                     <select className="input-field" value={expCategory} onChange={(e) => setExpCategory(e.target.value)} required>
                       <option value="Salaries">Staff Wages / Salaries</option>
                       <option value="Food & Boarding">Food & Boarding Supplies</option>
                       <option value="Academics">Books, Chalk & Stationery</option>
                       <option value="Utilities">Water, Power & Repairs</option>
+                      <option value="Transport">Transport & Fuel</option>
+                      <option value="Construction">Buildings & Construction</option>
                       <option value="Other">Miscellaneous</option>
                     </select>
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Expense Amount (UGX)</label>
-                    <input 
-                      type="number" 
-                      className="input-field" 
-                      placeholder="e.g. 180000"
-                      value={expAmount}
-                      onChange={(e) => setExpAmount(e.target.value)}
-                      required
-                    />
+                    <label className="form-label">Amount (UGX)</label>
+                    <input type="number" className="input-field" placeholder="e.g. 180000" value={expAmount} onChange={(e) => setExpAmount(e.target.value)} required />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Description Notes</label>
-                    <input 
-                      type="text" 
-                      className="input-field" 
-                      placeholder="e.g. Purchase of library chalk"
-                      value={expDesc}
-                      onChange={(e) => setExpDesc(e.target.value)}
-                    />
+                    <label className="form-label">Description</label>
+                    <input type="text" className="input-field" placeholder="e.g. Purchase of library chalk" value={expDesc} onChange={(e) => setExpDesc(e.target.value)} />
                   </div>
-                  <button type="submit" className="btn btn-primary" style={{ width: "100%", marginTop: "10px" }}>Log Expense Outflow</button>
+                  <button type="submit" className="btn btn-primary" style={{ width: "100%", marginTop: "10px" }}>Log Expense</button>
                 </form>
               </div>
-
               <div className="card">
-                <h4 style={{ marginBottom: "16px" }}>Expenditures History Log</h4>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "16px", alignItems: "center" }}>
+                  <h4 style={{ margin: 0 }}>Expenditure Log</h4>
+                  <button className="btn btn-outline" style={{ fontSize: "12px", display: "flex", alignItems: "center", gap: "4px" }} onClick={() => window.print()}>
+                    <Printer size={14} /> Print
+                  </button>
+                </div>
                 <div className="table-container">
                   <table className="table">
-                    <thead>
-                      <tr>
-                        <th>Date</th>
-                        <th>Category</th>
-                        <th>Description Details</th>
-                        <th>Outflow Amount</th>
-                      </tr>
-                    </thead>
+                    <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount (UGX)</th></tr></thead>
                     <tbody>
-                      {expenses.map(e => (
+                      {[...expenses].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(e => (
                         <tr key={e.id}>
                           <td>{new Date(e.date).toLocaleDateString()}</td>
                           <td><strong>{e.category}</strong></td>
                           <td>{e.description}</td>
-                          <td style={{ color: "var(--danger)", fontWeight: "bold" }}>-{e.amount.toLocaleString()} UGX</td>
+                          <td style={{ color: "var(--danger)", fontWeight: "bold" }}>-{e.amount.toLocaleString()}</td>
                         </tr>
                       ))}
-                      {expenses.length === 0 && (
-                        <tr><td colSpan={4} style={{ textAlign: "center", color: "#64748b" }}>No expenditure logs recorded.</td></tr>
-                      )}
+                      {expenses.length === 0 && <tr><td colSpan={4} style={{ textAlign: "center", color: "#64748b" }}>No expenses logged yet.</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -6199,78 +6328,42 @@ export default function SchoolPortal({ params }: PageProps) {
         {activeTab === "payroll" && school.packageType === "PREMIUM" && (
           <div className="tab-content-anim">
             <h2 style={{ marginBottom: "10px" }}>Staff Payroll & Salaries</h2>
-            <p style={{ color: "#64748b", marginBottom: "30px" }}>Disburse and record monthly wages for teachers, DOS, and administrative staff members.</p>
-
+            <p style={{ color: "#64748b", marginBottom: "30px" }}>Disburse and record monthly wages for teachers and administrative staff.</p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "24px" }} className="flex-mobile-col">
               <div className="card" style={{ height: "fit-content" }}>
                 <h4 style={{ marginBottom: "16px" }}>Process Salary Payout</h4>
                 <form onSubmit={handleProcessSalary}>
                   <div className="form-group">
-                    <label className="form-label">Select Staff Member</label>
-                    <select 
-                      className="input-field" 
-                      value={payTeacherId}
-                      onChange={(e) => setPayTeacherId(e.target.value)}
-                      required
-                    >
+                    <label className="form-label">Staff Member</label>
+                    <select className="input-field" value={payTeacherId} onChange={(e) => setPayTeacherId(e.target.value)} required>
                       <option value="">-- Choose staff --</option>
                       {users.filter(u => u.schoolId === school.id && u.role !== "ADMIN").map(u => (
                         <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
                       ))}
                     </select>
                   </div>
-                  <div className="grid grid-cols-2 gap-2" style={{ marginBottom: "12px" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px" }}>
                     <div className="form-group">
-                      <label className="form-label">Salary Month</label>
-                      <select 
-                        className="input-field"
-                        value={payMonthName}
-                        onChange={(e) => setPayMonthName(e.target.value)}
-                      >
-                        <option value="January">January</option>
-                        <option value="February">February</option>
-                        <option value="March">March</option>
-                        <option value="April">April</option>
-                        <option value="May">May</option>
-                        <option value="June">June</option>
-                        <option value="July">July</option>
-                        <option value="August">August</option>
-                        <option value="September">September</option>
-                        <option value="October">October</option>
-                        <option value="November">November</option>
-                        <option value="December">December</option>
+                      <label className="form-label">Month</label>
+                      <select className="input-field" value={payMonthName} onChange={(e) => setPayMonthName(e.target.value)}>
+                        {["January","February","March","April","May","June","July","August","September","October","November","December"].map(m => <option key={m} value={m}>{m}</option>)}
                       </select>
                     </div>
                     <div className="form-group">
                       <label className="form-label">Net Payout (UGX)</label>
-                      <input 
-                        type="number" 
-                        className="input-field" 
-                        placeholder="e.g. 600000"
-                        value={paySalaryAmount}
-                        onChange={(e) => setPaySalaryAmount(e.target.value)}
-                        required
-                      />
+                      <input type="number" className="input-field" placeholder="e.g. 600000" value={paySalaryAmount} onChange={(e) => setPaySalaryAmount(e.target.value)} required />
                     </div>
                   </div>
-                  <button type="submit" className="btn btn-primary" style={{ width: "100%", marginTop: "10px" }}>Disburse Wages & Log Expense</button>
+                  <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Disburse Wages</button>
                 </form>
               </div>
-
               <div className="card">
                 <h4 style={{ marginBottom: "16px" }}>Processed Salary History</h4>
                 <div className="table-container">
                   <table className="table">
-                    <thead>
-                      <tr>
-                        <th>Date Processed</th>
-                        <th>Month</th>
-                        <th>Details Notes</th>
-                        <th>Salary Paid Out</th>
-                      </tr>
-                    </thead>
+                    <thead><tr><th>Date</th><th>Month</th><th>Staff Details</th><th>Amount Paid</th></tr></thead>
                     <tbody>
-                      {expenses.filter(e => e.category === "Salaries").map(e => (
+                      {expenses.filter(e => e.category === "Salaries").sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(e => (
                         <tr key={e.id}>
                           <td>{new Date(e.date).toLocaleDateString()}</td>
                           <td><strong>{e.description.includes("(") ? e.description.substring(e.description.indexOf("(")+1, e.description.indexOf(")")) : "N/A"}</strong></td>
@@ -6278,9 +6371,7 @@ export default function SchoolPortal({ params }: PageProps) {
                           <td style={{ color: "var(--danger)", fontWeight: "bold" }}>-{e.amount.toLocaleString()} UGX</td>
                         </tr>
                       ))}
-                      {expenses.filter(e => e.category === "Salaries").length === 0 && (
-                        <tr><td colSpan={4} style={{ textAlign: "center", color: "#64748b" }}>No payroll wage records processed this term.</td></tr>
-                      )}
+                      {expenses.filter(e => e.category === "Salaries").length === 0 && <tr><td colSpan={4} style={{ textAlign: "center", color: "#64748b" }}>No payroll records yet.</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -6289,6 +6380,358 @@ export default function SchoolPortal({ params }: PageProps) {
           </div>
         )}
 
+        {/* TAB 6G: SCHOOLPAY REGISTER */}
+        {activeTab === "schoolpay_register" && school.packageType === "PREMIUM" && (
+          <div className="tab-content-anim">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px", flexWrap: "wrap", gap: "10px" }}>
+              <div>
+                <h2 style={{ marginBottom: "4px" }}>SchoolPay Transaction Register</h2>
+                <p style={{ color: "#64748b" }}>All transactions imported from SchoolPay. Matched transactions automatically update student payment records.</p>
+              </div>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                <select className="input-field" style={{ width: "auto", fontSize: "12px" }} value={spTxFilter} onChange={e => setSpTxFilter(e.target.value as any)}>
+                  <option value="ALL">All Transactions</option>
+                  <option value="MATCHED">Matched Only</option>
+                  <option value="UNMATCHED">Unmatched Only</option>
+                </select>
+                <button
+                  onClick={handleSchoolPaySync}
+                  disabled={spSyncing}
+                  className="btn btn-primary"
+                  style={{ display: "flex", alignItems: "center", gap: "6px" }}
+                >
+                  <RefreshCw size={15} style={{ animation: spSyncing ? "spin 1s linear infinite" : "none" }} />
+                  {spSyncing ? "Fetching..." : "Fetch Today's Transactions"}
+                </button>
+              </div>
+            </div>
+
+            {spSyncMsg && (
+              <div style={{ marginBottom: "16px", padding: "10px 16px", borderRadius: "8px", background: spSyncMsg.startsWith("âœ…") ? "#f0fdf4" : "#fef2f2", border: `1px solid ${spSyncMsg.startsWith("âœ…") ? "#bbf7d0" : "#fca5a5"}`, color: spSyncMsg.startsWith("âœ…") ? "#166534" : "#991b1b", fontSize: "13px" }}>
+                {spSyncMsg}
+              </div>
+            )}
+
+            {!school.schoolPayCode && (
+              <div style={{ background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: "10px", padding: "20px", marginBottom: "20px", textAlign: "center" }}>
+                <AlertTriangle size={32} color="#f59e0b" style={{ marginBottom: "8px" }} />
+                <h4>SchoolPay Not Configured</h4>
+                <p style={{ color: "#92400e" }}>Go to <strong>School Profile & Theme</strong> settings and enter your SchoolPay API Code and Password to enable automatic transaction syncing.</p>
+                <button className="btn btn-primary" style={{ marginTop: "8px" }} onClick={() => setActiveTab("school_profile")}>Configure Now</button>
+              </div>
+            )}
+
+            <div className="card">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                <div style={{ display: "flex", gap: "16px", fontSize: "13px" }}>
+                  <span style={{ color: "var(--success)", fontWeight: 700 }}>âœ… Matched: {schoolPayTransactions.filter(t => t.reconciled).length}</span>
+                  <span style={{ color: "var(--danger)", fontWeight: 700 }}>âŒ Unmatched: {schoolPayTransactions.filter(t => !t.reconciled).length}</span>
+                  <span style={{ color: "#64748b" }}>Total: {schoolPayTransactions.length}</span>
+                </div>
+                <button className="btn btn-outline" style={{ fontSize: "12px", display: "flex", alignItems: "center", gap: "4px" }} onClick={() => window.print()}>
+                  <Printer size={14} /> Print Register
+                </button>
+              </div>
+              <div className="table-container">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Receipt No.</th>
+                      <th>Student Name</th>
+                      <th>Payment Code</th>
+                      <th>Class</th>
+                      <th>Channel</th>
+                      <th>Amount (UGX)</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {schoolPayTransactions
+                      .filter(t => spTxFilter === "ALL" ? true : spTxFilter === "MATCHED" ? t.reconciled : !t.reconciled)
+                      .map(tx => (
+                        <tr key={tx.id}>
+                          <td>{new Date(tx.paymentDate).toLocaleDateString()}</td>
+                          <td><code style={{ fontSize: "10px" }}>{tx.receiptNumber}</code></td>
+                          <td><strong>{tx.studentName}</strong></td>
+                          <td><code style={{ fontSize: "10px" }}>{tx.studentPaymentCode}</code></td>
+                          <td>{tx.studentClass || "â€”"}</td>
+                          <td><span className="badge badge-primary" style={{ fontSize: "10px" }}>{tx.sourcePaymentChannel || "SchoolPay"}</span></td>
+                          <td style={{ fontWeight: 700, color: "var(--success)" }}>{tx.amount.toLocaleString()}</td>
+                          <td>
+                            {tx.reconciled
+                              ? <span className="badge badge-success">âœ… Matched</span>
+                              : (
+                                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                  <span className="badge badge-danger">Unmatched</span>
+                                  <select
+                                    className="input-field"
+                                    style={{ fontSize: "10px", padding: "2px 4px", width: "120px", height: "auto" }}
+                                    defaultValue=""
+                                    onChange={async (e) => {
+                                      if (!e.target.value || !school) return;
+                                      // Manually match by recording a student payment
+                                      const stud = students.find(s => s.id === e.target.value);
+                                      if (!stud) return;
+                                      const currentDate = new Date();
+                                      const currentMonth = currentDate.getMonth() + 1;
+                                      const term = currentMonth >= 5 && currentMonth <= 8 ? 2 : currentMonth >= 9 ? 3 : 1;
+                                      await recordStudentPayment({
+                                        studentId: stud.id,
+                                        term,
+                                        year: currentDate.getFullYear(),
+                                        amountPaid: tx.amount,
+                                        balance: 0,
+                                        paymentMethod: "SCHOOL_PAY",
+                                        receiptNumber: tx.receiptNumber,
+                                        notes: `Auto-matched from SchoolPay transaction`,
+                                      });
+                                      // Refresh
+                                      const spay = await getStudentPayments(school.id);
+                                      setStudentPayments(spay);
+                                      alert(`Matched to ${stud.name} and recorded!`);
+                                    }}
+                                  >
+                                    <option value="">Match to student...</option>
+                                    {students.map(s => <option key={s.id} value={s.id}>{s.name} ({s.studentNumber})</option>)}
+                                  </select>
+                                </div>
+                              )
+                            }
+                          </td>
+                        </tr>
+                      ))
+                    }
+                    {schoolPayTransactions.length === 0 && (
+                      <tr><td colSpan={8} style={{ textAlign: "center", color: "#64748b", padding: "40px" }}>
+                        No SchoolPay transactions yet. Click "Fetch Today's Transactions" to sync.
+                      </td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 6H: FINANCIAL REPORTS */}
+        {activeTab === "fin_reports" && school.packageType === "PREMIUM" && (() => {
+          const totalIncome = studentPayments.reduce((s, p) => s + p.amountPaid, 0);
+          const totalExpense = expenses.reduce((s, e) => s + e.amount, 0);
+          const netProfit = totalIncome - totalExpense;
+          const salaryExp = expenses.filter(e => e.category === "Salaries").reduce((s, e) => s + e.amount, 0);
+          const foodExp = expenses.filter(e => e.category === "Food & Boarding").reduce((s, e) => s + e.amount, 0);
+          const acadExp = expenses.filter(e => e.category === "Academics").reduce((s, e) => s + e.amount, 0);
+          const utilExp = expenses.filter(e => e.category === "Utilities").reduce((s, e) => s + e.amount, 0);
+          const otherExp = expenses.filter(e => !["Salaries","Food & Boarding","Academics","Utilities"].includes(e.category)).reduce((s, e) => s + e.amount, 0);
+
+          const printReport = (reportId: string) => {
+            const el = document.getElementById(reportId);
+            if (!el) return;
+            const w = window.open("", "_blank");
+            if (!w) return;
+            w.document.write(`<html><head><title>Financial Report â€” ${school.name}</title><style>
+              body{font-family:Arial,sans-serif;font-size:13px;margin:20px;color:#1e293b}
+              h1{font-size:20px;text-align:center} h2{font-size:16px} h3{font-size:14px}
+              table{width:100%;border-collapse:collapse;margin-top:10px}
+              th,td{border:1px solid #94a3b8;padding:8px;text-align:left}
+              th{background:#1e3a8a;color:white} tr:nth-child(even){background:#f8fafc}
+              .total{font-weight:bold;background:#e0f2fe}
+              .positive{color:#16a34a} .negative{color:#dc2626}
+              .header{text-align:center;margin-bottom:20px;border-bottom:2px solid #1e3a8a;padding-bottom:10px}
+              @media print{button{display:none}}
+            </style></head><body>`);
+            w.document.write(el.innerHTML);
+            w.document.write(`</body></html>`);
+            w.document.close();
+            w.print();
+          };
+
+          return (
+          <div className="tab-content-anim">
+            <h2 style={{ marginBottom: "4px" }}>Financial Reports</h2>
+            <p style={{ color: "#64748b", marginBottom: "24px" }}>Printable financial reports for audit, management, and compliance purposes.</p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }} className="flex-mobile-col">
+
+              {/* Income & Expenditure Statement */}
+              <div className="card">
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px", alignItems: "center" }}>
+                  <h4 style={{ margin: 0 }}>ðŸ“Š Income & Expenditure Statement</h4>
+                  <button className="btn btn-outline" style={{ fontSize: "11px", padding: "4px 10px" }} onClick={() => printReport("report-income-expenditure")}>
+                    <Printer size={13} /> Print
+                  </button>
+                </div>
+                <div id="report-income-expenditure">
+                  <div className="header" style={{ textAlign: "center", marginBottom: "12px" }}>
+                    <strong>{school.name}</strong><br />
+                    <span style={{ color: "#64748b", fontSize: "12px" }}>Income & Expenditure Statement</span>
+                  </div>
+                  <table className="table">
+                    <tbody>
+                      <tr style={{ background: "#f0fdf4" }}><td colSpan={2}><strong>INCOME</strong></td></tr>
+                      <tr><td>Tuition Fees Collected</td><td style={{ fontWeight: 700, color: "var(--success)" }}>{totalIncome.toLocaleString()} UGX</td></tr>
+                      <tr style={{ background: "#f0fdf4", fontWeight: 700 }}><td>Total Income</td><td style={{ color: "var(--success)" }}>{totalIncome.toLocaleString()} UGX</td></tr>
+                      <tr style={{ background: "#fef2f2" }}><td colSpan={2}><strong>EXPENDITURE</strong></td></tr>
+                      <tr><td>Staff Salaries & Wages</td><td style={{ color: "var(--danger)" }}>{salaryExp.toLocaleString()} UGX</td></tr>
+                      <tr><td>Food & Boarding Supplies</td><td style={{ color: "var(--danger)" }}>{foodExp.toLocaleString()} UGX</td></tr>
+                      <tr><td>Academic Materials</td><td style={{ color: "var(--danger)" }}>{acadExp.toLocaleString()} UGX</td></tr>
+                      <tr><td>Utilities & Repairs</td><td style={{ color: "var(--danger)" }}>{utilExp.toLocaleString()} UGX</td></tr>
+                      <tr><td>Other Expenses</td><td style={{ color: "var(--danger)" }}>{otherExp.toLocaleString()} UGX</td></tr>
+                      <tr style={{ background: "#fef2f2", fontWeight: 700 }}><td>Total Expenditure</td><td style={{ color: "var(--danger)" }}>{totalExpense.toLocaleString()} UGX</td></tr>
+                      <tr style={{ background: netProfit >= 0 ? "#f0fdf4" : "#fef2f2", fontWeight: 700, fontSize: "15px" }}>
+                        <td>{netProfit >= 0 ? "SURPLUS (Profit)" : "DEFICIT (Loss)"}</td>
+                        <td style={{ color: netProfit >= 0 ? "var(--success)" : "var(--danger)" }}>{netProfit.toLocaleString()} UGX</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Fee Collection Summary */}
+              <div className="card">
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px", alignItems: "center" }}>
+                  <h4 style={{ margin: 0 }}>ðŸ§¾ Fee Collection Summary</h4>
+                  <button className="btn btn-outline" style={{ fontSize: "11px", padding: "4px 10px" }} onClick={() => printReport("report-fee-collection")}>
+                    <Printer size={13} /> Print
+                  </button>
+                </div>
+                <div id="report-fee-collection">
+                  <div style={{ textAlign: "center", marginBottom: "12px" }}>
+                    <strong>{school.name}</strong><br />
+                    <span style={{ color: "#64748b", fontSize: "12px" }}>Fee Collection Summary by Class</span>
+                  </div>
+                  <table className="table">
+                    <thead><tr><th>Class</th><th>Students</th><th>Expected</th><th>Collected</th><th>Outstanding</th><th>%</th></tr></thead>
+                    <tbody>
+                      {classes.map(cl => {
+                        const clStudents = students.filter(s => s.classId === cl.id);
+                        const fs = feeStructures.find(f => f.classId === cl.id);
+                        const expected = clStudents.reduce((sum, s) => sum + (s.type === "BOARDING" ? (fs?.tuitionAmount || 0) + (fs?.boardingAmount || 0) : (fs?.tuitionAmount || 0)), 0);
+                        const collected = studentPayments.filter(p => clStudents.some(s => s.id === p.studentId)).reduce((s, p) => s + p.amountPaid, 0);
+                        const outstanding = Math.max(0, expected - collected);
+                        const pct = expected > 0 ? Math.round((collected / expected) * 100) : 0;
+                        return (
+                          <tr key={cl.id}>
+                            <td><strong>{cl.name}</strong></td>
+                            <td>{clStudents.length}</td>
+                            <td>{expected.toLocaleString()}</td>
+                            <td style={{ color: "var(--success)", fontWeight: 700 }}>{collected.toLocaleString()}</td>
+                            <td style={{ color: outstanding > 0 ? "var(--danger)" : "var(--success)", fontWeight: 700 }}>{outstanding.toLocaleString()}</td>
+                            <td><span style={{ background: pct >= 80 ? "#dcfce7" : pct >= 50 ? "#fef3c7" : "#fee2e2", color: pct >= 80 ? "#166534" : pct >= 50 ? "#92400e" : "#991b1b", padding: "2px 6px", borderRadius: "4px", fontWeight: 700, fontSize: "12px" }}>{pct}%</span></td>
+                          </tr>
+                        );
+                      })}
+                      <tr style={{ fontWeight: 700, background: "#e0f2fe" }}>
+                        <td>TOTAL</td>
+                        <td>{students.length}</td>
+                        <td>{feeStructures.reduce((s, fs) => { const cls = students.filter(st => st.classId === fs.classId); return s + cls.reduce((ss, st) => ss + (st.type === "BOARDING" ? fs.tuitionAmount + fs.boardingAmount : fs.tuitionAmount), 0); }, 0).toLocaleString()}</td>
+                        <td style={{ color: "var(--success)" }}>{totalIncome.toLocaleString()}</td>
+                        <td colSpan={2}></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Outstanding Balances / Debtors Report */}
+              <div className="card">
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px", alignItems: "center" }}>
+                  <h4 style={{ margin: 0 }}>âš ï¸ Debtors / Outstanding Balances Report</h4>
+                  <button className="btn btn-outline" style={{ fontSize: "11px", padding: "4px 10px" }} onClick={() => printReport("report-debtors")}>
+                    <Printer size={13} /> Print
+                  </button>
+                </div>
+                <div id="report-debtors">
+                  <div style={{ textAlign: "center", marginBottom: "12px" }}>
+                    <strong>{school.name}</strong><br />
+                    <span style={{ color: "#64748b", fontSize: "12px" }}>Outstanding Fees â€” Debtors List</span>
+                  </div>
+                  <table className="table">
+                    <thead><tr><th>#</th><th>Student</th><th>Class</th><th>Type</th><th>Total Due</th><th>Paid</th><th>Balance</th></tr></thead>
+                    <tbody>
+                      {students.filter(st => {
+                        const fs = feeStructures.find(f => f.classId === st.classId);
+                        const due = st.type === "BOARDING" ? (fs?.tuitionAmount || 0) + (fs?.boardingAmount || 0) : (fs?.tuitionAmount || 0);
+                        const paid = studentPayments.filter(p => p.studentId === st.id).reduce((s, p) => s + p.amountPaid, 0);
+                        return paid < due;
+                      }).sort((a, b) => {
+                        const getbal = (st: Student) => { const fs = feeStructures.find(f => f.classId === st.classId); const due = st.type === "BOARDING" ? (fs?.tuitionAmount || 0) + (fs?.boardingAmount || 0) : (fs?.tuitionAmount || 0); const paid = studentPayments.filter(p => p.studentId === st.id).reduce((s, p) => s + p.amountPaid, 0); return due - paid; };
+                        return getbal(b) - getbal(a);
+                      }).map((st, idx) => {
+                        const fs = feeStructures.find(f => f.classId === st.classId);
+                        const due = st.type === "BOARDING" ? (fs?.tuitionAmount || 0) + (fs?.boardingAmount || 0) : (fs?.tuitionAmount || 0);
+                        const paid = studentPayments.filter(p => p.studentId === st.id).reduce((s, p) => s + p.amountPaid, 0);
+                        const balance = due - paid;
+                        const cl = classes.find(c => c.id === st.classId)?.name || "?";
+                        return (
+                          <tr key={st.id}>
+                            <td>{idx + 1}</td>
+                            <td><strong>{st.name}</strong><br /><code style={{ fontSize: "10px" }}>{st.studentNumber}</code></td>
+                            <td>{cl}</td>
+                            <td>{st.type}</td>
+                            <td>{due.toLocaleString()}</td>
+                            <td style={{ color: "var(--success)" }}>{paid.toLocaleString()}</td>
+                            <td style={{ color: "var(--danger)", fontWeight: 700 }}>{balance.toLocaleString()}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Expense Breakdown */}
+              <div className="card">
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px", alignItems: "center" }}>
+                  <h4 style={{ margin: 0 }}>ðŸ“‰ Expense Breakdown Report</h4>
+                  <button className="btn btn-outline" style={{ fontSize: "11px", padding: "4px 10px" }} onClick={() => printReport("report-expenses")}>
+                    <Printer size={13} /> Print
+                  </button>
+                </div>
+                <div id="report-expenses">
+                  <div style={{ textAlign: "center", marginBottom: "12px" }}>
+                    <strong>{school.name}</strong><br />
+                    <span style={{ color: "#64748b", fontSize: "12px" }}>Expenditure Breakdown Report</span>
+                  </div>
+                  <table className="table">
+                    <thead><tr><th>Category</th><th>Transactions</th><th>Total (UGX)</th><th>% of Total</th></tr></thead>
+                    <tbody>
+                      {["Salaries","Food & Boarding","Academics","Utilities","Transport","Construction","Other"].map(cat => {
+                        const catExp = expenses.filter(e => cat === "Other" ? !["Salaries","Food & Boarding","Academics","Utilities","Transport","Construction"].includes(e.category) : e.category === cat);
+                        const total = catExp.reduce((s, e) => s + e.amount, 0);
+                        if (total === 0 && cat === "Other") return null;
+                        const pct = totalExpense > 0 ? ((total / totalExpense) * 100).toFixed(1) : "0";
+                        return (
+                          <tr key={cat}>
+                            <td><strong>{cat}</strong></td>
+                            <td>{catExp.length}</td>
+                            <td style={{ color: "var(--danger)", fontWeight: 700 }}>{total.toLocaleString()}</td>
+                            <td>{pct}%</td>
+                          </tr>
+                        );
+                      })}
+                      <tr style={{ fontWeight: 700, background: "#e0f2fe" }}><td>TOTAL</td><td>{expenses.length}</td><td style={{ color: "var(--danger)" }}>{totalExpense.toLocaleString()}</td><td>100%</td></tr>
+                    </tbody>
+                  </table>
+                  <div style={{ marginTop: "16px" }}>
+                    <h5 style={{ marginBottom: "8px" }}>All Expense Transactions</h5>
+                    <table className="table">
+                      <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th></tr></thead>
+                      <tbody>
+                        {[...expenses].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(e => (
+                          <tr key={e.id}><td>{new Date(e.date).toLocaleDateString()}</td><td>{e.category}</td><td>{e.description}</td><td style={{ color: "var(--danger)" }}>{e.amount.toLocaleString()}</td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+          );
+        })()}
         {/* TAB 7: STUDENT ATTENDANCE */}
         {activeTab === "attendance" && (
           <div>
@@ -6467,7 +6910,7 @@ export default function SchoolPortal({ params }: PageProps) {
                     className="btn btn-primary hover-scale" 
                     style={{ width: "100%", padding: "12px" }}
                   >
-                    💳 Renew / Extend Subscription (1 Year)
+                    ðŸ’³ Renew / Extend Subscription (1 Year)
                   </button>
                   <p style={{ fontSize: "11px", color: "#64748b", marginTop: "8px", textAlign: "center" }}>
                     Basic Plan: 150,000 UGX/Term | Premium Plan: 350,000 UGX/Term
@@ -6620,7 +7063,7 @@ export default function SchoolPortal({ params }: PageProps) {
                   </div>
                   
                   <button type="submit" className="btn btn-primary hover-scale" style={{ width: "100%", padding: "12px" }}>
-                    🚀 Dispatch SMS Queue
+                    ðŸš€ Dispatch SMS Queue
                   </button>
                 </form>
               </div>
@@ -6808,7 +7251,7 @@ export default function SchoolPortal({ params }: PageProps) {
                   </div>
                   
                   <button type="submit" className="btn btn-primary hover-scale" style={{ width: "100%", marginTop: "24px" }}>
-                    💾 Save Design Template Configuration
+                    ðŸ’¾ Save Design Template Configuration
                   </button>
                 </form>
               </div>
@@ -6910,7 +7353,7 @@ export default function SchoolPortal({ params }: PageProps) {
               <h3 style={{ fontFamily: "Outfit", fontWeight: 800 }}>
                 {momoProvider === "MTN" ? "MTN MoMo Gateway" : momoProvider === "AIRTEL" ? "Airtel Money Gateway" : "Secure Card Gateway"}
               </h3>
-              <button onClick={() => setShowMoMoModal(false)} style={{ background: "transparent", border: "none", color: "inherit", fontWeight: "bold", cursor: "pointer", fontSize: "16px" }}>✕</button>
+              <button onClick={() => setShowMoMoModal(false)} style={{ background: "transparent", border: "none", color: "inherit", fontWeight: "bold", cursor: "pointer", fontSize: "16px" }}>âœ•</button>
             </div>
 
             {/* STEP 0: INPUT FORM */}
@@ -6940,7 +7383,7 @@ export default function SchoolPortal({ params }: PageProps) {
                         <>
                           Enter your Mobile Money registered phone number to initiate the secure payment of <strong>{parseFloat(momoAmount).toLocaleString()} UGX</strong>.<br/>
                           <span style={{ fontSize: "12px", opacity: 0.85, fontWeight: "normal", display: "inline-block", marginTop: "4px" }}>
-                            ⚠️ Due to gateway limits, this payment will be split into <strong>{momoSplitAmounts.length} transactions</strong> of max 200,000 UGX each.
+                            âš ï¸ Due to gateway limits, this payment will be split into <strong>{momoSplitAmounts.length} transactions</strong> of max 200,000 UGX each.
                           </span>
                         </>
                       ) : (
@@ -6978,7 +7421,7 @@ export default function SchoolPortal({ params }: PageProps) {
                         <>
                           Enter card details to process the transaction of <strong>{parseFloat(momoAmount).toLocaleString()} UGX</strong>.<br/>
                           <span style={{ fontSize: "12px", opacity: 0.85, fontWeight: "normal", display: "inline-block", marginTop: "4px" }}>
-                            ⚠️ Due to gateway limits, this payment will be split into <strong>{momoSplitAmounts.length} transactions</strong> of max 200,000 UGX each.
+                            âš ï¸ Due to gateway limits, this payment will be split into <strong>{momoSplitAmounts.length} transactions</strong> of max 200,000 UGX each.
                           </span>
                         </>
                       ) : (
@@ -7078,7 +7521,7 @@ export default function SchoolPortal({ params }: PageProps) {
                         className="btn" 
                         style={{ width: "100%", background: "#22c55e", color: "black", border: "none", fontSize: "13px", fontWeight: "bold", padding: "10px", borderRadius: "6px", cursor: "pointer" }}
                       >
-                        🔄 Check Payment Status
+                        ðŸ”„ Check Payment Status
                       </button>
                       <button 
                         onClick={() => setShowMoMoModal(false)}
@@ -7164,7 +7607,7 @@ export default function SchoolPortal({ params }: PageProps) {
             <button 
               onClick={() => setShowViewStudentModal(false)} 
               style={{ position: "absolute", top: "20px", right: "20px", background: "transparent", border: "none", color: "#64748b", cursor: "pointer", fontSize: "18px" }}
-            >✕</button>
+            >âœ•</button>
             <h3 style={{ marginBottom: "20px", borderBottom: "1px solid var(--border)", paddingBottom: "10px" }}>Student Profile</h3>
             
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "16px", marginBottom: "20px" }}>
@@ -7350,7 +7793,7 @@ export default function SchoolPortal({ params }: PageProps) {
             <button 
               onClick={() => setShowViewStaffModal(false)} 
               style={{ position: "absolute", top: "20px", right: "20px", background: "transparent", border: "none", color: "#64748b", cursor: "pointer", fontSize: "18px" }}
-            >✕</button>
+            >âœ•</button>
             <h3 style={{ marginBottom: "20px", borderBottom: "1px solid var(--border)", paddingBottom: "10px" }}>Staff Profile</h3>
             
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "16px", marginBottom: "20px" }}>
@@ -7584,7 +8027,7 @@ export default function SchoolPortal({ params }: PageProps) {
                     className="btn btn-outline"
                     style={{ padding: "4px 8px", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px", background: "#f8fafc" }}
                   >
-                    ⬇ Download Excel Template
+                    â¬‡ Download Excel Template
                   </button>
                 </div>
                 <input 
@@ -7635,7 +8078,7 @@ export default function SchoolPortal({ params }: PageProps) {
                     className="btn btn-outline"
                     style={{ padding: "4px 8px", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px", background: "#f8fafc" }}
                   >
-                    ⬇ Download Excel Template
+                    â¬‡ Download Excel Template
                   </button>
                 </div>
                 <input 

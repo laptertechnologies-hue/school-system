@@ -2251,7 +2251,26 @@ export default function SchoolPortal({ params }: PageProps) {
 
 
           <div style={{ textAlign: "center", marginTop: "24px" }}>
-            <a href="/" style={{ fontSize: "13px", color: "#9ca3af" }}>← Back to SchoolPro Main Website</a>
+            <a 
+              href="#" 
+              onClick={(e) => {
+                e.preventDefault();
+                const host = window.location.host;
+                if (host.includes("localhost")) {
+                  window.location.href = "http://localhost:3000";
+                } else {
+                  const parts = host.split('.');
+                  if (parts.length > 2) {
+                    parts.shift(); // remove subdomain
+                    window.location.href = window.location.protocol + "//" + parts.join('.');
+                  } else {
+                    window.location.href = "/";
+                  }
+                }
+              }}
+              style={{ fontSize: "13px", color: "#9ca3af", textDecoration: "underline", cursor: "pointer" }}>
+              — Back to SchoolPro Main Website
+            </a>
           </div>
 
         </div>

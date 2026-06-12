@@ -313,6 +313,8 @@ export default function SchoolPortal({ params }: PageProps) {
   const [profileSchoolType, setProfileSchoolType] = useState<"PRIMARY" | "SECONDARY" | "COMBINED">("COMBINED");
   const [profileSchoolPayCode, setProfileSchoolPayCode] = useState("");
   const [profileSchoolPayPassword, setProfileSchoolPayPassword] = useState("");
+  const [profileCurrentTerm, setProfileCurrentTerm] = useState("1");
+  const [profileCurrentYear, setProfileCurrentYear] = useState(new Date().getFullYear().toString());
   const [profileSuccessMsg, setProfileSuccessMsg] = useState("");
 
   // Continuous Assessment (CA) configurations
@@ -594,6 +596,8 @@ export default function SchoolPortal({ params }: PageProps) {
           setProfileSchoolType(s.schoolType as any || "COMBINED");
           setProfileSchoolPayCode(s.schoolPayCode || "");
           setProfileSchoolPayPassword(s.schoolPayPassword || "");
+          setProfileCurrentTerm(s.currentTerm?.toString() || "1");
+          setProfileCurrentYear(s.currentYear?.toString() || new Date().getFullYear().toString());
           setNewClassLevel(s.schoolType === "SECONDARY" ? "SECONDARY" : "PRIMARY");
           setNewExamIsNewCurriculum(s.schoolType === "SECONDARY");
 
@@ -955,6 +959,8 @@ export default function SchoolPortal({ params }: PageProps) {
       setProfileThemeColor(updated.themeColor || "#38bdf8");
       setProfileSchoolPayCode(updated.schoolPayCode || "");
       setProfileSchoolPayPassword(updated.schoolPayPassword || "");
+      setProfileCurrentTerm(updated.currentTerm?.toString() || "1");
+      setProfileCurrentYear(updated.currentYear?.toString() || new Date().getFullYear().toString());
 
       alert("School branding and leaders configured successfully!");
       setShowFirstTimeSetup(false);
@@ -1026,6 +1032,8 @@ export default function SchoolPortal({ params }: PageProps) {
         director: profileDirector,
         logoUrl: profileLogoUrl,
         themeColor: profileThemeColor,
+        currentTerm: parseInt(profileCurrentTerm) || 1,
+        currentYear: parseInt(profileCurrentYear) || new Date().getFullYear(),
         schoolPayCode: profileSchoolPayCode,
         schoolPayPassword: profileSchoolPayPassword,
         cbU1Max,
@@ -1625,6 +1633,54 @@ export default function SchoolPortal({ params }: PageProps) {
       }
     } catch (err) {
       setSpSyncMsg("❌ Network error. Try again.");
+    } finally {
+      setSpSyncing(false);
+    }
+  };
+
+  
+  const handleBulkAutoImport = async () => {
+    if (!school) return;
+    const term = school.currentTerm || 1;
+    const year = school.currentYear || new Date().getFullYear();
+    
+    if (!confirm(`Are you sure you want to bulk import all matched transactions into Term ${term}, ${year}?`)) return;
+    
+    setSpSyncing(true);
+    let successCount = 0;
+    
+    try {
+      const unmatched = schoolPayTransactions.filter(tx => !tx.reconciled);
+      
+      for (const tx of unmatched) {
+        if (!tx.studentPaymentCode) continue;
+        const matchedStudent = students.find(s => s.studentPaymentCode === tx.studentPaymentCode);
+        
+        if (matchedStudent) {
+          await recordStudentPayment({
+            studentId: matchedStudent.id,
+            term: term,
+            year: year,
+            amountPaid: tx.amount,
+            balance: 0,
+            paymentMethod: "SCHOOL_PAY",
+            receiptNumber: tx.receiptNumber,
+            notes: `Bulk Auto-imported for Term ${term}, ${year}`,
+          });
+          successCount++;
+        }
+      }
+      
+      if (successCount > 0) {
+        setStudentPayments(await getStudentPayments(school.id));
+        setSchoolPayTransactions(await getSchoolPayTransactions(school.id));
+        alert(`Successfully bulk imported ${successCount} transaction(s)!`);
+      } else {
+        alert("No exact payment code matches found for bulk import. New students must be imported manually.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error during bulk import.");
     } finally {
       setSpSyncing(false);
     }

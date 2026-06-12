@@ -24,6 +24,8 @@ export interface School {
   reportShowBadge?: boolean;
   schoolPayCode?: string | null;
   schoolPayPassword?: string | null;
+  currentTerm: number;
+  currentYear: number;
   reportShowResidency?: boolean;
   reportShowSignatures?: boolean;
   reportShowRules?: boolean;

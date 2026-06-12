@@ -42,6 +42,8 @@ model School {
   // SchoolPay Integration
   schoolPayCode      String?
   schoolPayPassword  String?
+  currentTerm        Int       @default(1)
+  currentYear        Int       @default(2026)
 
   // Custom report template config
   reportTitle        String?   @default("OFFICIAL ACADEMIC REPORT CARD")

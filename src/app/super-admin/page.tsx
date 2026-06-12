@@ -161,6 +161,8 @@ export default function SuperAdminDashboard() {
         studentRange: "200-500",
         contactEmail: `head@${randomSub}.ug`,
         contactPhone: "+256 772 " + Math.floor(Math.random() * 900000 + 100000),
+        currentTerm: 1,
+        currentYear: new Date().getFullYear(),
       });
 
       await createUser({

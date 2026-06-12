@@ -232,6 +232,8 @@ export default function MarketingPage() {
         studentRange,
         contactEmail: email,
         contactPhone: phone,
+        currentTerm: 1,
+        currentYear: new Date().getFullYear(),
       });
 
       // Automatically create an admin user for this school

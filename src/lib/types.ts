@@ -22,6 +22,8 @@ export interface School {
   reportTitle?: string | null;
   reportMotto?: string | null;
   reportShowBadge?: boolean;
+  schoolPayCode?: string | null;
+  schoolPayPassword?: string | null;
   reportShowResidency?: boolean;
   reportShowSignatures?: boolean;
   reportShowRules?: boolean;

@@ -16,7 +16,7 @@ import {
   deleteStudentPayment, getSchoolPayTransactions
 } from "../../../lib/services";
 
-import { Database, CreditCard, Building2, CheckCircle, MessageSquare, Sliders, User as UserIcon } from "lucide-react";
+import { Database, CreditCard, Building2, CheckCircle, MessageSquare, Sliders, User as UserIcon, Calendar } from "lucide-react";
 import { 
   GraduationCap, 
   Users, 

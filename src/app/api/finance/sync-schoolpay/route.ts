@@ -24,8 +24,8 @@ export async function POST(request: Request) {
       const end = new Date(endDate);
       // Cap at 31 days to avoid blowing up the API
       const diffDays = Math.ceil(Math.abs(end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-      if (diffDays > 31) {
-        return NextResponse.json({ success: false, error: 'Maximum date range is 31 days per sync request to avoid rate limits.' }, { status: 400 });
+      if (diffDays > 120) {
+        return NextResponse.json({ success: false, error: 'Maximum date range is 120 days per sync request to avoid rate limits.' }, { status: 400 });
       }
       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
         datesToFetch.push(d.toISOString().split('T')[0]);

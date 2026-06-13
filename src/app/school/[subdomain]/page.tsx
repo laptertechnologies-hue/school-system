@@ -315,6 +315,12 @@ export default function SchoolPortal({ params }: PageProps) {
   const [profileSchoolPayPassword, setProfileSchoolPayPassword] = useState("");
   const [profileCurrentTerm, setProfileCurrentTerm] = useState("1");
   const [profileCurrentYear, setProfileCurrentYear] = useState(new Date().getFullYear().toString());
+  const [profileTerm1Start, setProfileTerm1Start] = useState("");
+  const [profileTerm1End, setProfileTerm1End] = useState("");
+  const [profileTerm2Start, setProfileTerm2Start] = useState("");
+  const [profileTerm2End, setProfileTerm2End] = useState("");
+  const [profileTerm3Start, setProfileTerm3Start] = useState("");
+  const [profileTerm3End, setProfileTerm3End] = useState("");
   const [profileSuccessMsg, setProfileSuccessMsg] = useState("");
 
   // Continuous Assessment (CA) configurations
@@ -598,6 +604,13 @@ export default function SchoolPortal({ params }: PageProps) {
           setProfileSchoolPayPassword(s.schoolPayPassword || "");
           setProfileCurrentTerm(s.currentTerm?.toString() || "1");
           setProfileCurrentYear(s.currentYear?.toString() || new Date().getFullYear().toString());
+      setProfileTerm1Start(s.term1Start ? new Date(s.term1Start).toISOString().split('T')[0] : "");
+      setProfileTerm1End(s.term1End ? new Date(s.term1End).toISOString().split('T')[0] : "");
+      setProfileTerm2Start(s.term2Start ? new Date(s.term2Start).toISOString().split('T')[0] : "");
+      setProfileTerm2End(s.term2End ? new Date(s.term2End).toISOString().split('T')[0] : "");
+      setProfileTerm3Start(s.term3Start ? new Date(s.term3Start).toISOString().split('T')[0] : "");
+      setProfileTerm3End(s.term3End ? new Date(s.term3End).toISOString().split('T')[0] : "");
+
           setNewClassLevel(s.schoolType === "SECONDARY" ? "SECONDARY" : "PRIMARY");
           setNewExamIsNewCurriculum(s.schoolType === "SECONDARY");
 
@@ -961,6 +974,13 @@ export default function SchoolPortal({ params }: PageProps) {
       setProfileSchoolPayPassword(updated.schoolPayPassword || "");
       setProfileCurrentTerm(updated.currentTerm?.toString() || "1");
       setProfileCurrentYear(updated.currentYear?.toString() || new Date().getFullYear().toString());
+      setProfileTerm1Start(updated.term1Start ? new Date(updated.term1Start).toISOString().split('T')[0] : "");
+      setProfileTerm1End(updated.term1End ? new Date(updated.term1End).toISOString().split('T')[0] : "");
+      setProfileTerm2Start(updated.term2Start ? new Date(updated.term2Start).toISOString().split('T')[0] : "");
+      setProfileTerm2End(updated.term2End ? new Date(updated.term2End).toISOString().split('T')[0] : "");
+      setProfileTerm3Start(updated.term3Start ? new Date(updated.term3Start).toISOString().split('T')[0] : "");
+      setProfileTerm3End(updated.term3End ? new Date(updated.term3End).toISOString().split('T')[0] : "");
+
 
       alert("School branding and leaders configured successfully!");
       setShowFirstTimeSetup(false);
@@ -1034,6 +1054,14 @@ export default function SchoolPortal({ params }: PageProps) {
         themeColor: profileThemeColor,
         currentTerm: parseInt(profileCurrentTerm) || 1,
         currentYear: parseInt(profileCurrentYear) || new Date().getFullYear(),
+
+        term1Start: profileTerm1Start ? new Date(profileTerm1Start) : null,
+        term1End: profileTerm1End ? new Date(profileTerm1End) : null,
+        term2Start: profileTerm2Start ? new Date(profileTerm2Start) : null,
+        term2End: profileTerm2End ? new Date(profileTerm2End) : null,
+        term3Start: profileTerm3Start ? new Date(profileTerm3Start) : null,
+        term3End: profileTerm3End ? new Date(profileTerm3End) : null,
+
         schoolPayCode: profileSchoolPayCode,
         schoolPayPassword: profileSchoolPayPassword,
         cbU1Max,
@@ -5971,7 +5999,7 @@ export default function SchoolPortal({ params }: PageProps) {
                     style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 16px" }}
                   >
                     <RefreshCw size={16} style={{ animation: spSyncing ? "spin 1s linear infinite" : "none" }} />
-                    {spSyncing ? "Syncing..." : "Fetch SchoolPay Transactions"}
+                    {spSyncing ? "Syncing..." : "Fetch Term Transactions"}
                   </button>
                   {spSyncMsg && <span style={{ fontSize: "12px", color: spSyncMsg.startsWith("âœ…") ? "var(--success)" : "var(--danger)" }}>{spSyncMsg}</span>}
                 </div>
@@ -6518,7 +6546,7 @@ export default function SchoolPortal({ params }: PageProps) {
                   style={{ display: "flex", alignItems: "center", gap: "6px" }}
                 >
                   <RefreshCw size={15} style={{ animation: spSyncing ? "spin 1s linear infinite" : "none" }} />
-                  {spSyncing ? "Fetching..." : "Fetch Today's Transactions"}
+                  {spSyncing ? "Fetching..." : "Fetch Term Transactions"}
                 </button>
               </div>
             </div>

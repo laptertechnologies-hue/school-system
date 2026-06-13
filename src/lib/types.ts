@@ -26,6 +26,12 @@ export interface School {
   schoolPayPassword?: string | null;
   currentTerm: number;
   currentYear: number;
+  term1Start?: Date | null;
+  term1End?: Date | null;
+  term2Start?: Date | null;
+  term2End?: Date | null;
+  term3Start?: Date | null;
+  term3End?: Date | null;
   reportShowResidency?: boolean;
   reportShowSignatures?: boolean;
   reportShowRules?: boolean;

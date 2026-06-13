@@ -4,7 +4,7 @@ import { syncSchoolPayTransactions } from '@/lib/schoolpay-service';
 
 export async function POST(request: Request) {
   try {
-    const { schoolId } = await request.json();
+    const { schoolId, startDate, endDate } = await request.json();
     if (!schoolId) {
       return NextResponse.json({ success: false, error: 'schoolId required' }, { status: 400 });
     }
@@ -17,16 +17,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'SchoolPay credentials not configured. Go to School Profile & Theme settings to add them.' }, { status: 400 });
     }
 
-    // Fetch today's transactions
-    const today = new Date();
-    const dateStr = today.toISOString().split('T')[0];
+    // Determine dates to fetch
+    const datesToFetch: string[] = [];
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      // Cap at 31 days to avoid blowing up the API
+      const diffDays = Math.ceil(Math.abs(end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays > 31) {
+        return NextResponse.json({ success: false, error: 'Maximum date range is 31 days per sync request to avoid rate limits.' }, { status: 400 });
+      }
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        datesToFetch.push(d.toISOString().split('T')[0]);
+      }
+    } else {
+      datesToFetch.push(new Date().toISOString().split('T')[0]);
+    }
 
-    const result = await syncSchoolPayTransactions(
-      school.id,
-      school.schoolPayCode,
-      school.schoolPayPassword,
-      dateStr
-    );
+    let totalImported = 0;
+    for (const dateStr of datesToFetch) {
+      const result = await syncSchoolPayTransactions(
+        school.id,
+        school.schoolPayCode,
+        school.schoolPayPassword,
+        dateStr
+      );
+      if (result.success && result.importedCount) {
+        totalImported += result.importedCount;
+      }
+    }
 
     // Also get the full transaction log for this school
     const transactions = await db.schoolPayTransaction.findMany({
@@ -35,7 +54,7 @@ export async function POST(request: Request) {
       take: 100
     });
 
-    return NextResponse.json({ success: true, result, transactions });
+    return NextResponse.json({ success: true, result: { importedCount: totalImported }, transactions });
   } catch (error) {
     console.error('Manual SchoolPay sync error:', error);
     return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });

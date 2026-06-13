@@ -45,6 +45,14 @@ model School {
   currentTerm        Int       @default(1)
   currentYear        Int       @default(2026)
 
+  // Term Date Ranges
+  term1Start         DateTime?
+  term1End           DateTime?
+  term2Start         DateTime?
+  term2End           DateTime?
+  term3Start         DateTime?
+  term3End           DateTime?
+
   // Custom report template config
   reportTitle        String?   @default("OFFICIAL ACADEMIC REPORT CARD")
   reportMotto        String?   @default("")

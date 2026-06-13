@@ -340,6 +340,12 @@ export async function updateSchoolMetadata(
     schoolPayPassword?: string | null;
     currentTerm?: number;
     currentYear?: number;
+    term1Start?: Date | null;
+    term1End?: Date | null;
+    term2Start?: Date | null;
+    term2End?: Date | null;
+    term3Start?: Date | null;
+    term3End?: Date | null;
     reportTitle?: string | null;
     reportMotto?: string | null;
     reportShowBadge?: boolean;

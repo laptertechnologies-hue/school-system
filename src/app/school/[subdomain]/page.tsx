@@ -3732,6 +3732,46 @@ export default function SchoolPortal({ params }: PageProps) {
                     </div>
                   </div>
 
+                  <div className="grid grid-cols-2 gap-2" style={{ marginTop: "12px", background: "#f8fafc", padding: "16px", border: "1px solid #cbd5e1", borderRadius: "8px" }}>
+                    <div style={{ gridColumn: "span 2", marginBottom: "8px" }}>
+                      <h4 style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", color: "#0f172a" }}>
+                        <Calendar size={16} color="var(--primary)" />
+                        Global Term Date Ranges
+                      </h4>
+                      <p style={{ color: "#64748b", fontSize: "11px" }}>Set exact dates for each term. This powers automatic transaction fetching and invoice generation.</p>
+                    </div>
+                    
+                    <div style={{ gridColumn: "span 2", fontWeight: 600, fontSize: "12px", color: "#1e293b", marginTop: "8px", paddingBottom: "4px", borderBottom: "1px solid #e2e8f0" }}>Term 1</div>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label" style={{ fontSize: "11px" }}>Start Date</label>
+                      <input type="date" className="input-field" value={profileTerm1Start} onChange={(e) => setProfileTerm1Start(e.target.value)} style={{ fontSize: "12px", padding: "6px" }} />
+                    </div>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label" style={{ fontSize: "11px" }}>End Date</label>
+                      <input type="date" className="input-field" value={profileTerm1End} onChange={(e) => setProfileTerm1End(e.target.value)} style={{ fontSize: "12px", padding: "6px" }} />
+                    </div>
+
+                    <div style={{ gridColumn: "span 2", fontWeight: 600, fontSize: "12px", color: "#1e293b", marginTop: "8px", paddingBottom: "4px", borderBottom: "1px solid #e2e8f0" }}>Term 2</div>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label" style={{ fontSize: "11px" }}>Start Date</label>
+                      <input type="date" className="input-field" value={profileTerm2Start} onChange={(e) => setProfileTerm2Start(e.target.value)} style={{ fontSize: "12px", padding: "6px" }} />
+                    </div>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label" style={{ fontSize: "11px" }}>End Date</label>
+                      <input type="date" className="input-field" value={profileTerm2End} onChange={(e) => setProfileTerm2End(e.target.value)} style={{ fontSize: "12px", padding: "6px" }} />
+                    </div>
+
+                    <div style={{ gridColumn: "span 2", fontWeight: 600, fontSize: "12px", color: "#1e293b", marginTop: "8px", paddingBottom: "4px", borderBottom: "1px solid #e2e8f0" }}>Term 3</div>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label" style={{ fontSize: "11px" }}>Start Date</label>
+                      <input type="date" className="input-field" value={profileTerm3Start} onChange={(e) => setProfileTerm3Start(e.target.value)} style={{ fontSize: "12px", padding: "6px" }} />
+                    </div>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label" style={{ fontSize: "11px" }}>End Date</label>
+                      <input type="date" className="input-field" value={profileTerm3End} onChange={(e) => setProfileTerm3End(e.target.value)} style={{ fontSize: "12px", padding: "6px" }} />
+                    </div>
+                  </div>
+
                   {/* CONTINUOUS ASSESSMENT CONFIG (Secondary/Combined only) */}
                   {(profileSchoolType === "SECONDARY" || profileSchoolType === "COMBINED") && (
                     <div style={{ marginTop: "20px", padding: "16px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px" }}>

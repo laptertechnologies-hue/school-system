@@ -153,6 +153,7 @@ export default function SchoolPortal({ params }: PageProps) {
   const [schoolPayTransactions, setSchoolPayTransactions] = useState<SchoolPayTransaction[]>([]);
   const [spSyncing, setSpSyncing] = useState(false);
   const [spSyncMsg, setSpSyncMsg] = useState("");
+  const [spSelectedTerm, setSpSelectedTerm] = useState<number | "ALL">("ALL");
   const [dbConnected, setDbConnected] = useState<boolean | null>(null);
 
   // Navigation state inside dashboard

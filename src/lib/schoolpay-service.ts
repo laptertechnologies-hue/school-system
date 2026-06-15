@@ -58,22 +58,90 @@ export async function reconcileTransaction(transactionId: string, schoolId: stri
   if (!tx || tx.reconciled) return;
 
   // Find student by studentPaymentCode
-  const student = await db.student.findFirst({
+  let student = await db.student.findFirst({
     where: {
       schoolId,
       studentPaymentCode: tx.studentPaymentCode
     }
   });
 
+  // Determine the active term and year based on school settings
+  const school = await db.school.findUnique({
+    where: { id: schoolId }
+  });
+  const term = school?.currentTerm || 1;
+  const year = school?.currentYear || new Date().getFullYear();
+
+  if (!student) {
+    // Auto-create student from transaction details if student is not in the system
+    const schoolClasses = await db.class.findMany({ where: { schoolId } });
+    if (schoolClasses.length > 0) {
+      // Find matching class
+      let matchedClass = schoolClasses[0];
+      if (tx.studentClass) {
+        const normalized = tx.studentClass.toLowerCase();
+        const numMap: { [key: string]: string } = {
+          "one": "1", "first": "1", "1": "1",
+          "two": "2", "second": "2", "2": "2",
+          "three": "3", "third": "3", "3": "3",
+          "four": "4", "fourth": "4", "4": "4",
+          "five": "5", "fifth": "5", "5": "5",
+          "six": "6", "sixth": "6", "6": "6",
+          "seven": "7", "seventh": "7", "7": "7"
+        };
+        
+        let foundClass = null;
+        for (const [word, num] of Object.entries(numMap)) {
+          if (normalized.includes(word)) {
+            foundClass = schoolClasses.find(c => c.name.toLowerCase().includes(num));
+            if (foundClass) break;
+          }
+        }
+        if (!foundClass) {
+          foundClass = schoolClasses.find(c => normalized.includes(c.name.toLowerCase()) || c.name.toLowerCase().includes(normalized));
+        }
+        if (foundClass) {
+          matchedClass = foundClass;
+        }
+      }
+
+      // Fetch streams for the matched class
+      const streams = await db.stream.findMany({ where: { classId: matchedClass.id } });
+      const streamId = streams[0]?.id || "";
+
+      // Generate student number
+      const randomPart = Math.random().toString(36).substring(2, 7).toUpperCase();
+      const studentNumber = tx.studentRegistrationNum || `STU-${randomPart}`;
+
+      student = await db.student.create({
+        data: {
+          schoolId,
+          classId: matchedClass.id,
+          streamId,
+          name: tx.studentName,
+          studentNumber,
+          type: "DAY",
+          studentPaymentCode: tx.studentPaymentCode,
+          registrationNumber: tx.studentRegistrationNum || null
+        }
+      });
+    }
+  }
+
   if (student) {
-    // Determine the active term and year based on current date (simplification)
-    // In a real app, this might come from school settings
-    const currentDate = new Date();
-    const currentMonth = currentDate.getMonth() + 1;
-    let term = 1;
-    if (currentMonth >= 5 && currentMonth <= 8) term = 2;
-    if (currentMonth >= 9) term = 3;
-    const year = currentDate.getFullYear();
+    // Calculate correct outstanding balance
+    const fs = await db.feeStructure.findFirst({
+      where: { classId: student.classId, term, year }
+    });
+    const totalDue = student.type === "BOARDING"
+      ? (fs?.tuitionAmount || 0) + (fs?.boardingAmount || 0)
+      : (fs?.tuitionAmount || 0);
+
+    const prevPayments = await db.studentPayment.findMany({
+      where: { studentId: student.id, term, year }
+    });
+    const alreadyPaid = prevPayments.reduce((sum, p) => sum + p.amountPaid, 0);
+    const balance = Math.max(0, totalDue - (alreadyPaid + tx.amount));
 
     // Reconcile by creating/updating a StudentPayment record
     // Alternatively, just create a Payment record if we are dealing with payments in general
@@ -95,7 +163,7 @@ export async function reconcileTransaction(transactionId: string, schoolId: stri
         term,
         year,
         amountPaid: tx.amount,
-        balance: 0, // In reality, we'd calculate based on fee structure
+        balance,
         date: tx.paymentDate
       }
     });

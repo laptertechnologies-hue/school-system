@@ -1006,17 +1006,44 @@ export async function processTeacherSalary(schoolId: string, teacherId: string, 
 // --- Student Promotion ---
 export async function promoteStudents(schoolId: string, fromClassId: string, toClassId: string): Promise<Student[]> {
   if (await hasDB()) {
-    await prisma.student.updateMany({
-      where: { schoolId, classId: fromClassId },
-      data: { classId: toClassId }
-    });
+    const oldStreams = await prisma.stream.findMany({ where: { classId: fromClassId } });
+    const newStreams = await prisma.stream.findMany({ where: { classId: toClassId } });
+    const studentsToPromote = await prisma.student.findMany({ where: { schoolId, classId: fromClassId } });
+
+    for (const student of studentsToPromote) {
+      const currentStream = oldStreams.find(st => st.id === student.streamId);
+      const matchedNewStream = currentStream 
+        ? newStreams.find(st => st.name.toLowerCase() === currentStream.name.toLowerCase())
+        : null;
+
+      const destinationStreamId = matchedNewStream?.id || newStreams[0]?.id || student.streamId;
+
+      await prisma.student.update({
+        where: { id: student.id },
+        data: {
+          classId: toClassId,
+          streamId: destinationStreamId
+        }
+      });
+    }
+
     return (await prisma.student.findMany({ where: { schoolId, classId: toClassId } })) as Student[];
   }
 
   const db = getLocalDB();
+  const oldStreams = db.streams.filter((s: Stream) => s.classId === fromClassId);
+  const newStreams = db.streams.filter((s: Stream) => s.classId === toClassId);
+
   db.students.forEach((s: Student) => {
     if (s.schoolId === schoolId && s.classId === fromClassId) {
+      const currentStream = oldStreams.find((st: Stream) => st.id === s.streamId);
+      const matchedNewStream = currentStream
+        ? newStreams.find((st: Stream) => st.name.toLowerCase() === currentStream.name.toLowerCase())
+        : null;
+
+      const destinationStreamId = matchedNewStream?.id || newStreams[0]?.id || s.streamId;
       s.classId = toClassId;
+      s.streamId = destinationStreamId;
     }
   });
   saveLocalDB(db);

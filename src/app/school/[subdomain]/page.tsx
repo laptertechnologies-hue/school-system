@@ -52,7 +52,7 @@ const computeGradeFromRanges = (score: number, systemType: "PRIMARY" | "SECONDAR
   const filtered = ranges.filter(r => r.systemType === systemType);
   // Sort minMark descending to find the correct bracket
   const sorted = [...filtered].sort((a, b) => b.minMark - a.minMark);
-  const match = sorted.find(r => score >= r.minMark && score <= r.maxMark);
+  const match = sorted.find(r => score >= r.minMark);
   if (match) {
     return {
       grade: match.grade,
@@ -154,6 +154,8 @@ export default function SchoolPortal({ params }: PageProps) {
   const [spSyncing, setSpSyncing] = useState(false);
   const [spSyncMsg, setSpSyncMsg] = useState("");
   const [spSelectedTerm, setSpSelectedTerm] = useState<number | "ALL">("ALL");
+  const [spSyncStartDate, setSpSyncStartDate] = useState("");
+  const [spSyncEndDate, setSpSyncEndDate] = useState("");
   const [dbConnected, setDbConnected] = useState<boolean | null>(null);
 
   // Navigation state inside dashboard
@@ -1650,7 +1652,11 @@ export default function SchoolPortal({ params }: PageProps) {
       const res = await fetch("/api/finance/sync-schoolpay", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ schoolId: school.id }),
+        body: JSON.stringify({ 
+          schoolId: school.id,
+          startDate: spSyncStartDate || undefined,
+          endDate: spSyncEndDate || undefined
+        }),
       });
       const data = await res.json();
       if (data.success) {
@@ -1688,12 +1694,21 @@ export default function SchoolPortal({ params }: PageProps) {
         const matchedStudent = students.find(s => s.studentPaymentCode === tx.studentPaymentCode);
         
         if (matchedStudent) {
+          const fs = feeStructures.find(f => f.classId === matchedStudent.classId);
+          const totalDue = matchedStudent.type === "BOARDING"
+            ? (fs?.tuitionAmount || 0) + (fs?.boardingAmount || 0)
+            : (fs?.tuitionAmount || 0);
+
+          const prevPayments = studentPayments.filter(p => p.studentId === matchedStudent.id && p.term === term && p.year === year);
+          const alreadyPaid = prevPayments.reduce((sum, p) => sum + p.amountPaid, 0);
+          const balance = Math.max(0, totalDue - (alreadyPaid + tx.amount));
+
           await recordStudentPayment({
             studentId: matchedStudent.id,
             term: term,
             year: year,
             amountPaid: tx.amount,
-            balance: 0,
+            balance,
             paymentMethod: "SCHOOL_PAY",
             receiptNumber: tx.receiptNumber,
             notes: `Bulk Auto-imported for Term ${term}, ${year}`,
@@ -1741,13 +1756,24 @@ export default function SchoolPortal({ params }: PageProps) {
       const matchedStudent = updatedStudents.find(s => s.studentPaymentCode === autoImportTx.studentPaymentCode);
 
       if (matchedStudent) {
+        const fs = feeStructures.find(f => f.classId === matchedStudent.classId);
+        const totalDue = matchedStudent.type === "BOARDING"
+          ? (fs?.tuitionAmount || 0) + (fs?.boardingAmount || 0)
+          : (fs?.tuitionAmount || 0);
+
+        const termNum = parseInt(autoImportTerm);
+        const yearNum = parseInt(autoImportYear);
+        const prevPayments = studentPayments.filter(p => p.studentId === matchedStudent.id && p.term === termNum && p.year === yearNum);
+        const alreadyPaid = prevPayments.reduce((sum, p) => sum + p.amountPaid, 0);
+        const balance = Math.max(0, totalDue - (alreadyPaid + autoImportTx.amount));
+
         // 3. Record the payment and automatically reconcile
         await recordStudentPayment({
           studentId: matchedStudent.id,
-          term: parseInt(autoImportTerm),
-          year: parseInt(autoImportYear),
+          term: termNum,
+          year: yearNum,
           amountPaid: autoImportTx.amount,
-          balance: 0, // Simplified for auto-import, could be recalculated
+          balance,
           paymentMethod: "SCHOOL_PAY",
           receiptNumber: autoImportTx.receiptNumber,
           notes: `Auto-imported and matched from SchoolPay transaction`,
@@ -2299,7 +2325,7 @@ export default function SchoolPortal({ params }: PageProps) {
           {/* Trial / Demo Guidance */}
           {(subdomain === "greenhill" || subdomain === "kpps") && (
             <div style={{ background: "rgba(59, 130, 246, 0.08)", border: "1px solid rgba(59, 130, 246, 0.15)", borderRadius: "8px", padding: "12px", marginBottom: "20px", fontSize: "12px", color: "#93c5fd" }}>
-              <strong style={{ display: "block", marginBottom: "4px" }}>ðŸ”‘ Trial Demo Quick Credentials:</strong>
+              <strong style={{ display: "block", marginBottom: "4px" }}>🔑 Trial Demo Quick Credentials:</strong>
               <div><strong>Admin:</strong> admin@greenhill.ug (password: password)</div>
               <div><strong>Teacher:</strong> teacher@greenhill.ug (password: password)</div>
               <div><strong>DOS:</strong> dos@greenhill.ug (password: password)</div>
@@ -2396,7 +2422,7 @@ export default function SchoolPortal({ params }: PageProps) {
                     <input 
                       type="password" 
                       className="input-field" 
-                      placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" 
+                      placeholder="••••••••" 
                       value={resetNewPassword}
                       onChange={(e) => setResetNewPassword(e.target.value)}
                       required
@@ -2449,7 +2475,7 @@ export default function SchoolPortal({ params }: PageProps) {
                 <input 
                   type="password" 
                   className="input-field" 
-                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" 
+                  placeholder="••••••••" 
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -2496,9 +2522,9 @@ export default function SchoolPortal({ params }: PageProps) {
               
               <div className="flex justify-between align-center" style={{ borderBottom: "1px solid #334155", paddingBottom: "14px", marginBottom: "20px" }}>
                 <h3 style={{ fontFamily: "Outfit", fontWeight: 800, fontSize: "20px", display: "flex", alignItems: "center", gap: "8px" }}>
-                  ðŸ« School Portal Initial Setup
+                  🏫 School Portal Initial Setup
                 </h3>
-                <button onClick={() => setShowFirstTimeSetup(false)} style={{ background: "transparent", border: "none", color: "#cbd5e1", fontWeight: "bold", cursor: "pointer", fontSize: "18px" }}>âœ•</button>
+                <button onClick={() => setShowFirstTimeSetup(false)} style={{ background: "transparent", border: "none", color: "#cbd5e1", fontWeight: "bold", cursor: "pointer", fontSize: "18px" }}>✕</button>
               </div>
 
               {setupError && (
@@ -2510,7 +2536,7 @@ export default function SchoolPortal({ params }: PageProps) {
               <form onSubmit={handleFirstTimeSetup}>
                 
                 <div style={{ marginBottom: "16px", padding: "12px", background: "rgba(56, 189, 248, 0.05)", border: "1px solid rgba(56, 189, 248, 0.1)", borderRadius: "6px", fontSize: "12px", color: "#93c5fd" }}>
-                  ðŸ”’ Enter your school's Administrator credentials to authorize these updates.
+                  🔑 Enter your school's Administrator credentials to authorize these updates.
                 </div>
 
                 <div className="grid grid-cols-2 gap-2" style={{ marginBottom: "20px" }}>
@@ -2531,7 +2557,7 @@ export default function SchoolPortal({ params }: PageProps) {
                     <input 
                       type="password" 
                       className="input-field" 
-                      placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" 
+                      placeholder="••••••••" 
                       value={setupAdminPassword} 
                       onChange={(e) => setSetupAdminPassword(e.target.value)} 
                       required 
@@ -2540,7 +2566,7 @@ export default function SchoolPortal({ params }: PageProps) {
                   </div>
                 </div>
 
-                <h4 style={{ color: "var(--primary)", fontSize: "14px", marginBottom: "12px", borderBottom: "1px solid #334155", paddingBottom: "4px", fontWeight: 700 }}>ðŸ« School Information</h4>
+                <h4 style={{ color: "var(--primary)", fontSize: "14px", marginBottom: "12px", borderBottom: "1px solid #334155", paddingBottom: "4px", fontWeight: 700 }}>🏫 School Information</h4>
                 <div className="grid grid-cols-2 gap-2" style={{ marginBottom: "12px" }}>
                   <div className="form-group">
                     <label className="form-label" style={{ color: "#d1d5db" }}>School Name</label>
@@ -2643,7 +2669,7 @@ export default function SchoolPortal({ params }: PageProps) {
                   </div>
                 </div>
 
-                <h4 style={{ color: "var(--primary)", fontSize: "14px", marginBottom: "12px", borderBottom: "1px solid #334155", paddingBottom: "4px", fontWeight: 700 }}>ðŸ‘¥ Administrative Leaders</h4>
+                <h4 style={{ color: "var(--primary)", fontSize: "14px", marginBottom: "12px", borderBottom: "1px solid #334155", paddingBottom: "4px", fontWeight: 700 }}>👥 Administrative Leaders</h4>
                 <div className="grid grid-cols-3 gap-2" style={{ marginBottom: "24px" }}>
                   <div className="form-group">
                     <label className="form-label" style={{ color: "#d1d5db" }}>Head Teacher</label>
@@ -3938,9 +3964,9 @@ export default function SchoolPortal({ params }: PageProps) {
                 
                 <div style={{ marginTop: "24px", padding: "12px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", width: "100%", textAlign: "left" }}>
                   <div style={{ fontSize: "11px", color: "#64748b" }}>Admin Team:</div>
-                  <div style={{ fontSize: "12px", color: "#0f172a", marginTop: "4px" }}>ðŸ‘¤ **Head:** {profileHeadTeacher || "Not set"}</div>
-                  <div style={{ fontSize: "12px", color: "#0f172a", marginTop: "2px" }}>ðŸ‘¤ **Deputy:** {profileDeputyHeadTeacher || "Not set"}</div>
-                  <div style={{ fontSize: "12px", color: "#0f172a", marginTop: "2px" }}>ðŸ‘¤ **Director:** {profileDirector || "Not set"}</div>
+                  <div style={{ fontSize: "12px", color: "#0f172a", marginTop: "4px" }}>👤 **Head:** {profileHeadTeacher || "Not set"}</div>
+                  <div style={{ fontSize: "12px", color: "#0f172a", marginTop: "2px" }}>👤 **Deputy:** {profileDeputyHeadTeacher || "Not set"}</div>
+                  <div style={{ fontSize: "12px", color: "#0f172a", marginTop: "2px" }}>👤 **Director:** {profileDirector || "Not set"}</div>
                 </div>
               </div>
             </div>
@@ -3960,7 +3986,7 @@ export default function SchoolPortal({ params }: PageProps) {
                 {(profileSchoolType === "SECONDARY" || profileSchoolType === "COMBINED") && (
                   <div style={{ marginBottom: "24px", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "16px", background: "#fff" }}>
                     <h5 style={{ fontSize: "13px", fontWeight: "bold", color: "#1e293b", marginBottom: "12px", borderBottom: "1px solid #f1f5f9", paddingBottom: "6px" }}>
-                      ðŸ“– Secondary Curriculum Competency System (Grades A - E)
+                      📖 Secondary Curriculum Competency System (Grades A - E)
                     </h5>
                     <div style={{ overflowX: "auto" }}>
                       <table className="table" style={{ fontSize: "12px", minWidth: "650px", borderCollapse: "collapse" }}>
@@ -4034,7 +4060,7 @@ export default function SchoolPortal({ params }: PageProps) {
                 {(profileSchoolType === "PRIMARY" || profileSchoolType === "COMBINED") && (
                   <div style={{ marginBottom: "24px", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "16px", background: "#fff" }}>
                     <h5 style={{ fontSize: "13px", fontWeight: "bold", color: "#1e293b", marginBottom: "12px", borderBottom: "1px solid #f1f5f9", paddingBottom: "6px" }}>
-                      ðŸ“– Primary PLE Standard System (Aggregates 1 - 9)
+                      📖 Primary PLE Standard System (Aggregates 1 - 9)
                     </h5>
                     <div style={{ overflowX: "auto" }}>
                       <table className="table" style={{ fontSize: "12px", minWidth: "650px", borderCollapse: "collapse" }}>
@@ -4426,7 +4452,7 @@ export default function SchoolPortal({ params }: PageProps) {
                     );
                   })}
                 </div>
-                <p style={{ fontSize: "11px", color: "#94a3b8", marginTop: "10px" }}>ðŸ’¡ Preview uses 75% as a sample mark. Save your ranges to see them take effect.</p>
+                <p style={{ fontSize: "11px", color: "#94a3b8", marginTop: "10px" }}>💡 Preview uses 75% as a sample mark. Save your ranges to see them take effect.</p>
               </div>
             </div>
           </div>
@@ -5648,7 +5674,7 @@ export default function SchoolPortal({ params }: PageProps) {
                       <div>
                         <h3>Bulk Print Preview</h3>
                         <span style={{ fontSize: "12px", color: "#64748b" }}>
-                          Class: {classes.find(c => c.id === selectedReportClassId)?.name} â€¢ Total Students: {students.filter(st => st.classId === selectedReportClassId).length}
+                          Class: {classes.find(c => c.id === selectedReportClassId)?.name} • Total Students: {students.filter(st => st.classId === selectedReportClassId).length}
                         </span>
                       </div>
                       <div className="flex gap-2">
@@ -5693,7 +5719,7 @@ export default function SchoolPortal({ params }: PageProps) {
                                 )}
                                 <h2 style={{ fontSize: "24px", margin: 0, textTransform: "uppercase", color: school.reportHeaderColor || "#1e3a8a" }}>{school.name}</h2>
                                 <p style={{ margin: "4px 0 0", fontSize: "12px", fontStyle: "italic" }}>
-                                  P.O. Box {school.poBox || "Kampala, Uganda"} â€¢ Tel: {school.contactPhone} â€¢ Email: {school.contactEmail}
+                                  P.O. Box {school.poBox || "Kampala, Uganda"} • Tel: {school.contactPhone} • Email: {school.contactEmail}
                                 </p>
                                 {school.reportMotto && (
                                   <p style={{ margin: "2px 0 0", fontSize: "11px", fontStyle: "italic", fontWeight: "bold", color: "#475569" }}>
@@ -5874,7 +5900,7 @@ export default function SchoolPortal({ params }: PageProps) {
                           )}
                           <h2 style={{ fontSize: "24px", margin: 0, textTransform: "uppercase", color: school.reportHeaderColor || "#1e3a8a" }}>{school.name}</h2>
                           <p style={{ margin: "4px 0 0", fontSize: "12px", fontStyle: "italic" }}>
-                            P.O. Box {school.poBox || "Kampala, Uganda"} â€¢ Tel: {school.contactPhone} â€¢ Email: {school.contactEmail}
+                            P.O. Box {school.poBox || "Kampala, Uganda"} • Tel: {school.contactPhone} • Email: {school.contactEmail}
                           </p>
                           {school.reportMotto && (
                             <p style={{ margin: "2px 0 0", fontSize: "11px", fontStyle: "italic", fontWeight: "bold", color: "#475569" }}>
@@ -6049,17 +6075,39 @@ export default function SchoolPortal({ params }: PageProps) {
               </div>
               {/* SchoolPay Sync Button */}
               {school.schoolPayCode && (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
-                  <button
-                    onClick={handleSchoolPaySync}
-                    disabled={spSyncing}
-                    className="btn btn-primary"
-                    style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 16px" }}
-                  >
-                    <RefreshCw size={16} style={{ animation: spSyncing ? "spin 1s linear infinite" : "none" }} />
-                    {spSyncing ? "Syncing..." : "Fetch Term Transactions"}
-                  </button>
-                  {spSyncMsg && <span style={{ fontSize: "12px", color: spSyncMsg.startsWith("âœ…") ? "var(--success)" : "var(--danger)" }}>{spSyncMsg}</span>}
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                    <span style={{ fontSize: "11px", color: "#64748b", fontWeight: "bold" }}>From:</span>
+                    <input
+                      type="date"
+                      className="input-field"
+                      style={{ fontSize: "12px", padding: "6px", width: "130px", background: "#f8fafc", color: "black", borderColor: "#cbd5e1" }}
+                      value={spSyncStartDate}
+                      onChange={(e) => setSpSyncStartDate(e.target.value)}
+                    />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                    <span style={{ fontSize: "11px", color: "#64748b", fontWeight: "bold" }}>To:</span>
+                    <input
+                      type="date"
+                      className="input-field"
+                      style={{ fontSize: "12px", padding: "6px", width: "130px", background: "#f8fafc", color: "black", borderColor: "#cbd5e1" }}
+                      value={spSyncEndDate}
+                      onChange={(e) => setSpSyncEndDate(e.target.value)}
+                    />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
+                    <button
+                      onClick={handleSchoolPaySync}
+                      disabled={spSyncing}
+                      className="btn btn-primary"
+                      style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 16px" }}
+                    >
+                      <RefreshCw size={16} style={{ animation: spSyncing ? "spin 1s linear infinite" : "none" }} />
+                      {spSyncing ? "Syncing..." : "Fetch Term Transactions"}
+                    </button>
+                    {spSyncMsg && <span style={{ fontSize: "12px", color: spSyncMsg.startsWith("✅") ? "var(--success)" : "var(--danger)" }}>{spSyncMsg}</span>}
+                  </div>
                 </div>
               )}
               {!school.schoolPayCode && (
@@ -6726,6 +6774,26 @@ export default function SchoolPortal({ params }: PageProps) {
                   <option value="MATCHED">Matched Only</option>
                   <option value="UNMATCHED">Unmatched Only</option>
                 </select>
+                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                  <span style={{ fontSize: "11px", color: "#64748b", fontWeight: "bold" }}>From:</span>
+                  <input
+                    type="date"
+                    className="input-field"
+                    style={{ fontSize: "12px", padding: "6px", width: "130px", background: "#f8fafc", color: "black", borderColor: "#cbd5e1" }}
+                    value={spSyncStartDate}
+                    onChange={(e) => setSpSyncStartDate(e.target.value)}
+                  />
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                  <span style={{ fontSize: "11px", color: "#64748b", fontWeight: "bold" }}>To:</span>
+                  <input
+                    type="date"
+                    className="input-field"
+                    style={{ fontSize: "12px", padding: "6px", width: "130px", background: "#f8fafc", color: "black", borderColor: "#cbd5e1" }}
+                    value={spSyncEndDate}
+                    onChange={(e) => setSpSyncEndDate(e.target.value)}
+                  />
+                </div>
                 <button
                   onClick={handleSchoolPaySync}
                   disabled={spSyncing}
@@ -6739,7 +6807,7 @@ export default function SchoolPortal({ params }: PageProps) {
             </div>
 
             {spSyncMsg && (
-              <div style={{ marginBottom: "16px", padding: "10px 16px", borderRadius: "8px", background: spSyncMsg.startsWith("âœ…") ? "#f0fdf4" : "#fef2f2", border: `1px solid ${spSyncMsg.startsWith("âœ…") ? "#bbf7d0" : "#fca5a5"}`, color: spSyncMsg.startsWith("âœ…") ? "#166534" : "#991b1b", fontSize: "13px" }}>
+              <div style={{ marginBottom: "16px", padding: "10px 16px", borderRadius: "8px", background: spSyncMsg.startsWith("✅") ? "#f0fdf4" : "#fef2f2", border: `1px solid ${spSyncMsg.startsWith("✅") ? "#bbf7d0" : "#fca5a5"}`, color: spSyncMsg.startsWith("✅") ? "#166534" : "#991b1b", fontSize: "13px" }}>
                 {spSyncMsg}
               </div>
             )}
@@ -6756,8 +6824,8 @@ export default function SchoolPortal({ params }: PageProps) {
             <div className="card">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                 <div style={{ display: "flex", gap: "16px", fontSize: "13px" }}>
-                  <span style={{ color: "var(--success)", fontWeight: 700 }}>âœ… Matched: {schoolPayTransactions.filter(t => t.reconciled).length}</span>
-                  <span style={{ color: "var(--danger)", fontWeight: 700 }}>âŒ Unmatched: {schoolPayTransactions.filter(t => !t.reconciled).length}</span>
+                  <span style={{ color: "var(--success)", fontWeight: 700 }}>✅ Matched: {schoolPayTransactions.filter(t => t.reconciled).length}</span>
+                  <span style={{ color: "var(--danger)", fontWeight: 700 }}>❌ Unmatched: {schoolPayTransactions.filter(t => !t.reconciled).length}</span>
                   <span style={{ color: "#64748b" }}>Total: {schoolPayTransactions.length}</span>
                 </div>
                 <button className="btn btn-outline" style={{ fontSize: "12px", display: "flex", alignItems: "center", gap: "4px" }} onClick={() => window.print()}>
@@ -6787,12 +6855,12 @@ export default function SchoolPortal({ params }: PageProps) {
                           <td><code style={{ fontSize: "10px" }}>{tx.receiptNumber}</code></td>
                           <td><strong>{tx.studentName}</strong></td>
                           <td><code style={{ fontSize: "10px" }}>{tx.studentPaymentCode}</code></td>
-                          <td>{tx.studentClass || "â€”"}</td>
+                          <td>{tx.studentClass || "—"}</td>
                           <td><span className="badge badge-primary" style={{ fontSize: "10px" }}>{tx.sourcePaymentChannel || "SchoolPay"}</span></td>
                           <td style={{ fontWeight: 700, color: "var(--success)" }}>{tx.amount.toLocaleString()}</td>
                           <td>
                             {tx.reconciled
-                              ? <span className="badge badge-success">âœ… Matched</span>
+                              ? <span className="badge badge-success">✅ Matched</span>
                               : (
                                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                                   <span className="badge badge-danger">Unmatched</span>
@@ -6818,15 +6886,24 @@ export default function SchoolPortal({ params }: PageProps) {
                                       // Manually match by recording a student payment
                                       const stud = students.find(s => s.id === e.target.value);
                                       if (!stud) return;
-                                      const currentDate = new Date();
-                                      const currentMonth = currentDate.getMonth() + 1;
-                                      const term = currentMonth >= 5 && currentMonth <= 8 ? 2 : currentMonth >= 9 ? 3 : 1;
+                                      const term = school.currentTerm || 1;
+                                      const year = school.currentYear || new Date().getFullYear();
+
+                                      const fs = feeStructures.find(f => f.classId === stud.classId);
+                                      const totalDue = stud.type === "BOARDING"
+                                        ? (fs?.tuitionAmount || 0) + (fs?.boardingAmount || 0)
+                                        : (fs?.tuitionAmount || 0);
+
+                                      const prevPayments = studentPayments.filter(p => p.studentId === stud.id && p.term === term && p.year === year);
+                                      const alreadyPaid = prevPayments.reduce((sum, p) => sum + p.amountPaid, 0);
+                                      const balance = Math.max(0, totalDue - (alreadyPaid + tx.amount));
+
                                       await recordStudentPayment({
                                         studentId: stud.id,
                                         term,
-                                        year: currentDate.getFullYear(),
+                                        year,
                                         amountPaid: tx.amount,
-                                        balance: 0,
+                                        balance,
                                         paymentMethod: "SCHOOL_PAY",
                                         receiptNumber: tx.receiptNumber,
                                         notes: `Auto-matched from SchoolPay transaction`,
@@ -7255,7 +7332,7 @@ export default function SchoolPortal({ params }: PageProps) {
                     className="btn btn-primary hover-scale" 
                     style={{ width: "100%", padding: "12px" }}
                   >
-                    ðŸ’³ Renew / Extend Subscription (1 Year)
+                    💳 Renew / Extend Subscription (1 Year)
                   </button>
                   <p style={{ fontSize: "11px", color: "#64748b", marginTop: "8px", textAlign: "center" }}>
                     Basic Plan: 150,000 UGX/Term | Premium Plan: 350,000 UGX/Term
@@ -7408,7 +7485,7 @@ export default function SchoolPortal({ params }: PageProps) {
                   </div>
                   
                   <button type="submit" className="btn btn-primary hover-scale" style={{ width: "100%", padding: "12px" }}>
-                    ðŸš€ Dispatch SMS Queue
+                    🚀 Dispatch SMS Queue
                   </button>
                 </form>
               </div>
@@ -7596,7 +7673,7 @@ export default function SchoolPortal({ params }: PageProps) {
                   </div>
                   
                   <button type="submit" className="btn btn-primary hover-scale" style={{ width: "100%", marginTop: "24px" }}>
-                    ðŸ’¾ Save Design Template Configuration
+                    💾 Save Design Template Configuration
                   </button>
                 </form>
               </div>
@@ -7866,7 +7943,7 @@ export default function SchoolPortal({ params }: PageProps) {
                         className="btn" 
                         style={{ width: "100%", background: "#22c55e", color: "black", border: "none", fontSize: "13px", fontWeight: "bold", padding: "10px", borderRadius: "6px", cursor: "pointer" }}
                       >
-                        ðŸ”„ Check Payment Status
+                        🔄 Check Payment Status
                       </button>
                       <button 
                         onClick={() => setShowMoMoModal(false)}

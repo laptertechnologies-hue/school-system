@@ -7326,7 +7326,7 @@ export default function SchoolPortal({ params }: PageProps) {
                 <div style={{ marginTop: "24px" }}>
                   <button 
                     onClick={() => {
-                      const amount = school.packageType === "PREMIUM" ? 350000 : 150000;
+                      const amount = school.packageType === "PREMIUM" ? 500000 : 200000;
                       handleTriggerMoMoPayment(amount, "PACKAGE");
                     }} 
                     className="btn btn-primary hover-scale" 
@@ -7335,7 +7335,7 @@ export default function SchoolPortal({ params }: PageProps) {
                     💳 Renew / Extend Subscription (1 Year)
                   </button>
                   <p style={{ fontSize: "11px", color: "#64748b", marginTop: "8px", textAlign: "center" }}>
-                    Basic Plan: 150,000 UGX/Term | Premium Plan: 350,000 UGX/Term
+                    Basic Plan: 200,000 UGX/Term | Premium Plan: 500,000 UGX/Term
                   </p>
                 </div>
               </div>

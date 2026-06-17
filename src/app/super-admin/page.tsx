@@ -647,7 +647,7 @@ export default function SuperAdminDashboard() {
                     <input 
                       type="number" 
                       className="input-field" 
-                      placeholder="e.g. 350000"
+                      placeholder="e.g. 500000"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
                       required
@@ -743,8 +743,8 @@ export default function SuperAdminDashboard() {
                   onChange={(e) => setEditPackageType(e.target.value as any)}
                   required
                 >
-                  <option value="BASIC">Basic Plan (150,000 UGX / Term)</option>
-                  <option value="PREMIUM">Premium Plan (350,000 UGX / Term)</option>
+                  <option value="BASIC">Basic Plan (200,000 UGX / Term)</option>
+                  <option value="PREMIUM">Premium Plan (500,000 UGX / Term)</option>
                 </select>
               </div>
 

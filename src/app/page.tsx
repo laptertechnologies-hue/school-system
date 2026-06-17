@@ -492,7 +492,7 @@ export default function MarketingPage() {
                     <p style={{ color: "#64748b", fontSize: "13px" }}>For schools that only need grading & academic cards</p>
                   </div>
                   <div style={{ margin: "20px 0" }}>
-                    <h2 style={{ fontSize: "36px", color: "#0f172a", fontWeight: 800 }}>150,000 UGX <span style={{ fontSize: "14px", color: "#64748b", fontWeight: "normal" }}>/ Term</span></h2>
+                    <h2 style={{ fontSize: "36px", color: "#0f172a", fontWeight: 800 }}>200,000 UGX <span style={{ fontSize: "14px", color: "#64748b", fontWeight: "normal" }}>/ Term</span></h2>
                   </div>
                   <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: "12px", margin: "20px 0", color: "#475569", fontSize: "14px" }}>
                     <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="var(--primary)" /> Complete PLE Grading System</li>
@@ -513,7 +513,7 @@ export default function MarketingPage() {
                     <p style={{ color: "#64748b", fontSize: "13px" }}>For full school administrative operations</p>
                   </div>
                   <div style={{ margin: "20px 0" }}>
-                    <h2 style={{ fontSize: "36px", color: "#0f172a", fontWeight: 800 }}>350,000 UGX <span style={{ fontSize: "14px", color: "#64748b", fontWeight: "normal" }}>/ Term</span></h2>
+                    <h2 style={{ fontSize: "36px", color: "#0f172a", fontWeight: 800 }}>500,000 UGX <span style={{ fontSize: "14px", color: "#64748b", fontWeight: "normal" }}>/ Term</span></h2>
                   </div>
                   <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: "12px", margin: "20px 0", color: "#475569", fontSize: "14px" }}>
                     <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><CheckCircle size={16} color="var(--primary)" /> All features in Basic Plan</li>
@@ -584,8 +584,8 @@ export default function MarketingPage() {
                         value={packageType} 
                         onChange={(e) => setPackageType(e.target.value as "BASIC" | "PREMIUM")}
                       >
-                        <option value="BASIC">Basic Plan (150,000 UGX / Term)</option>
-                        <option value="PREMIUM">Premium Plan (350,000 UGX / Term)</option>
+                        <option value="BASIC">Basic Plan (200,000 UGX / Term)</option>
+                        <option value="PREMIUM">Premium Plan (500,000 UGX / Term)</option>
                       </select>
                     </div>
 
@@ -802,18 +802,18 @@ export default function MarketingPage() {
 
               <div className="card text-center hover-scale" style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "24px", background: "white", borderColor: "#cbd5e1" }}>
                 <div style={{ width: "90px", height: "90px", borderRadius: "50%", overflow: "hidden", border: "3px solid var(--primary-light)", marginBottom: "16px", boxShadow: "var(--shadow)" }}>
-                  <img src="/images/sylvia_nakafeero_cpo.png" alt="Sylvia Nakafeero" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  <img src="/images/bngole_alvin.png" alt="Bngole Alvin" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 </div>
-                <h4 style={{ color: "#0f172a", marginBottom: "4px" }}>Sylvia Nakafeero</h4>
+                <h4 style={{ color: "#0f172a", marginBottom: "4px" }}>Bngole Alvin</h4>
                 <span style={{ fontSize: "12px", color: "var(--primary)", fontWeight: 700 }}>Chief Product Officer</span>
                 <p style={{ fontSize: "13px", color: "#64748b", marginTop: "12px", lineHeight: 1.4 }}>Lead developer specializing in CBC curriculum integrations and automated grading algorithms.</p>
               </div>
 
               <div className="card text-center hover-scale" style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "24px", background: "white", borderColor: "#cbd5e1" }}>
                 <div style={{ width: "90px", height: "90px", borderRadius: "50%", overflow: "hidden", border: "3px solid var(--primary-light)", marginBottom: "16px", boxShadow: "var(--shadow)" }}>
-                  <img src="/images/joseph_mugisha_success.png" alt="Joseph Mugisha" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  <img src="/images/zimula_farid.png" alt="Zimula Farid" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 </div>
-                <h4 style={{ color: "#0f172a", marginBottom: "4px" }}>Joseph Mugisha</h4>
+                <h4 style={{ color: "#0f172a", marginBottom: "4px" }}>Zimula Farid</h4>
                 <span style={{ fontSize: "12px", color: "var(--primary)", fontWeight: 700 }}>Head of Customer Success</span>
                 <p style={{ fontSize: "13px", color: "#64748b", marginTop: "12px", lineHeight: 1.4 }}>Managing client support, onboarding, and training for partner schools across Uganda.</p>
               </div>

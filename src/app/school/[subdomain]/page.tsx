@@ -8942,12 +8942,12 @@ export default function SchoolPortal({ params }: PageProps) {
       {showBulkStudentModal && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1050, padding: "20px" }}>
           <div className="card" style={{ width: "100%", maxWidth: "550px", background: "white", padding: "30px", boxShadow: "var(--shadow-lg)" }}>
-            <h3 style={{ marginBottom: "16px", borderBottom: "1px solid var(--border)", paddingBottom: "10px" }}>Bulk Upload Students</h3>
+            <h3 style={{ marginBottom: "16px", borderBottom: "1px solid var(--border)", paddingBottom: "10px", color: "#0f172a" }}>Bulk Upload Students</h3>
             
             <form onSubmit={handleBulkStudentUpload}>
               <div className="grid grid-cols-2 gap-2" style={{ marginBottom: "16px" }}>
                 <div className="form-group">
-                  <label className="form-label">Target Class</label>
+                  <label className="form-label" style={{ color: "#0f172a" }}>Target Class</label>
                   <select 
                     className="input-field" 
                     value={bulkStudentClassId} 
@@ -8955,22 +8955,33 @@ export default function SchoolPortal({ params }: PageProps) {
                       setBulkStudentClassId(e.target.value);
                       const sub = streams.filter(s => s.classId === e.target.value);
                       if (sub.length > 0) setBulkStudentStreamId(sub[0].id);
+                      else setBulkStudentStreamId("");
                     }}
                     required
+                    style={{ color: "#0f172a", backgroundColor: "#ffffff", borderColor: "#cbd5e1", display: "block", width: "100%", height: "42px", padding: "8px 12px", borderRadius: "6px" }}
                   >
-                    {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    <option value="" style={{ color: "#0f172a", backgroundColor: "#ffffff" }}>-- Choose class --</option>
+                    {classes.map(c => (
+                      <option key={c.id} value={c.id} style={{ color: "#0f172a", backgroundColor: "#ffffff" }}>
+                        {c.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Target Stream</label>
+                  <label className="form-label" style={{ color: "#0f172a" }}>Target Stream</label>
                   <select 
                     className="input-field" 
                     value={bulkStudentStreamId} 
                     onChange={(e) => setBulkStudentStreamId(e.target.value)}
                     required
+                    style={{ color: "#0f172a", backgroundColor: "#ffffff", borderColor: "#cbd5e1", display: "block", width: "100%", height: "42px", padding: "8px 12px", borderRadius: "6px" }}
                   >
+                    <option value="" style={{ color: "#0f172a", backgroundColor: "#ffffff" }}>-- Choose stream --</option>
                     {streams.filter(st => st.classId === bulkStudentClassId).map(st => (
-                      <option key={st.id} value={st.id}>{st.name}</option>
+                      <option key={st.id} value={st.id} style={{ color: "#0f172a", backgroundColor: "#ffffff" }}>
+                        {st.name}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -8978,7 +8989,7 @@ export default function SchoolPortal({ params }: PageProps) {
 
               <div className="form-group" style={{ marginBottom: "20px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                  <label className="form-label" style={{ margin: 0 }}>Select Excel Data File (.xlsx, .xls)</label>
+                  <label className="form-label" style={{ margin: 0, color: "#0f172a" }}>Select Excel Data File (.xlsx, .xls)</label>
                   <button 
                     type="button" 
                     onClick={downloadStudentTemplate}
@@ -8994,7 +9005,7 @@ export default function SchoolPortal({ params }: PageProps) {
                   className="input-field" 
                   onChange={(e) => setStudentExcelFile(e.target.files?.[0] || null)}
                   required
-                  style={{ padding: "8px" }}
+                  style={{ padding: "8px", color: "#0f172a", backgroundColor: "#ffffff", borderColor: "#cbd5e1" }}
                 />
                 <div style={{ fontSize: "11px", color: "#64748b", marginTop: "8px", lineHeight: "1.4" }}>
                   Please download the official template, input the details, and upload the completed workbook.
@@ -9024,12 +9035,12 @@ export default function SchoolPortal({ params }: PageProps) {
       {showBulkStaffModal && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1050, padding: "20px" }}>
           <div className="card" style={{ width: "100%", maxWidth: "550px", background: "white", padding: "30px", boxShadow: "var(--shadow-lg)" }}>
-            <h3 style={{ marginBottom: "16px", borderBottom: "1px solid var(--border)", paddingBottom: "10px" }}>Bulk Upload Staff</h3>
+            <h3 style={{ marginBottom: "16px", borderBottom: "1px solid var(--border)", paddingBottom: "10px", color: "#0f172a" }}>Bulk Upload Staff</h3>
             
             <form onSubmit={handleBulkStaffUpload}>
               <div className="form-group" style={{ marginBottom: "20px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                  <label className="form-label" style={{ margin: 0 }}>Select Excel Data File (.xlsx, .xls)</label>
+                  <label className="form-label" style={{ margin: 0, color: "#0f172a" }}>Select Excel Data File (.xlsx, .xls)</label>
                   <button 
                     type="button" 
                     onClick={downloadStaffTemplate}
@@ -9045,7 +9056,7 @@ export default function SchoolPortal({ params }: PageProps) {
                   className="input-field" 
                   onChange={(e) => setStaffExcelFile(e.target.files?.[0] || null)}
                   required
-                  style={{ padding: "8px" }}
+                  style={{ padding: "8px", color: "#0f172a", backgroundColor: "#ffffff", borderColor: "#cbd5e1" }}
                 />
                 <div style={{ fontSize: "11px", color: "#64748b", marginTop: "8px", lineHeight: "1.4" }}>
                   Please download the official template, input the details, and upload the completed workbook.

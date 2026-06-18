@@ -35,6 +35,27 @@
       "contactPhone": "+256 701 568392",
       "createdAt": "2026-05-28T00:00:00.000Z",
       "expiresAt": null
+    },
+    {
+      "id": "school-snoams",
+      "name": "St. Noa Mawaggali S.S.S",
+      "subdomain": "snoams",
+      "packageType": "PREMIUM",
+      "status": "ACTIVE",
+      "schoolType": "SECONDARY",
+      "studentRange": "500-1000",
+      "contactEmail": "stnoamawaggaliss@gmail.com",
+      "contactPhone": "0772658134/0756800003",
+      "logoUrl": "/images/st_noa_logo.png",
+      "poBox": "1922, Jinja • TikTok: @snoams.mibbikojinj • Website: stnoamawaggalisss.ac.ug • Located: Mbikko, Buikwe District",
+      "headTeacher": "Mr. Okongo Wilson",
+      "themeColor": "#1e3a8a",
+      "reportTitle": "END OF TERM I REPORT CARD",
+      "reportMotto": "WISDOM COMES FROM GOD",
+      "currentTerm": 1,
+      "currentYear": 2026,
+      "createdAt": "2026-01-15T00:00:00.000Z",
+      "expiresAt": null
     }
   ],
   "users": [

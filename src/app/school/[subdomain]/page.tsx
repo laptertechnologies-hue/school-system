@@ -13,7 +13,8 @@ import {
   initiateMarzpayCollection, checkMarzpayCollectionStatus, sendSmsBroadcast,
   updateStudent, deleteStudent, updateUser, deleteUser, getGradeRanges, saveGradeRanges,
   getTeacherSubjects, createTeacherSubject, deleteTeacherSubject, resetUserPassword, runDiagnostics,
-  deleteStudentPayment, getSchoolPayTransactions
+  deleteStudentPayment, getSchoolPayTransactions,
+  updateClass, deleteClass, updateStream, deleteStream, deleteSubject
 } from "../../../lib/services";
 
 import { Database, CreditCard, Building2, CheckCircle, MessageSquare, Sliders, User as UserIcon, Calendar } from "lucide-react";
@@ -182,6 +183,7 @@ export default function SchoolPortal({ params }: PageProps) {
   const [newStudentLin, setNewStudentLin] = useState("");
   const [newStudentPaymentCode, setNewStudentPaymentCode] = useState("");
   const [newStudentRegNumber, setNewStudentRegNumber] = useState("");
+  const [newStudentGender, setNewStudentGender] = useState<"MALE" | "FEMALE">("MALE");
 
   const [newTeacherPhoto, setNewTeacherPhoto] = useState("");
   const [newTeacherStaffNumber, setNewTeacherStaffNumber] = useState("");
@@ -201,6 +203,7 @@ export default function SchoolPortal({ params }: PageProps) {
   const [editStudentPhoto, setEditStudentPhoto] = useState("");
   const [editStudentPhotoChanged, setEditStudentPhotoChanged] = useState(false);
   const [editStudentLin, setEditStudentLin] = useState("");
+  const [editStudentGender, setEditStudentGender] = useState<"MALE" | "FEMALE">("MALE");
 
   // Modals view/edit states for Staff
   const [selectedViewStaff, setSelectedViewStaff] = useState<User | null>(null);
@@ -215,6 +218,14 @@ export default function SchoolPortal({ params }: PageProps) {
   const [editStaffNumber, setEditStaffNumber] = useState("");
   const [editStaffPhoto, setEditStaffPhoto] = useState("");
 
+  // Class & Stream edit states
+  const [showEditClassModal, setShowEditClassModal] = useState(false);
+  const [selectedEditClass, setSelectedEditClass] = useState<Class | null>(null);
+  const [editClassName, setEditClassName] = useState("");
+  const [editClassLevel, setEditClassLevel] = useState<"PRIMARY" | "SECONDARY">("PRIMARY");
+  const [editStreamNewName, setEditStreamNewName] = useState("");
+  const [editStreamRenames, setEditStreamRenames] = useState<{ [id: string]: string }>({});
+
   // Bulk upload states
   const [showBulkStudentModal, setShowBulkStudentModal] = useState(false);
   const [showBulkStaffModal, setShowBulkStaffModal] = useState(false);
@@ -226,6 +237,11 @@ export default function SchoolPortal({ params }: PageProps) {
   const [newSubjectName, setNewSubjectName] = useState("");
   const [newSubjectClassId, setNewSubjectClassId] = useState("");
   const [newSubjectCode, setNewSubjectCode] = useState("");
+
+  // Subject multiple add / pool assignment states
+  const [subjectPoolSelectedClassId, setSubjectPoolSelectedClassId] = useState("");
+  const [subjectPoolSelectedSubjects, setSubjectPoolSelectedSubjects] = useState<string[]>([]);
+  const [subjectAssignMode, setSubjectAssignMode] = useState<"single" | "multiple" | "pool">("single");
 
   // DOS exam state
   const [newExamName, setNewExamName] = useState("");
@@ -1195,6 +1211,7 @@ export default function SchoolPortal({ params }: PageProps) {
         lin: newStudentLin || null,
         studentPaymentCode: newStudentPaymentCode || null,
         registrationNumber: newStudentRegNumber || null,
+        gender: newStudentGender,
       });
       setNewStudentName("");
       setNewStudentNumber("");
@@ -1202,6 +1219,7 @@ export default function SchoolPortal({ params }: PageProps) {
       setNewStudentLin("");
       setNewStudentPaymentCode("");
       setNewStudentRegNumber("");
+      setNewStudentGender("MALE");
       await loadSchoolData(school.id);
       alert("Student registered successfully!");
     } catch (err: any) {
@@ -1210,12 +1228,87 @@ export default function SchoolPortal({ params }: PageProps) {
     }
   };
 
+  // --- Class & Stream Mutation Handlers ---
+  const handleUpdateClass = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEditClass || !editClassName) return;
+    try {
+      await updateClass(selectedEditClass.id, editClassName, editClassLevel);
+      setShowEditClassModal(false);
+      setSelectedEditClass(null);
+      await loadSchoolData(school!.id);
+      alert("Class updated successfully!");
+    } catch (err: any) {
+      alert("Error updating class: " + (err.message || err));
+    }
+  };
+
+  const handleDeleteClass = async (classId: string) => {
+    const cls = classes.find(c => c.id === classId);
+    if (!cls) return;
+    if (confirm(`⚠️ WARNING: Deleting class "${cls.name}" will permanently delete ALL students in this class, along with their marks, payments, attendances, and class streams/subjects. Are you sure you want to proceed?`)) {
+      try {
+        await deleteClass(classId);
+        await loadSchoolData(school!.id);
+        alert("Class and all associated records deleted successfully!");
+      } catch (err: any) {
+        alert("Error deleting class: " + (err.message || err));
+      }
+    }
+  };
+
+  const handleRenameStream = async (streamId: string, newName: string) => {
+    if (!newName.trim()) return;
+    try {
+      await updateStream(streamId, newName.trim());
+      // Refresh renames state
+      setEditStreamRenames(prev => ({ ...prev, [streamId]: newName }));
+      await loadSchoolData(school!.id);
+    } catch (err: any) {
+      alert("Error renaming stream: " + (err.message || err));
+    }
+  };
+
+  const handleAddStreamToClass = async (classId: string, name: string) => {
+    if (!name.trim()) return;
+    try {
+      await createStream(classId, name.trim());
+      setEditStreamNewName("");
+      await loadSchoolData(school!.id);
+      alert("Stream added successfully!");
+    } catch (err: any) {
+      alert("Error adding stream: " + (err.message || err));
+    }
+  };
+
+  const handleDeleteStreamFromClass = async (streamId: string) => {
+    try {
+      await deleteStream(streamId);
+      await loadSchoolData(school!.id);
+      alert("Stream deleted successfully!");
+    } catch (err: any) {
+      alert(err.message || err);
+    }
+  };
+
+  const handleDeleteSubject = async (subjectId: string, subjectName: string, className: string) => {
+    if (confirm(`Are you sure you want to delete subject "${subjectName}" from class "${className}"? This will delete all marks recorded for this subject.`)) {
+      try {
+        await deleteSubject(subjectId);
+        await loadSchoolData(school!.id);
+        alert("Subject deleted successfully!");
+      } catch (err: any) {
+        alert("Error deleting subject: " + (err.message || err));
+      }
+    }
+  };
+
   // Excel Parsing and Template Downloads
   const downloadStudentTemplate = () => {
-    const headers = [["Name", "Student Number (Optional)", "Residency (DAY or BOARDING)", "LIN (Optional)"]];
+    const headers = [["Name", "Student Number (Optional)", "Residency (DAY or BOARDING)", "LIN (Optional)", "Gender (MALE or FEMALE)"]];
     const sampleData = [
-      ["Namusoke Joy", "", "DAY", ""],
-      ["Opio Peter", "STU-0002", "BOARDING", "LIN-98765432"]
+      ["Namusoke Joy", "", "DAY", "", "FEMALE"],
+      ["Opio Peter", "STU-0002", "BOARDING", "LIN-98765432", "MALE"]
     ];
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet([]);
@@ -1282,6 +1375,7 @@ export default function SchoolPortal({ params }: PageProps) {
         let studentNumber = row[1] ? String(row[1]).trim() : "";
         let typeStr = row[2] ? String(row[2]).trim() : "DAY";
         let lin = row[3] ? String(row[3]).trim() : "";
+        let genderStr = row[4] ? String(row[4]).trim() : "MALE";
 
         if (!studentNumber) {
           existingCount++;
@@ -1294,6 +1388,11 @@ export default function SchoolPortal({ params }: PageProps) {
           residencyType = "BOARDING";
         }
 
+        let genderVal: "MALE" | "FEMALE" = "MALE";
+        if (genderStr.toUpperCase() === "FEMALE" || genderStr.toUpperCase() === "F") {
+          genderVal = "FEMALE";
+        }
+
         await createStudent({
           schoolId: school.id,
           classId: bulkStudentClassId,
@@ -1303,6 +1402,7 @@ export default function SchoolPortal({ params }: PageProps) {
           type: residencyType,
           photo: null,
           lin: lin || null,
+          gender: genderVal,
         });
         successCount++;
       }
@@ -1400,6 +1500,58 @@ export default function SchoolPortal({ params }: PageProps) {
     } catch (err: any) {
       console.error("Error creating subject:", err);
       alert("Failed to create subject: " + (err.message || err));
+    }
+  };
+
+  const handleBulkCreateSubjects = async (e: React.FormEvent, targetClassId: string, subjectString: string) => {
+    e.preventDefault();
+    if (!targetClassId || !subjectString.trim() || !school) return;
+    try {
+      const subjectNames = subjectString
+        .split(",")
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+      
+      if (subjectNames.length === 0) {
+        alert("Please enter at least one subject name.");
+        return;
+      }
+
+      for (const name of subjectNames) {
+        const code = name.slice(0, 3).toUpperCase();
+        await createSubject({
+          schoolId: school.id,
+          classId: targetClassId,
+          name,
+          code,
+        });
+      }
+
+      await loadSchoolData(school.id);
+      alert(`Successfully added ${subjectNames.length} subjects!`);
+    } catch (err: any) {
+      alert("Error adding subjects: " + (err.message || err));
+    }
+  };
+
+  const handleAssignPoolSubjects = async (targetClassId: string) => {
+    if (!targetClassId || subjectPoolSelectedSubjects.length === 0 || !school) return;
+    try {
+      for (const name of subjectPoolSelectedSubjects) {
+        const code = name.slice(0, 3).toUpperCase();
+        await createSubject({
+          schoolId: school.id,
+          classId: targetClassId,
+          name,
+          code,
+        });
+      }
+
+      setSubjectPoolSelectedSubjects([]);
+      await loadSchoolData(school.id);
+      alert(`Successfully assigned ${subjectPoolSelectedSubjects.length} subjects from pool!`);
+    } catch (err: any) {
+      alert("Error assigning subjects: " + (err.message || err));
     }
   };
 
@@ -4534,43 +4686,234 @@ export default function SchoolPortal({ params }: PageProps) {
               {/* Configure Subjects */}
               <div className="card">
                 <h4 style={{ marginBottom: "16px" }}><PlusCircle size={18} /> Add Subject</h4>
-                <form onSubmit={handleCreateSubject} className="flex flex-col gap-2">
-                  <div className="form-group">
-                    <label className="form-label">Subject Title</label>
-                    <input 
-                      type="text" 
-                      className="input-field" 
-                      placeholder="e.g. Mathematics" 
-                      value={newSubjectName}
-                      onChange={(e) => setNewSubjectName(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
+                
+                {/* Tabs */}
+                <div style={{ display: "flex", borderBottom: "1px solid var(--border)", marginBottom: "16px", gap: "12px" }}>
+                  <button 
+                    onClick={() => setSubjectAssignMode("single")}
+                    style={{ 
+                      padding: "8px 12px", 
+                      fontSize: "13px", 
+                      background: "transparent", 
+                      border: "none", 
+                      borderBottom: subjectAssignMode === "single" ? "2px solid var(--primary)" : "none",
+                      color: subjectAssignMode === "single" ? "var(--primary)" : "#64748b",
+                      fontWeight: subjectAssignMode === "single" ? "bold" : "normal",
+                      cursor: "pointer"
+                    }}
+                  >
+                    Single
+                  </button>
+                  <button 
+                    onClick={() => setSubjectAssignMode("multiple")}
+                    style={{ 
+                      padding: "8px 12px", 
+                      fontSize: "13px", 
+                      background: "transparent", 
+                      border: "none", 
+                      borderBottom: subjectAssignMode === "multiple" ? "2px solid var(--primary)" : "none",
+                      color: subjectAssignMode === "multiple" ? "var(--primary)" : "#64748b",
+                      fontWeight: subjectAssignMode === "multiple" ? "bold" : "normal",
+                      cursor: "pointer"
+                    }}
+                  >
+                    Add Multiple
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setSubjectAssignMode("pool");
+                      if (classes.length > 0 && !subjectPoolSelectedClassId) {
+                        setSubjectPoolSelectedClassId(classes[0].id);
+                      }
+                    }}
+                    style={{ 
+                      padding: "8px 12px", 
+                      fontSize: "13px", 
+                      background: "transparent", 
+                      border: "none", 
+                      borderBottom: subjectAssignMode === "pool" ? "2px solid var(--primary)" : "none",
+                      color: subjectAssignMode === "pool" ? "var(--primary)" : "#64748b",
+                      fontWeight: subjectAssignMode === "pool" ? "bold" : "normal",
+                      cursor: "pointer"
+                    }}
+                  >
+                    Assign from Pool
+                  </button>
+                </div>
+
+                {/* Tab Content: Single */}
+                {subjectAssignMode === "single" && (
+                  <form onSubmit={handleCreateSubject} className="flex flex-col gap-2">
+                    <div className="form-group">
+                      <label className="form-label">Subject Title</label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        placeholder="e.g. Mathematics" 
+                        value={newSubjectName}
+                        onChange={(e) => setNewSubjectName(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="form-group">
+                        <label className="form-label">Select Class</label>
+                        <select 
+                          className="input-field" 
+                          value={newSubjectClassId}
+                          onChange={(e) => setNewSubjectClassId(e.target.value)}
+                          required
+                        >
+                          <option value="">-- Choose class --</option>
+                          {classes.map(c => <option key={c.id} value={c.id}>{c.name} ({c.level})</option>)}
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Subject Code (e.g. ENG, MTC)</label>
+                        <input 
+                          type="text" 
+                          className="input-field" 
+                          placeholder="e.g. MTC" 
+                          value={newSubjectCode}
+                          onChange={(e) => setNewSubjectCode(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Add Subject</button>
+                  </form>
+                )}
+
+                {/* Tab Content: Add Multiple */}
+                {subjectAssignMode === "multiple" && (
+                  <form 
+                    onSubmit={(e) => {
+                      const txtEl = e.currentTarget.elements.namedItem("bulkSubjects") as HTMLTextAreaElement;
+                      const selEl = e.currentTarget.elements.namedItem("targetClass") as HTMLSelectElement;
+                      handleBulkCreateSubjects(e, selEl.value, txtEl.value);
+                      txtEl.value = "";
+                    }} 
+                    className="flex flex-col gap-2"
+                  >
                     <div className="form-group">
                       <label className="form-label">Select Class</label>
                       <select 
+                        name="targetClass"
                         className="input-field" 
-                        value={newSubjectClassId}
-                        onChange={(e) => setNewSubjectClassId(e.target.value)}
+                        required
                       >
                         <option value="">-- Choose class --</option>
                         {classes.map(c => <option key={c.id} value={c.id}>{c.name} ({c.level})</option>)}
                       </select>
                     </div>
                     <div className="form-group">
-                      <label className="form-label">Subject Code (e.g. ENG, MTC)</label>
-                      <input 
-                        type="text" 
+                      <label className="form-label">Subject Titles (Comma-separated)</label>
+                      <textarea 
+                        name="bulkSubjects"
                         className="input-field" 
-                        placeholder="e.g. MTC" 
-                        value={newSubjectCode}
-                        onChange={(e) => setNewSubjectCode(e.target.value)}
+                        placeholder="e.g. Physics, Chemistry, Agriculture, Luganda" 
+                        style={{ height: "80px", padding: "8px" }}
+                        required
                       />
                     </div>
+                    <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Add Subjects</button>
+                  </form>
+                )}
+
+                {/* Tab Content: Assign from Pool */}
+                {subjectAssignMode === "pool" && (
+                  <div className="flex flex-col gap-2">
+                    <div className="form-group">
+                      <label className="form-label">Select Target Class</label>
+                      <select 
+                        className="input-field" 
+                        value={subjectPoolSelectedClassId}
+                        onChange={(e) => setSubjectPoolSelectedClassId(e.target.value)}
+                        required
+                      >
+                        <option value="">-- Choose class --</option>
+                        {classes.map(c => <option key={c.id} value={c.id}>{c.name} ({c.level})</option>)}
+                      </select>
+                    </div>
+                    
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", marginBottom: "4px" }}>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          const DEFAULT_UGANDAN_SUBJECTS = [
+                            "Mathematics", "English Language", "Physics", "Chemistry", "Biology", "Geography", "History", 
+                            "Entrepreneurship Education", "Kiswahili", "Luganda", "Fine Art", "Literature in English", 
+                            "Christian Religious Education (CRE)", "Islamic Religious Education (IRE)", "Computer Studies", 
+                            "Agriculture", "Physical Education", "General Paper", "Sub Mathematics", "ICT"
+                          ];
+                          const fullPool = Array.from(new Set([
+                            ...subjects.map(s => s.name),
+                            ...DEFAULT_UGANDAN_SUBJECTS
+                          ])).sort();
+                          setSubjectPoolSelectedSubjects(fullPool);
+                        }}
+                        style={{ background: "transparent", border: "none", color: "var(--primary)", cursor: "pointer", padding: 0 }}
+                      >
+                        ☑ Select All
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => setSubjectPoolSelectedSubjects([])}
+                        style={{ background: "transparent", border: "none", color: "var(--danger)", cursor: "pointer", padding: 0 }}
+                      >
+                        ☒ Deselect All
+                      </button>
+                    </div>
+
+                    <div style={{ maxHeight: "150px", overflowY: "auto", border: "1px solid var(--border)", borderRadius: "6px", padding: "8px", background: "#f8fafc" }}>
+                      {(() => {
+                        const DEFAULT_UGANDAN_SUBJECTS = [
+                          "Mathematics", "English Language", "Physics", "Chemistry", "Biology", "Geography", "History", 
+                          "Entrepreneurship Education", "Kiswahili", "Luganda", "Fine Art", "Literature in English", 
+                          "Christian Religious Education (CRE)", "Islamic Religious Education (IRE)", "Computer Studies", 
+                          "Agriculture", "Physical Education", "General Paper", "Sub Mathematics", "ICT"
+                        ];
+                        const fullPool = Array.from(new Set([
+                          ...subjects.map(s => s.name),
+                          ...DEFAULT_UGANDAN_SUBJECTS
+                        ])).sort();
+
+                        return (
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "6px" }}>
+                            {fullPool.map(subName => {
+                              const isChecked = subjectPoolSelectedSubjects.includes(subName);
+                              return (
+                                <label key={subName} style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px" }}>
+                                  <input 
+                                    type="checkbox" 
+                                    checked={isChecked}
+                                    onChange={() => {
+                                      if (isChecked) {
+                                        setSubjectPoolSelectedSubjects(prev => prev.filter(x => x !== subName));
+                                      } else {
+                                        setSubjectPoolSelectedSubjects(prev => [...prev, subName]);
+                                      }
+                                    }}
+                                  />
+                                  <span>{subName}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    <button 
+                      type="button"
+                      onClick={() => handleAssignPoolSubjects(subjectPoolSelectedClassId)}
+                      className="btn btn-primary" 
+                      style={{ width: "100%", marginTop: "6px" }}
+                      disabled={!subjectPoolSelectedClassId || subjectPoolSelectedSubjects.length === 0}
+                    >
+                      Assign Selected ({subjectPoolSelectedSubjects.length})
+                    </button>
                   </div>
-                  <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Add Subject</button>
-                </form>
+                )}
               </div>
 
               {/* Academic Overview List */}
@@ -4584,21 +4927,70 @@ export default function SchoolPortal({ params }: PageProps) {
                         <th>Level</th>
                         <th>Streams</th>
                         <th>Subjects</th>
+                        <th style={{ textAlign: "right" }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {classes.length === 0 ? (
-                        <tr><td colSpan={4} style={{ textAlign: "center", color: "#64748b" }}>No classes configured yet.</td></tr>
+                        <tr><td colSpan={5} style={{ textAlign: "center", color: "#64748b" }}>No classes configured yet.</td></tr>
                       ) : (
                         classes.map(c => {
                           const clsStreams = streams.filter(s => s.classId === c.id).map(s => s.name).join(", ");
-                          const clsSubjects = subjects.filter(s => s.classId === c.id).map(s => s.name).join(", ");
+                          const clsSubjects = subjects.filter(s => s.classId === c.id);
                           return (
                             <tr key={c.id}>
                               <td><strong>{c.name}</strong></td>
                               <td><span className={`badge ${c.level === "SECONDARY" ? "badge-success" : "badge-primary"}`}>{c.level}</span></td>
                               <td>{clsStreams || <span style={{ color: "#94a3b8", fontSize: "12px" }}>None</span>}</td>
-                              <td>{clsSubjects || <span style={{ color: "#94a3b8", fontSize: "12px" }}>None</span>}</td>
+                              <td>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                                  {clsSubjects.length === 0 ? (
+                                    <span style={{ color: "#94a3b8", fontSize: "12px" }}>None</span>
+                                  ) : (
+                                    clsSubjects.map(sub => (
+                                      <span key={sub.id} className="badge badge-outline" style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "4px 8px", fontSize: "12px", background: "#f8fafc" }}>
+                                        {sub.name}
+                                        <button 
+                                          onClick={() => handleDeleteSubject(sub.id, sub.name, c.name)}
+                                          style={{ background: "transparent", border: "none", color: "var(--danger)", cursor: "pointer", padding: "0 2px", fontWeight: "bold", fontSize: "14px", display: "inline-flex", alignItems: "center" }}
+                                          title={`Delete ${sub.name}`}
+                                        >
+                                          &times;
+                                        </button>
+                                      </span>
+                                    ))
+                                  )}
+                                </div>
+                              </td>
+                              <td style={{ textAlign: "right" }}>
+                                <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+                                  <button 
+                                    onClick={() => {
+                                      setSelectedEditClass(c);
+                                      setEditClassName(c.name);
+                                      setEditClassLevel(c.level);
+                                      setEditStreamNewName("");
+                                      const renames: { [id: string]: string } = {};
+                                      streams.filter(s => s.classId === c.id).forEach(s => {
+                                        renames[s.id] = s.name;
+                                      });
+                                      setEditStreamRenames(renames);
+                                      setShowEditClassModal(true);
+                                    }}
+                                    className="btn btn-outline"
+                                    style={{ padding: "4px 8px", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px", color: "var(--primary)", borderColor: "var(--primary)", background: "white" }}
+                                  >
+                                    ✏️ Edit
+                                  </button>
+                                  <button 
+                                    onClick={() => handleDeleteClass(c.id)}
+                                    className="btn btn-outline"
+                                    style={{ padding: "4px 8px", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px", color: "var(--danger)", borderColor: "var(--danger)", background: "white" }}
+                                  >
+                                    🗑️ Delete
+                                  </button>
+                                </div>
+                              </td>
                             </tr>
                           );
                         })
@@ -4711,15 +5103,28 @@ export default function SchoolPortal({ params }: PageProps) {
                         </select>
                       </div>
                     </div>
-                    <div className="form-group">
-                      <label className="form-label">Learner Identification Number (LIN)</label>
-                      <input 
-                        type="text" 
-                        className="input-field" 
-                        placeholder="e.g. LIN-12345678" 
-                        value={newStudentLin}
-                        onChange={(e) => setNewStudentLin(e.target.value)}
-                      />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="form-group">
+                        <label className="form-label">Learner Identification Number (LIN)</label>
+                        <input 
+                          type="text" 
+                          className="input-field" 
+                          placeholder="e.g. LIN-12345678" 
+                          value={newStudentLin}
+                          onChange={(e) => setNewStudentLin(e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Gender</label>
+                        <select 
+                          className="input-field" 
+                          value={newStudentGender}
+                          onChange={(e) => setNewStudentGender(e.target.value as "MALE" | "FEMALE")}
+                        >
+                          <option value="MALE">Male</option>
+                          <option value="FEMALE">Female</option>
+                        </select>
+                      </div>
                     </div>
                     <div className="form-group" style={{ marginBottom: "16px" }}>
                       <label className="form-label">SchoolPay Payment Code</label>
@@ -4846,6 +5251,7 @@ export default function SchoolPortal({ params }: PageProps) {
                                           setEditStudentPhoto(st.photo || "");
                                           setEditStudentPhotoChanged(false);
                                           setEditStudentLin(st.lin || "");
+                                          setEditStudentGender((st.gender as any) || "MALE");
                                           setShowEditStudentModal(true);
                                         }}
                                         className="btn btn-outline" 
@@ -8058,6 +8464,7 @@ export default function SchoolPortal({ params }: PageProps) {
                   {selectedViewStudent.type}
                 </span>
               </div>
+              <div><strong>Gender:</strong> {selectedViewStudent.gender || "MALE"}</div>
             </div>
 
             <button 
@@ -8086,6 +8493,7 @@ export default function SchoolPortal({ params }: PageProps) {
                 streamId: editStudentStreamId,
                 type: editStudentType,
                 lin: editStudentLin || null,
+                gender: editStudentGender,
                 ...(editStudentPhotoChanged ? { photo: editStudentPhoto || null } : {})
               });
               setShowEditStudentModal(false);
@@ -8156,15 +8564,28 @@ export default function SchoolPortal({ params }: PageProps) {
                 </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Learner Identification Number (LIN)</label>
-                <input 
-                  type="text" 
-                  className="input-field" 
-                  placeholder="e.g. LIN-12345678" 
-                  value={editStudentLin}
-                  onChange={(e) => setEditStudentLin(e.target.value)}
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <div className="form-group">
+                  <label className="form-label">Learner Identification Number (LIN)</label>
+                  <input 
+                    type="text" 
+                    className="input-field" 
+                    placeholder="e.g. LIN-12345678" 
+                    value={editStudentLin}
+                    onChange={(e) => setEditStudentLin(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Gender</label>
+                  <select 
+                    className="input-field" 
+                    value={editStudentGender}
+                    onChange={(e) => setEditStudentGender(e.target.value as "MALE" | "FEMALE")}
+                  >
+                    <option value="MALE">Male</option>
+                    <option value="FEMALE">Female</option>
+                  </select>
+                </div>
               </div>
 
               <div className="form-group">
@@ -8204,6 +8625,121 @@ export default function SchoolPortal({ params }: PageProps) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 2B. Edit Class Modal */}
+      {showEditClassModal && selectedEditClass && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1050, padding: "20px" }}>
+          <div className="card" style={{ width: "100%", maxWidth: "500px", background: "white", padding: "30px", boxShadow: "var(--shadow-lg)", maxHeight: "90vh", overflowY: "auto" }}>
+            <h3 style={{ marginBottom: "20px", borderBottom: "1px solid var(--border)", paddingBottom: "10px" }}>Configure Class & Streams</h3>
+            
+            <form onSubmit={handleUpdateClass}>
+              <div className="form-group">
+                <label className="form-label">Class Name</label>
+                <input 
+                  type="text" 
+                  className="input-field" 
+                  value={editClassName}
+                  onChange={(e) => setEditClassName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Curriculum Level</label>
+                <select 
+                  className="input-field" 
+                  value={editClassLevel}
+                  onChange={(e) => setEditClassLevel(e.target.value as "PRIMARY" | "SECONDARY")}
+                >
+                  <option value="PRIMARY">PRIMARY</option>
+                  <option value="SECONDARY">SECONDARY</option>
+                </select>
+              </div>
+
+              <div style={{ display: "flex", gap: "10px", marginTop: "16px", marginBottom: "24px" }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Save Class Changes</button>
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setShowEditClassModal(false);
+                    setSelectedEditClass(null);
+                  }}
+                  className="btn btn-outline" 
+                  style={{ flex: 1 }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+
+            <hr style={{ border: "0", borderTop: "1px solid var(--border)", margin: "20px 0" }} />
+
+            <h4 style={{ marginBottom: "12px" }}>Streams Configuration</h4>
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "20px" }}>
+              {streams.filter(s => s.classId === selectedEditClass.id).length === 0 ? (
+                <p style={{ fontSize: "13px", color: "#64748b", margin: 0 }}>No streams configured for this class.</p>
+              ) : (
+                streams.filter(s => s.classId === selectedEditClass.id).map(st => {
+                  const enrolledCount = students.filter(stud => stud.streamId === st.id).length;
+                  return (
+                    <div key={st.id} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        style={{ flex: 1, padding: "6px 10px" }}
+                        value={editStreamRenames[st.id] ?? st.name}
+                        onChange={(e) => setEditStreamRenames(prev => ({ ...prev, [st.id]: e.target.value }))}
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => handleRenameStream(st.id, editStreamRenames[st.id] ?? "")}
+                        className="btn btn-outline"
+                        style={{ padding: "6px 10px", fontSize: "12px" }}
+                        disabled={(editStreamRenames[st.id] ?? st.name) === st.name}
+                      >
+                        Rename
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => handleDeleteStreamFromClass(st.id)}
+                        className="btn btn-outline"
+                        style={{ padding: "6px 10px", fontSize: "12px", color: enrolledCount > 0 ? "#cbd5e1" : "var(--danger)", borderColor: enrolledCount > 0 ? "#e2e8f0" : "var(--danger)", cursor: enrolledCount > 0 ? "not-allowed" : "pointer" }}
+                        disabled={enrolledCount > 0}
+                        title={enrolledCount > 0 ? `Cannot delete stream: ${enrolledCount} active students are enrolled in it.` : "Delete stream"}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px", background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid var(--border)" }}>
+              <label className="form-label" style={{ fontSize: "12px", margin: 0 }}>Add New Stream</label>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <input 
+                  type="text" 
+                  className="input-field" 
+                  style={{ flex: 1, padding: "6px 10px" }}
+                  placeholder="e.g. C, Gold, West"
+                  value={editStreamNewName}
+                  onChange={(e) => setEditStreamNewName(e.target.value)}
+                />
+                <button 
+                  type="button"
+                  onClick={() => handleAddStreamToClass(selectedEditClass.id, editStreamNewName)}
+                  className="btn btn-primary"
+                  style={{ padding: "6px 12px", fontSize: "12px" }}
+                >
+                  Add Stream
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
       )}

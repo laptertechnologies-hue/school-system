@@ -132,6 +132,7 @@ model Student {
   lin              String?
   studentPaymentCode String?
   registrationNumber String?
+  gender             String?
   marks            Mark[]
   studentPayments  StudentPayment[]
   attendances      Attendance[]

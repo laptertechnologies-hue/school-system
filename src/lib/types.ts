@@ -89,6 +89,7 @@ export interface Student {
   lin?: string | null;
   studentPaymentCode?: string | null;
   registrationNumber?: string | null;
+  gender?: string | null;
 }
 
 export interface Subject {

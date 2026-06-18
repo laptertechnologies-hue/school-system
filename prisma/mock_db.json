@@ -106,10 +106,10 @@
     { "id": "stream-west", "classId": "class-s4", "name": "West" }
   ],
   "students": [
-    { "id": "stud-1", "schoolId": "school-1", "classId": "class-p7", "streamId": "stream-blue", "name": "Mukasa John", "studentNumber": "GH-2026-001", "type": "BOARDING" },
-    { "id": "stud-2", "schoolId": "school-1", "classId": "class-p7", "streamId": "stream-blue", "name": "Nakato Brenda", "studentNumber": "GH-2026-002", "type": "DAY" },
-    { "id": "stud-3", "schoolId": "school-1", "classId": "class-s4", "streamId": "stream-east", "name": "Nsubuga Sarah", "studentNumber": "GH-2026-003", "type": "BOARDING" },
-    { "id": "stud-4", "schoolId": "school-1", "classId": "class-s4", "streamId": "stream-west", "name": "Ochen David", "studentNumber": "GH-2026-004", "type": "DAY" }
+    { "id": "stud-1", "schoolId": "school-1", "classId": "class-p7", "streamId": "stream-blue", "name": "Mukasa John", "studentNumber": "GH-2026-001", "type": "BOARDING", "gender": "MALE" },
+    { "id": "stud-2", "schoolId": "school-1", "classId": "class-p7", "streamId": "stream-blue", "name": "Nakato Brenda", "studentNumber": "GH-2026-002", "type": "DAY", "gender": "FEMALE" },
+    { "id": "stud-3", "schoolId": "school-1", "classId": "class-s4", "streamId": "stream-east", "name": "Nsubuga Sarah", "studentNumber": "GH-2026-003", "type": "BOARDING", "gender": "FEMALE" },
+    { "id": "stud-4", "schoolId": "school-1", "classId": "class-s4", "streamId": "stream-west", "name": "Ochen David", "studentNumber": "GH-2026-004", "type": "DAY", "gender": "MALE" }
   ],
   "subjects": [
     { "id": "subj-mtc", "schoolId": "school-1", "classId": "class-p7", "name": "Mathematics", "code": "MTC" },

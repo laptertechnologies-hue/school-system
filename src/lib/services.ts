@@ -619,6 +619,137 @@ export async function createStream(classId: string, name: string): Promise<Strea
   return newStream;
 }
 
+export async function updateClass(id: string, name: string, level: "PRIMARY" | "SECONDARY"): Promise<Class> {
+  if (await hasDB()) {
+    return (await prisma.class.update({
+      where: { id },
+      data: { name, level },
+    })) as Class;
+  }
+  const db = getLocalDB();
+  const idx = db.classes.findIndex((c: Class) => c.id === id);
+  if (idx !== -1) {
+    db.classes[idx] = { ...db.classes[idx], name, level };
+    saveLocalDB(db);
+    return db.classes[idx];
+  }
+  throw new Error("Class not found");
+}
+
+export async function deleteClass(classId: string): Promise<boolean> {
+  if (await hasDB()) {
+    // 1. Find all student IDs in the class
+    const studentRecords = await prisma.student.findMany({
+      where: { classId },
+      select: { id: true },
+    });
+    const studentIds = studentRecords.map(s => s.id);
+
+    // 2. Delete marks, attendances, payments for these students
+    if (studentIds.length > 0) {
+      await prisma.mark.deleteMany({ where: { studentId: { in: studentIds } } });
+      await prisma.attendance.deleteMany({ where: { studentId: { in: studentIds } } });
+      await prisma.studentPayment.deleteMany({ where: { studentId: { in: studentIds } } });
+    }
+
+    // 3. Delete students
+    await prisma.student.deleteMany({ where: { classId } });
+
+    // 4. Find all subject IDs in the class and delete their marks
+    const subjectRecords = await prisma.subject.findMany({
+      where: { classId },
+      select: { id: true },
+    });
+    const subjectIds = subjectRecords.map(sub => sub.id);
+    if (subjectIds.length > 0) {
+      await prisma.mark.deleteMany({ where: { subjectId: { in: subjectIds } } });
+      await prisma.teacherSubject.deleteMany({ where: { subjectId: { in: subjectIds } } });
+    }
+
+    // 5. Delete subjects
+    await prisma.subject.deleteMany({ where: { classId } });
+
+    // 6. Delete streams, fee structures, teacher subjects for class
+    await prisma.stream.deleteMany({ where: { classId } });
+    await prisma.feeStructure.deleteMany({ where: { classId } });
+    await prisma.teacherSubject.deleteMany({ where: { classId } });
+
+    // 7. Delete the class itself
+    await prisma.class.delete({ where: { id: classId } });
+    return true;
+  }
+
+  const db = getLocalDB();
+  const classIdx = db.classes.findIndex((c: Class) => c.id === classId);
+  if (classIdx !== -1) {
+    const studentIds = db.students
+      .filter((s: Student) => s.classId === classId)
+      .map((s: Student) => s.id);
+
+    db.marks = db.marks.filter((m: any) => !studentIds.includes(m.studentId));
+    db.attendances = db.attendances.filter((a: any) => !studentIds.includes(a.studentId));
+    db.studentPayments = db.studentPayments.filter((sp: any) => !studentIds.includes(sp.studentId));
+    db.students = db.students.filter((s: Student) => s.classId !== classId);
+
+    const subjectIds = db.subjects
+      .filter((sub: Subject) => sub.classId === classId)
+      .map((sub: Subject) => sub.id);
+
+    db.marks = db.marks.filter((m: any) => !subjectIds.includes(m.subjectId));
+    db.teacherSubjects = db.teacherSubjects.filter((ts: any) => !subjectIds.includes(ts.subjectId) && ts.classId !== classId);
+    db.subjects = db.subjects.filter((sub: Subject) => sub.classId !== classId);
+
+    db.streams = db.streams.filter((s: Stream) => s.classId !== classId);
+    db.feeStructures = db.feeStructures.filter((fs: any) => fs.classId !== classId);
+    db.classes.splice(classIdx, 1);
+    saveLocalDB(db);
+    return true;
+  }
+  return false;
+}
+
+export async function updateStream(id: string, name: string): Promise<Stream> {
+  if (await hasDB()) {
+    return (await prisma.stream.update({
+      where: { id },
+      data: { name },
+    })) as Stream;
+  }
+  const db = getLocalDB();
+  const idx = db.streams.findIndex((s: Stream) => s.id === id);
+  if (idx !== -1) {
+    db.streams[idx] = { ...db.streams[idx], name };
+    saveLocalDB(db);
+    return db.streams[idx];
+  }
+  throw new Error("Stream not found");
+}
+
+export async function deleteStream(streamId: string): Promise<boolean> {
+  if (await hasDB()) {
+    const studentCount = await prisma.student.count({ where: { streamId } });
+    if (studentCount > 0) {
+      throw new Error("Cannot delete stream because there are active students enrolled in it. Please reassign or delete the students first.");
+    }
+    await prisma.teacherSubject.deleteMany({ where: { streamId } });
+    await prisma.stream.delete({ where: { id: streamId } });
+    return true;
+  }
+  const db = getLocalDB();
+  const idx = db.streams.findIndex((s: Stream) => s.id === streamId);
+  if (idx !== -1) {
+    const studentCount = db.students.filter((s: Student) => s.streamId === streamId).length;
+    if (studentCount > 0) {
+      throw new Error("Cannot delete stream because there are active students enrolled in it. Please reassign or delete the students first.");
+    }
+    db.teacherSubjects = db.teacherSubjects.filter((ts: any) => ts.streamId !== streamId);
+    db.streams.splice(idx, 1);
+    saveLocalDB(db);
+    return true;
+  }
+  return false;
+}
+
 // --- Students ---
 export async function getStudents(schoolId: string): Promise<Student[]> {
   if (await hasDB()) {
@@ -687,6 +818,25 @@ export async function createSubject(data: Omit<Subject, "id">): Promise<Subject>
   db.subjects.push(newSubj);
   saveLocalDB(db);
   return newSubj;
+}
+
+export async function deleteSubject(subjectId: string): Promise<boolean> {
+  if (await hasDB()) {
+    await prisma.mark.deleteMany({ where: { subjectId } });
+    await prisma.teacherSubject.deleteMany({ where: { subjectId } });
+    await prisma.subject.delete({ where: { id: subjectId } });
+    return true;
+  }
+  const db = getLocalDB();
+  const idx = db.subjects.findIndex((s: Subject) => s.id === subjectId);
+  if (idx !== -1) {
+    db.marks = db.marks.filter((m: any) => m.subjectId !== subjectId);
+    db.teacherSubjects = db.teacherSubjects.filter((ts: any) => ts.subjectId !== subjectId);
+    db.subjects.splice(idx, 1);
+    saveLocalDB(db);
+    return true;
+  }
+  return false;
 }
 
 // --- Exams ---

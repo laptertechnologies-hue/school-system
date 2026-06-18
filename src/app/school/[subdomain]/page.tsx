@@ -8985,7 +8985,7 @@ export default function SchoolPortal({ params }: PageProps) {
                     className="btn btn-outline"
                     style={{ padding: "4px 8px", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px", background: "#f8fafc" }}
                   >
-                    â¬‡ Download Excel Template
+                    📥 Download Excel Template
                   </button>
                 </div>
                 <input 
@@ -9036,7 +9036,7 @@ export default function SchoolPortal({ params }: PageProps) {
                     className="btn btn-outline"
                     style={{ padding: "4px 8px", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px", background: "#f8fafc" }}
                   >
-                    â¬‡ Download Excel Template
+                    📥 Download Excel Template
                   </button>
                 </div>
                 <input 

@@ -858,6 +858,31 @@ export async function createExamPaper(data: Omit<ExamPaper, "id">): Promise<Exam
   return newExam;
 }
 
+export async function updateExamPaper(id: string, data: Partial<Omit<ExamPaper, "id">>): Promise<ExamPaper> {
+  if (await hasDB()) {
+    return (await prisma.examPaper.update({ where: { id }, data })) as ExamPaper;
+  }
+  const db = getLocalDB();
+  const idx = db.examPapers.findIndex((e: any) => e.id === id);
+  if (idx !== -1) {
+    db.examPapers[idx] = { ...db.examPapers[idx], ...data };
+    saveLocalDB(db);
+    return db.examPapers[idx];
+  }
+  throw new Error("Exam paper not found");
+}
+
+export async function deleteExamPaper(id: string): Promise<void> {
+  if (await hasDB()) {
+    await prisma.examPaper.delete({ where: { id } });
+    return;
+  }
+  const db = getLocalDB();
+  db.examPapers = db.examPapers.filter((e: any) => e.id !== id);
+  db.marks = db.marks.filter((m: any) => m.examPaperId !== id);
+  saveLocalDB(db);
+}
+
 // --- Marks ---
 export async function getMarks(schoolId: string): Promise<Mark[]> {
   if (await hasDB()) {

@@ -7,7 +7,7 @@ import type {
 import { 
   checkDatabaseConnection, getSchoolBySubdomain, getUsers, getClasses, getStreams, getStudents, getSubjects,
   getExamPapers, getMarks, getFeeStructures, getStudentPayments, getExpenses, getAttendance, authenticateUser,
-  createClass, createStream, createUser, createStudent, createSubject, createExamPaper, addMark,
+  createClass, createStream, createUser, createStudent, createSubject, createExamPaper, updateExamPaper, deleteExamPaper, addMark,
   createFeeStructure, recordStudentPayment, createExpense, recordAttendance, promoteStudents,
   processTeacherSalary, createPayment, getPayments, updateSchoolStatus, updateSchoolMetadata,
   initiateMarzpayCollection, checkMarzpayCollectionStatus, sendSmsBroadcast,
@@ -265,6 +265,23 @@ export default function SchoolPortal({ params }: PageProps) {
   const [newExamCbU2Max, setNewExamCbU2Max] = useState(3);
   const [newExamCbEtMax, setNewExamCbEtMax] = useState(3);
   const [newExamCbHpgMax, setNewExamCbHpgMax] = useState(3);
+
+  // Edit exam states
+  const [selectedEditExam, setSelectedEditExam] = useState<ExamPaper | null>(null);
+  const [editExamName, setEditExamName] = useState("");
+  const [editExamTerm, setEditExamTerm] = useState("1");
+  const [editExamYear, setEditExamYear] = useState("2026");
+  const [editExamClassId, setEditExamClassId] = useState("");
+  const [editExamIsNewCurriculum, setEditExamIsNewCurriculum] = useState(false);
+  const [editExamCbU1Active, setEditExamCbU1Active] = useState(true);
+  const [editExamCbU2Active, setEditExamCbU2Active] = useState(true);
+  const [editExamCbEtActive, setEditExamCbEtActive] = useState(true);
+  const [editExamCbHpgActive, setEditExamCbHpgActive] = useState(true);
+  const [editExamCbU1Max, setEditExamCbU1Max] = useState(3);
+  const [editExamCbU2Max, setEditExamCbU2Max] = useState(3);
+  const [editExamCbEtMax, setEditExamCbEtMax] = useState(3);
+  const [editExamCbHpgMax, setEditExamCbHpgMax] = useState(3);
+  const [showEditExamModal, setShowEditExamModal] = useState(false);
 
   // Teacher marks entry states
   const [selectedExamId, setSelectedExamId] = useState("");
@@ -1621,6 +1638,51 @@ export default function SchoolPortal({ params }: PageProps) {
     } catch (err: any) {
       console.error("Error creating exam:", err);
       alert("Failed to schedule exam paper: " + (err.message || err));
+    }
+  };
+
+  // Update exam paper
+  const handleUpdateExam = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEditExam || !editExamName || !school) return;
+    try {
+      await updateExamPaper(selectedEditExam.id, {
+        name: editExamName,
+        term: parseInt(editExamTerm),
+        year: parseInt(editExamYear),
+        classId: editExamClassId || null,
+        isNewCurriculum: editExamIsNewCurriculum,
+        cbU1Active: editExamCbU1Active,
+        cbU2Active: editExamCbU2Active,
+        cbEtActive: editExamCbEtActive,
+        cbHpgActive: editExamCbHpgActive,
+        cbU1Max: editExamCbU1Max,
+        cbU2Max: editExamCbU2Max,
+        cbEtMax: editExamCbEtMax,
+        cbHpgMax: editExamCbHpgMax,
+      });
+      setShowEditExamModal(false);
+      setSelectedEditExam(null);
+      await loadSchoolData(school.id);
+      alert("Exam Paper updated successfully!");
+    } catch (err: any) {
+      console.error("Error updating exam:", err);
+      alert("Failed to update exam: " + (err.message || err));
+    }
+  };
+
+  // Delete exam paper
+  const handleDeleteExam = async (examId: string) => {
+    const ex = exams.find(e => e.id === examId);
+    if (!ex) return;
+    if (confirm(`⚠️ WARNING: Deleting exam "${ex.name}" will permanently delete ALL associated student marks for this exam. Are you sure you want to proceed?`)) {
+      try {
+        await deleteExamPaper(examId);
+        await loadSchoolData(school!.id);
+        alert("Exam Paper deleted successfully!");
+      } catch (err: any) {
+        alert("Error deleting exam: " + (err.message || err));
+      }
     }
   };
 
@@ -5702,6 +5764,7 @@ export default function SchoolPortal({ params }: PageProps) {
                         <th>Term</th>
                         <th>Year</th>
                         <th>Grading System</th>
+                        <th style={{ textAlign: "right" }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -5721,6 +5784,40 @@ export default function SchoolPortal({ params }: PageProps) {
                             <span className={`badge ${ex.isNewCurriculum ? "badge-success" : "badge-primary"}`}>
                               {ex.isNewCurriculum ? "New CBC Curriculum (A-E)" : "Primary PLE Aggregates (1-9)"}
                             </span>
+                          </td>
+                          <td style={{ textAlign: "right" }}>
+                            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+                              <button 
+                                onClick={() => {
+                                  setSelectedEditExam(ex);
+                                  setEditExamName(ex.name);
+                                  setEditExamTerm(String(ex.term));
+                                  setEditExamYear(String(ex.year));
+                                  setEditExamClassId(ex.classId || "");
+                                  setEditExamIsNewCurriculum(ex.isNewCurriculum);
+                                  setEditExamCbU1Active(ex.cbU1Active !== false);
+                                  setEditExamCbU2Active(ex.cbU2Active !== false);
+                                  setEditExamCbEtActive(ex.cbEtActive !== false);
+                                  setEditExamCbHpgActive(ex.cbHpgActive !== false);
+                                  setEditExamCbU1Max(ex.cbU1Max ?? 3);
+                                  setEditExamCbU2Max(ex.cbU2Max ?? 3);
+                                  setEditExamCbEtMax(ex.cbEtMax ?? 3);
+                                  setEditExamCbHpgMax(ex.cbHpgMax ?? 3);
+                                  setShowEditExamModal(true);
+                                }}
+                                className="btn btn-outline"
+                                style={{ padding: "4px 8px", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px", color: "var(--primary)", borderColor: "var(--primary)", background: "white" }}
+                              >
+                                ✏️ Edit
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteExam(ex.id)}
+                                className="btn btn-outline"
+                                style={{ padding: "4px 8px", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px", color: "var(--danger)", borderColor: "var(--danger)", background: "white" }}
+                              >
+                                🗑️ Delete
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -8681,6 +8778,222 @@ export default function SchoolPortal({ params }: PageProps) {
               </div>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Edit Exam / Continuous Assessment Modal */}
+      {showEditExamModal && selectedEditExam && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1050, padding: "20px" }}>
+          <div className="card" style={{ width: "100%", maxWidth: "550px", background: "white", padding: "30px", boxShadow: "var(--shadow-lg)", maxHeight: "90vh", overflowY: "auto" }}>
+            <h3 style={{ marginBottom: "20px", borderBottom: "1px solid var(--border)", paddingBottom: "10px" }}>Configure Exam / Assessment</h3>
+            
+            <form onSubmit={handleUpdateExam}>
+              <div className="form-group">
+                <label className="form-label">Exam Title Name</label>
+                <input 
+                  type="text" 
+                  className="input-field" 
+                  value={editExamName}
+                  onChange={(e) => setEditExamName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "15px" }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Term ID</label>
+                  <select className="input-field" value={editExamTerm} onChange={(e) => setEditExamTerm(e.target.value)}>
+                    <option value="1">Term 1</option>
+                    <option value="2">Term 2</option>
+                    <option value="3">Term 3</option>
+                  </select>
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Academic Year</label>
+                  <input 
+                    type="number" 
+                    className="input-field" 
+                    value={editExamYear}
+                    onChange={(e) => setEditExamYear(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Target Class</label>
+                <select className="input-field" value={editExamClassId} onChange={(e) => setEditExamClassId(e.target.value)}>
+                  <option value="">All Classes (School-wide)</option>
+                  {classes.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {school.schoolType === "COMBINED" ? (
+                <div className="form-group" style={{ flexDirection: "row", alignItems: "center", gap: "10px", margin: "14px 0" }}>
+                  <input 
+                    type="checkbox" 
+                    id="edit-cbc-check" 
+                    checked={editExamIsNewCurriculum}
+                    onChange={(e) => setEditExamIsNewCurriculum(e.target.checked)}
+                  />
+                  <label htmlFor="edit-cbc-check" className="form-label" style={{ margin: 0, cursor: "pointer" }}>
+                    New Curriculum CBC Exam (Grade Letters A-E)
+                  </label>
+                </div>
+              ) : (
+                <div style={{ background: "var(--primary-light)", border: "1px solid var(--primary-glow)", borderRadius: "6px", padding: "10px", margin: "14px 0", fontSize: "12px", color: "var(--foreground)" }}>
+                  <strong>Grading Standard:</strong> {school.schoolType === "PRIMARY" ? "Primary PLE Aggregates (1-9)" : "Secondary Lower Curriculum CBC (A-E)"}
+                </div>
+              )}
+
+              {editExamIsNewCurriculum && (
+                <div style={{ marginTop: "16px", padding: "16px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", marginBottom: "20px" }}>
+                  <h5 style={{ marginBottom: "10px", display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#0f172a" }}>
+                    <Sliders size={14} color="var(--primary)" />
+                    Continuous Assessment (CA) Columns
+                  </h5>
+                  <p style={{ color: "#64748b", fontSize: "11px", marginBottom: "12px" }}>
+                    Select which CA columns are active and set their maximum marks.
+                  </p>
+                  
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                    {/* U1 */}
+                    <div style={{ padding: "10px", background: "white", border: "1px solid #e2e8f0", borderRadius: "6px" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
+                        <span style={{ fontSize: "11px", fontWeight: "bold" }}>Unit 1 (U1)</span>
+                        <input 
+                          type="checkbox" 
+                          checked={editExamCbU1Active} 
+                          onChange={(e) => setEditExamCbU1Active(e.target.checked)}
+                          style={{ width: "14px", height: "14px", cursor: "pointer" }}
+                        />
+                      </div>
+                      {editExamCbU1Active && (
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label className="form-label" style={{ fontSize: "9px" }}>Max Score</label>
+                          <input 
+                            type="number" 
+                            step="0.5" 
+                            min="1" 
+                            max="100"
+                            className="input-field" 
+                            value={editExamCbU1Max} 
+                            onChange={(e) => setEditExamCbU1Max(Number(e.target.value))} 
+                            style={{ padding: "4px 8px", height: "auto", fontSize: "12px" }}
+                            required
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* U2 */}
+                    <div style={{ padding: "10px", background: "white", border: "1px solid #e2e8f0", borderRadius: "6px" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
+                        <span style={{ fontSize: "11px", fontWeight: "bold" }}>Unit 2 (U2)</span>
+                        <input 
+                          type="checkbox" 
+                          checked={editExamCbU2Active} 
+                          onChange={(e) => setEditExamCbU2Active(e.target.checked)}
+                          style={{ width: "14px", height: "14px", cursor: "pointer" }}
+                        />
+                      </div>
+                      {editExamCbU2Active && (
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label className="form-label" style={{ fontSize: "9px" }}>Max Score</label>
+                          <input 
+                            type="number" 
+                            step="0.5" 
+                            min="1" 
+                            max="100"
+                            className="input-field" 
+                            value={editExamCbU2Max} 
+                            onChange={(e) => setEditExamCbU2Max(Number(e.target.value))} 
+                            style={{ padding: "4px 8px", height: "auto", fontSize: "12px" }}
+                            required
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* E.T */}
+                    <div style={{ padding: "10px", background: "white", border: "1px solid #e2e8f0", borderRadius: "6px" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
+                        <span style={{ fontSize: "11px", fontWeight: "bold" }}>End Term CA (E.T)</span>
+                        <input 
+                          type="checkbox" 
+                          checked={editExamCbEtActive} 
+                          onChange={(e) => setEditExamCbEtActive(e.target.checked)}
+                          style={{ width: "14px", height: "14px", cursor: "pointer" }}
+                        />
+                      </div>
+                      {editExamCbEtActive && (
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label className="form-label" style={{ fontSize: "9px" }}>Max Score</label>
+                          <input 
+                            type="number" 
+                            step="0.5" 
+                            min="1" 
+                            max="100"
+                            className="input-field" 
+                            value={editExamCbEtMax} 
+                            onChange={(e) => setEditExamCbEtMax(Number(e.target.value))} 
+                            style={{ padding: "4px 8px", height: "auto", fontSize: "12px" }}
+                            required
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* HPG */}
+                    <div style={{ padding: "10px", background: "white", border: "1px solid #e2e8f0", borderRadius: "6px" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
+                        <span style={{ fontSize: "11px", fontWeight: "bold" }}>High Perform (HPG)</span>
+                        <input 
+                          type="checkbox" 
+                          checked={editExamCbHpgActive} 
+                          onChange={(e) => setEditExamCbHpgActive(e.target.checked)}
+                          style={{ width: "14px", height: "14px", cursor: "pointer" }}
+                        />
+                      </div>
+                      {editExamCbHpgActive && (
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label className="form-label" style={{ fontSize: "9px" }}>Max Score</label>
+                          <input 
+                            type="number" 
+                            step="0.5" 
+                            min="1" 
+                            max="100"
+                            className="input-field" 
+                            value={editExamCbHpgMax} 
+                            onChange={(e) => setEditExamCbHpgMax(Number(e.target.value))} 
+                            style={{ padding: "4px 8px", height: "auto", fontSize: "12px" }}
+                            required
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: "10px", marginTop: "24px" }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Save Changes</button>
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setShowEditExamModal(false);
+                    setSelectedEditExam(null);
+                  }}
+                  className="btn btn-outline" 
+                  style={{ flex: 1 }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

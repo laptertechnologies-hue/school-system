@@ -116,6 +116,15 @@ export interface ExamPaper {
   name: string;
   maxMarks: number;
   isNewCurriculum: boolean;
+  classId?: string | null;
+  cbU1Active?: boolean;
+  cbU2Active?: boolean;
+  cbEtActive?: boolean;
+  cbHpgActive?: boolean;
+  cbU1Max?: number;
+  cbU2Max?: number;
+  cbEtMax?: number;
+  cbHpgMax?: number;
 }
 
 export interface Mark {

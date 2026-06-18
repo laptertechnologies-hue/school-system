@@ -106,6 +106,7 @@ model Class {
   subjects     Subject[]
   teacherSubjects TeacherSubject[]
   feeStructures FeeStructure[]
+  examPapers   ExamPaper[]
 }
 
 model Stream {
@@ -173,6 +174,16 @@ model ExamPaper {
   name            String    // e.g., "Beginning of Term (BOT)", "Mid-Term (MOT)", "End of Term (EOT)"
   maxMarks        Float     @default(100)
   isNewCurriculum Boolean   @default(false) // If true, grades are letters/competency based
+  classId         String?
+  class           Class?    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  cbU1Active      Boolean   @default(true)
+  cbU2Active      Boolean   @default(true)
+  cbEtActive      Boolean   @default(true)
+  cbHpgActive     Boolean   @default(true)
+  cbU1Max         Float     @default(3)
+  cbU2Max         Float     @default(3)
+  cbEtMax         Float     @default(3)
+  cbHpgMax        Float     @default(3)
   marks           Mark[]
 }
 

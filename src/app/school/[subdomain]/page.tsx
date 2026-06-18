@@ -256,6 +256,15 @@ export default function SchoolPortal({ params }: PageProps) {
   const [newExamTerm, setNewExamTerm] = useState("1");
   const [newExamYear, setNewExamYear] = useState("2026");
   const [newExamIsNewCurriculum, setNewExamIsNewCurriculum] = useState(false);
+  const [newExamClassId, setNewExamClassId] = useState("");
+  const [newExamCbU1Active, setNewExamCbU1Active] = useState(true);
+  const [newExamCbU2Active, setNewExamCbU2Active] = useState(true);
+  const [newExamCbEtActive, setNewExamCbEtActive] = useState(true);
+  const [newExamCbHpgActive, setNewExamCbHpgActive] = useState(true);
+  const [newExamCbU1Max, setNewExamCbU1Max] = useState(3);
+  const [newExamCbU2Max, setNewExamCbU2Max] = useState(3);
+  const [newExamCbEtMax, setNewExamCbEtMax] = useState(3);
+  const [newExamCbHpgMax, setNewExamCbHpgMax] = useState(3);
 
   // Teacher marks entry states
   const [selectedExamId, setSelectedExamId] = useState("");
@@ -470,15 +479,15 @@ export default function SchoolPortal({ params }: PageProps) {
     }
 
     if (isCBC) {
-      const u1Active = school?.cbU1Active !== false;
-      const u2Active = school?.cbU2Active !== false;
-      const etActive = school?.cbEtActive !== false;
-      const hpgActive = school?.cbHpgActive !== false;
+      const u1Active = eotExam?.cbU1Active !== false;
+      const u2Active = eotExam?.cbU2Active !== false;
+      const etActive = eotExam?.cbEtActive !== false;
+      const hpgActive = eotExam?.cbHpgActive !== false;
 
-      const u1Max = school?.cbU1Max ?? 3;
-      const u2Max = school?.cbU2Max ?? 3;
-      const etMax = school?.cbEtMax ?? 3;
-      const hpgMax = school?.cbHpgMax ?? 3;
+      const u1Max = eotExam?.cbU1Max ?? 3;
+      const u2Max = eotExam?.cbU2Max ?? 3;
+      const etMax = eotExam?.cbEtMax ?? 3;
+      const hpgMax = eotExam?.cbHpgMax ?? 3;
 
       const classStudentsIds = students.filter(st => st.classId === student.classId).map(st => st.id);
 
@@ -1587,8 +1596,26 @@ export default function SchoolPortal({ params }: PageProps) {
         year: parseInt(newExamYear),
         maxMarks: 100,
         isNewCurriculum: newExamIsNewCurriculum,
+        classId: newExamClassId || null,
+        cbU1Active: newExamCbU1Active,
+        cbU2Active: newExamCbU2Active,
+        cbEtActive: newExamCbEtActive,
+        cbHpgActive: newExamCbHpgActive,
+        cbU1Max: newExamCbU1Max,
+        cbU2Max: newExamCbU2Max,
+        cbEtMax: newExamCbEtMax,
+        cbHpgMax: newExamCbHpgMax,
       });
       setNewExamName("");
+      setNewExamClassId("");
+      setNewExamCbU1Active(true);
+      setNewExamCbU2Active(true);
+      setNewExamCbEtActive(true);
+      setNewExamCbHpgActive(true);
+      setNewExamCbU1Max(3);
+      setNewExamCbU2Max(3);
+      setNewExamCbEtMax(3);
+      setNewExamCbHpgMax(3);
       await loadSchoolData(school.id);
       alert("Exam Paper scheduled successfully!");
     } catch (err: any) {
@@ -1645,15 +1672,15 @@ export default function SchoolPortal({ params }: PageProps) {
           // If all fields are empty, don't save anything
           if (!u1Str && !u2Str && !u3Str && !hpgStr && !eoyStr) continue;
 
-          const u1Active = school?.cbU1Active !== false;
-          const u2Active = school?.cbU2Active !== false;
-          const etActive = school?.cbEtActive !== false;
-          const hpgActive = school?.cbHpgActive !== false;
+          const u1Active = currentExam.cbU1Active !== false;
+          const u2Active = currentExam.cbU2Active !== false;
+          const etActive = currentExam.cbEtActive !== false;
+          const hpgActive = currentExam.cbHpgActive !== false;
 
-          const u1Max = school?.cbU1Max ?? 3;
-          const u2Max = school?.cbU2Max ?? 3;
-          const etMax = school?.cbEtMax ?? 3;
-          const hpgMax = school?.cbHpgMax ?? 3;
+          const u1Max = currentExam.cbU1Max ?? 3;
+          const u2Max = currentExam.cbU2Max ?? 3;
+          const etMax = currentExam.cbEtMax ?? 3;
+          const hpgMax = currentExam.cbHpgMax ?? 3;
 
           let u1Scaled: number | null = null;
           let u2Scaled: number | null = null;
@@ -3010,6 +3037,8 @@ export default function SchoolPortal({ params }: PageProps) {
     ? subjects.filter(sub => sub.classId === selectedClassId && teacherAssignments.some(ta => ta.teacherId === currentUser.id && ta.classId === selectedClassId && ta.streamId === selectedStreamId && ta.subjectId === sub.id))
     : subjects.filter(sub => sub.classId === selectedClassId);
 
+  const selectedExam = exams.find(e => e.id === selectedExamId);
+
   // Dashboard layout
   return (
     <div data-theme="light" className="dashboard-layout" style={{ minHeight: "100vh", display: "flex", backgroundColor: "#f1f5f9", color: "#1e293b" }}>
@@ -3988,132 +4017,7 @@ export default function SchoolPortal({ params }: PageProps) {
                     </div>
                   </div>
 
-                  {/* CONTINUOUS ASSESSMENT CONFIG (Secondary/Combined only) */}
-                  {(profileSchoolType === "SECONDARY" || profileSchoolType === "COMBINED") && (
-                    <div style={{ marginTop: "20px", padding: "16px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px" }}>
-                      <h4 style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", color: "#0f172a" }}>
-                        <Sliders size={16} color="var(--primary)" />
-                        Continuous Assessment (CA) Columns
-                      </h4>
-                      <p style={{ color: "#64748b", fontSize: "11px", marginBottom: "16px" }}>
-                        Select which Continuous Assessment columns are active and set their maximum marks (e.g. out of 3 or 10).
-                      </p>
-                      
-                      <div className="grid grid-cols-4 gap-2 flex-mobile-col" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
-                        {/* U1 */}
-                        <div style={{ padding: "12px", background: "white", border: "1px solid #e2e8f0", borderRadius: "6px" }}>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-                            <span style={{ fontSize: "12px", fontWeight: "bold" }}>Unit 1 (U1)</span>
-                            <input 
-                              type="checkbox" 
-                              checked={cbU1Active} 
-                              onChange={(e) => setCbU1Active(e.target.checked)}
-                              style={{ width: "16px", height: "16px", cursor: "pointer" }}
-                            />
-                          </div>
-                          {cbU1Active && (
-                            <div className="form-group" style={{ margin: 0 }}>
-                              <label className="form-label" style={{ fontSize: "10px" }}>Max Score</label>
-                              <input 
-                                type="number" 
-                                step="0.1" 
-                                min="0.1" 
-                                className="input-field" 
-                                value={cbU1Max} 
-                                onChange={(e) => setCbU1Max(Number(e.target.value))} 
-                                style={{ padding: "4px 8px", height: "auto", fontSize: "12px" }}
-                                required
-                              />
-                            </div>
-                          )}
-                        </div>
 
-                        {/* U2 */}
-                        <div style={{ padding: "12px", background: "white", border: "1px solid #e2e8f0", borderRadius: "6px" }}>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-                            <span style={{ fontSize: "12px", fontWeight: "bold" }}>Unit 2 (U2)</span>
-                            <input 
-                              type="checkbox" 
-                              checked={cbU2Active} 
-                              onChange={(e) => setCbU2Active(e.target.checked)}
-                              style={{ width: "16px", height: "16px", cursor: "pointer" }}
-                            />
-                          </div>
-                          {cbU2Active && (
-                            <div className="form-group" style={{ margin: 0 }}>
-                              <label className="form-label" style={{ fontSize: "10px" }}>Max Score</label>
-                              <input 
-                                type="number" 
-                                step="0.1" 
-                                min="0.1" 
-                                className="input-field" 
-                                value={cbU2Max} 
-                                onChange={(e) => setCbU2Max(Number(e.target.value))} 
-                                style={{ padding: "4px 8px", height: "auto", fontSize: "12px" }}
-                                required
-                              />
-                            </div>
-                          )}
-                        </div>
-
-                        {/* E.T */}
-                        <div style={{ padding: "12px", background: "white", border: "1px solid #e2e8f0", borderRadius: "6px" }}>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-                            <span style={{ fontSize: "12px", fontWeight: "bold" }}>End Term CA (E.T)</span>
-                            <input 
-                              type="checkbox" 
-                              checked={cbEtActive} 
-                              onChange={(e) => setCbEtActive(e.target.checked)}
-                              style={{ width: "16px", height: "16px", cursor: "pointer" }}
-                            />
-                          </div>
-                          {cbEtActive && (
-                            <div className="form-group" style={{ margin: 0 }}>
-                              <label className="form-label" style={{ fontSize: "10px" }}>Max Score</label>
-                              <input 
-                                type="number" 
-                                step="0.1" 
-                                min="0.1" 
-                                className="input-field" 
-                                value={cbEtMax} 
-                                onChange={(e) => setCbEtMax(Number(e.target.value))} 
-                                style={{ padding: "4px 8px", height: "auto", fontSize: "12px" }}
-                                required
-                              />
-                            </div>
-                          )}
-                        </div>
-
-                        {/* HPG */}
-                        <div style={{ padding: "12px", background: "white", border: "1px solid #e2e8f0", borderRadius: "6px" }}>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-                            <span style={{ fontSize: "12px", fontWeight: "bold" }}>High Perform (HPG)</span>
-                            <input 
-                              type="checkbox" 
-                              checked={cbHpgActive} 
-                              onChange={(e) => setCbHpgActive(e.target.checked)}
-                              style={{ width: "16px", height: "16px", cursor: "pointer" }}
-                            />
-                          </div>
-                          {cbHpgActive && (
-                            <div className="form-group" style={{ margin: 0 }}>
-                              <label className="form-label" style={{ fontSize: "10px" }}>Max Score</label>
-                              <input 
-                                type="number" 
-                                step="0.1" 
-                                min="0.1" 
-                                className="input-field" 
-                                value={cbHpgMax} 
-                                onChange={(e) => setCbHpgMax(Number(e.target.value))} 
-                                style={{ padding: "4px 8px", height: "auto", fontSize: "12px" }}
-                                required
-                              />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
 
                   <button type="submit" className="btn btn-primary" style={{ marginTop: "20px", width: "100%" }}>
                     Save Profile & Customize Dashboard Accent
@@ -4320,137 +4224,7 @@ export default function SchoolPortal({ params }: PageProps) {
               <p style={{ color: "#64748b" }}>Configure Continuous Assessment column weights and customise grade boundary ranges used on report cards.</p>
             </div>
 
-            {/* SECTION 1: CA Columns */}
-            {(school.schoolType === "SECONDARY" || school.schoolType === "COMBINED") && (
-              <div className="card" style={{ marginBottom: "24px" }}>
-                <h4 style={{ marginBottom: "6px", display: "flex", alignItems: "center", gap: "8px", fontSize: "15px", color: "#0f172a" }}>
-                  <Sliders size={18} color="var(--primary)" />
-                  Continuous Assessment (CA) Columns
-                </h4>
-                <p style={{ color: "#64748b", fontSize: "12px", marginBottom: "20px" }}>
-                  Toggle each CA component on/off and set its maximum score. These columns appear in the marks entry sheet and on report cards.
-                </p>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
-                  {/* U1 */}
-                  <div style={{ padding: "16px", background: cbU1Active ? "var(--primary-light)" : "#f8fafc", border: `2px solid ${cbU1Active ? "var(--primary-glow)" : "#e2e8f0"}`, borderRadius: "10px", transition: "all 0.2s" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-                      <div>
-                        <div style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a" }}>Unit 1 (U1)</div>
-                        <div style={{ fontSize: "11px", color: "#64748b" }}>First unit assessment</div>
-                      </div>
-                      <label style={{ position: "relative", display: "inline-block", width: "40px", height: "22px", cursor: "pointer" }}>
-                        <input type="checkbox" checked={cbU1Active} onChange={(e) => setCbU1Active(e.target.checked)} style={{ opacity: 0, width: 0, height: 0 }} />
-                        <span style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: cbU1Active ? "var(--primary)" : "#cbd5e1", borderRadius: "22px", transition: "0.2s" }}>
-                          <span style={{ position: "absolute", height: "16px", width: "16px", left: cbU1Active ? "20px" : "3px", bottom: "3px", background: "white", borderRadius: "50%", transition: "0.2s" }} />
-                        </span>
-                      </label>
-                    </div>
-                    {cbU1Active && (
-                      <div>
-                        <label style={{ fontSize: "11px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>Max Score (marks)</label>
-                        <input type="number" step="0.5" min="1" max="100" className="input-field" value={cbU1Max}
-                          onChange={(e) => setCbU1Max(Number(e.target.value))}
-                          style={{ padding: "6px 10px", fontSize: "14px", height: "auto", fontWeight: 700 }} />
-                      </div>
-                    )}
-                  </div>
 
-                  {/* U2 */}
-                  <div style={{ padding: "16px", background: cbU2Active ? "var(--primary-light)" : "#f8fafc", border: `2px solid ${cbU2Active ? "var(--primary-glow)" : "#e2e8f0"}`, borderRadius: "10px", transition: "all 0.2s" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-                      <div>
-                        <div style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a" }}>Unit 2 (U2)</div>
-                        <div style={{ fontSize: "11px", color: "#64748b" }}>Second unit assessment</div>
-                      </div>
-                      <label style={{ position: "relative", display: "inline-block", width: "40px", height: "22px", cursor: "pointer" }}>
-                        <input type="checkbox" checked={cbU2Active} onChange={(e) => setCbU2Active(e.target.checked)} style={{ opacity: 0, width: 0, height: 0 }} />
-                        <span style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: cbU2Active ? "var(--primary)" : "#cbd5e1", borderRadius: "22px", transition: "0.2s" }}>
-                          <span style={{ position: "absolute", height: "16px", width: "16px", left: cbU2Active ? "20px" : "3px", bottom: "3px", background: "white", borderRadius: "50%", transition: "0.2s" }} />
-                        </span>
-                      </label>
-                    </div>
-                    {cbU2Active && (
-                      <div>
-                        <label style={{ fontSize: "11px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>Max Score (marks)</label>
-                        <input type="number" step="0.5" min="1" max="100" className="input-field" value={cbU2Max}
-                          onChange={(e) => setCbU2Max(Number(e.target.value))}
-                          style={{ padding: "6px 10px", fontSize: "14px", height: "auto", fontWeight: 700 }} />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* E.T */}
-                  <div style={{ padding: "16px", background: cbEtActive ? "var(--primary-light)" : "#f8fafc", border: `2px solid ${cbEtActive ? "var(--primary-glow)" : "#e2e8f0"}`, borderRadius: "10px", transition: "all 0.2s" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-                      <div>
-                        <div style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a" }}>End-Term (E.T)</div>
-                        <div style={{ fontSize: "11px", color: "#64748b" }}>End-of-term assessment</div>
-                      </div>
-                      <label style={{ position: "relative", display: "inline-block", width: "40px", height: "22px", cursor: "pointer" }}>
-                        <input type="checkbox" checked={cbEtActive} onChange={(e) => setCbEtActive(e.target.checked)} style={{ opacity: 0, width: 0, height: 0 }} />
-                        <span style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: cbEtActive ? "var(--primary)" : "#cbd5e1", borderRadius: "22px", transition: "0.2s" }}>
-                          <span style={{ position: "absolute", height: "16px", width: "16px", left: cbEtActive ? "20px" : "3px", bottom: "3px", background: "white", borderRadius: "50%", transition: "0.2s" }} />
-                        </span>
-                      </label>
-                    </div>
-                    {cbEtActive && (
-                      <div>
-                        <label style={{ fontSize: "11px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>Max Score (marks)</label>
-                        <input type="number" step="0.5" min="1" max="100" className="input-field" value={cbEtMax}
-                          onChange={(e) => setCbEtMax(Number(e.target.value))}
-                          style={{ padding: "6px 10px", fontSize: "14px", height: "auto", fontWeight: 700 }} />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* HPG */}
-                  <div style={{ padding: "16px", background: cbHpgActive ? "var(--primary-light)" : "#f8fafc", border: `2px solid ${cbHpgActive ? "var(--primary-glow)" : "#e2e8f0"}`, borderRadius: "10px", transition: "all 0.2s" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-                      <div>
-                        <div style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a" }}>High Perf. (HPG)</div>
-                        <div style={{ fontSize: "11px", color: "#64748b" }}>High performance grade</div>
-                      </div>
-                      <label style={{ position: "relative", display: "inline-block", width: "40px", height: "22px", cursor: "pointer" }}>
-                        <input type="checkbox" checked={cbHpgActive} onChange={(e) => setCbHpgActive(e.target.checked)} style={{ opacity: 0, width: 0, height: 0 }} />
-                        <span style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: cbHpgActive ? "var(--primary)" : "#cbd5e1", borderRadius: "22px", transition: "0.2s" }}>
-                          <span style={{ position: "absolute", height: "16px", width: "16px", left: cbHpgActive ? "20px" : "3px", bottom: "3px", background: "white", borderRadius: "50%", transition: "0.2s" }} />
-                        </span>
-                      </label>
-                    </div>
-                    {cbHpgActive && (
-                      <div>
-                        <label style={{ fontSize: "11px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>Max Score (marks)</label>
-                        <input type="number" step="0.5" min="1" max="100" className="input-field" value={cbHpgMax}
-                          onChange={(e) => setCbHpgMax(Number(e.target.value))}
-                          style={{ padding: "6px 10px", fontSize: "14px", height: "auto", fontWeight: 700 }} />
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Save CA config inline by delegating to existing settings save */}
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      await updateSchoolMetadata(school.id, {
-                        cbU1Max, cbU2Max, cbEtMax, cbHpgMax,
-                        cbU1Active, cbU2Active, cbEtActive, cbHpgActive
-                      });
-                      alert("CA column settings saved successfully!");
-                      const refreshed = await getSchoolBySubdomain(school.subdomain);
-                      if (refreshed) setSchool(refreshed);
-                    } catch (err: any) {
-                      alert("Failed to save: " + (err.message || err));
-                    }
-                  }}
-                  className="btn btn-primary"
-                  style={{ marginTop: "20px", display: "flex", alignItems: "center", gap: "8px" }}
-                >
-                  <Sliders size={16} /> Save CA Column Settings
-                </button>
-              </div>
-            )}
 
             {/* SECTION 2: Grade Range Tables */}
             <div className="card">
@@ -5755,6 +5529,16 @@ export default function SchoolPortal({ params }: PageProps) {
                     </div>
                   </div>
 
+                  <div className="form-group">
+                    <label className="form-label">Target Class</label>
+                    <select className="input-field" value={newExamClassId} onChange={(e) => setNewExamClassId(e.target.value)}>
+                      <option value="">All Classes (School-wide)</option>
+                      {classes.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
                   {school.schoolType === "COMBINED" ? (
                     <div className="form-group" style={{ flexDirection: "row", alignItems: "center", gap: "10px", margin: "14px 0" }}>
                       <input 
@@ -5770,6 +5554,136 @@ export default function SchoolPortal({ params }: PageProps) {
                   ) : (
                     <div style={{ background: "var(--primary-light)", border: "1px solid var(--primary-glow)", borderRadius: "6px", padding: "10px", margin: "14px 0", fontSize: "12px", color: "var(--foreground)" }}>
                       <strong>Grading Standard:</strong> {school.schoolType === "PRIMARY" ? "Primary PLE Aggregates (1-9)" : "Secondary Lower Curriculum CBC (A-E)"}
+                    </div>
+                  )}
+
+                  {newExamIsNewCurriculum && (
+                    <div style={{ marginTop: "16px", padding: "16px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", marginBottom: "16px" }}>
+                      <h5 style={{ marginBottom: "10px", display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#0f172a" }}>
+                        <Sliders size={14} color="var(--primary)" />
+                        Continuous Assessment (CA) Columns
+                      </h5>
+                      <p style={{ color: "#64748b", fontSize: "11px", marginBottom: "12px" }}>
+                        Select which CA columns are active and set their maximum marks.
+                      </p>
+                      
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                        {/* U1 */}
+                        <div style={{ padding: "10px", background: "white", border: "1px solid #e2e8f0", borderRadius: "6px" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
+                            <span style={{ fontSize: "11px", fontWeight: "bold" }}>Unit 1 (U1)</span>
+                            <input 
+                              type="checkbox" 
+                              checked={newExamCbU1Active} 
+                              onChange={(e) => setNewExamCbU1Active(e.target.checked)}
+                              style={{ width: "14px", height: "14px", cursor: "pointer" }}
+                            />
+                          </div>
+                          {newExamCbU1Active && (
+                            <div className="form-group" style={{ margin: 0 }}>
+                              <label className="form-label" style={{ fontSize: "9px" }}>Max Score</label>
+                              <input 
+                                type="number" 
+                                step="0.5" 
+                                min="1" 
+                                max="100"
+                                className="input-field" 
+                                value={newExamCbU1Max} 
+                                onChange={(e) => setNewExamCbU1Max(Number(e.target.value))} 
+                                style={{ padding: "4px 8px", height: "auto", fontSize: "12px" }}
+                                required
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* U2 */}
+                        <div style={{ padding: "10px", background: "white", border: "1px solid #e2e8f0", borderRadius: "6px" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
+                            <span style={{ fontSize: "11px", fontWeight: "bold" }}>Unit 2 (U2)</span>
+                            <input 
+                              type="checkbox" 
+                              checked={newExamCbU2Active} 
+                              onChange={(e) => setNewExamCbU2Active(e.target.checked)}
+                              style={{ width: "14px", height: "14px", cursor: "pointer" }}
+                            />
+                          </div>
+                          {newExamCbU2Active && (
+                            <div className="form-group" style={{ margin: 0 }}>
+                              <label className="form-label" style={{ fontSize: "9px" }}>Max Score</label>
+                              <input 
+                                type="number" 
+                                step="0.5" 
+                                min="1" 
+                                max="100"
+                                className="input-field" 
+                                value={newExamCbU2Max} 
+                                onChange={(e) => setNewExamCbU2Max(Number(e.target.value))} 
+                                style={{ padding: "4px 8px", height: "auto", fontSize: "12px" }}
+                                required
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* E.T */}
+                        <div style={{ padding: "10px", background: "white", border: "1px solid #e2e8f0", borderRadius: "6px" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
+                            <span style={{ fontSize: "11px", fontWeight: "bold" }}>End Term CA (E.T)</span>
+                            <input 
+                              type="checkbox" 
+                              checked={newExamCbEtActive} 
+                              onChange={(e) => setNewExamCbEtActive(e.target.checked)}
+                              style={{ width: "14px", height: "14px", cursor: "pointer" }}
+                            />
+                          </div>
+                          {newExamCbEtActive && (
+                            <div className="form-group" style={{ margin: 0 }}>
+                              <label className="form-label" style={{ fontSize: "9px" }}>Max Score</label>
+                              <input 
+                                type="number" 
+                                step="0.5" 
+                                min="1" 
+                                max="100"
+                                className="input-field" 
+                                value={newExamCbEtMax} 
+                                onChange={(e) => setNewExamCbEtMax(Number(e.target.value))} 
+                                style={{ padding: "4px 8px", height: "auto", fontSize: "12px" }}
+                                required
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* HPG */}
+                        <div style={{ padding: "10px", background: "white", border: "1px solid #e2e8f0", borderRadius: "6px" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
+                            <span style={{ fontSize: "11px", fontWeight: "bold" }}>High Perform (HPG)</span>
+                            <input 
+                              type="checkbox" 
+                              checked={newExamCbHpgActive} 
+                              onChange={(e) => setNewExamCbHpgActive(e.target.checked)}
+                              style={{ width: "14px", height: "14px", cursor: "pointer" }}
+                            />
+                          </div>
+                          {newExamCbHpgActive && (
+                            <div className="form-group" style={{ margin: 0 }}>
+                              <label className="form-label" style={{ fontSize: "9px" }}>Max Score</label>
+                              <input 
+                                type="number" 
+                                step="0.5" 
+                                min="1" 
+                                max="100"
+                                className="input-field" 
+                                value={newExamCbHpgMax} 
+                                onChange={(e) => setNewExamCbHpgMax(Number(e.target.value))} 
+                                style={{ padding: "4px 8px", height: "auto", fontSize: "12px" }}
+                                required
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   )}
 
@@ -5793,7 +5707,14 @@ export default function SchoolPortal({ params }: PageProps) {
                     <tbody>
                       {exams.map(ex => (
                         <tr key={ex.id}>
-                          <td><strong>{ex.name}</strong></td>
+                          <td>
+                            <strong>{ex.name}</strong>
+                            {ex.classId && (
+                              <span style={{ display: "block", fontSize: "11px", color: "var(--primary)", fontWeight: "600", marginTop: "2px" }}>
+                                Target Class: {classes.find(c => c.id === ex.classId)?.name || ex.classId}
+                              </span>
+                            )}
+                          </td>
                           <td>Term {ex.term}</td>
                           <td>{ex.year}</td>
                           <td>
@@ -5823,7 +5744,7 @@ export default function SchoolPortal({ params }: PageProps) {
                   <label className="form-label">1. Choose Exam Paper</label>
                   <select className="input-field" value={selectedExamId} onChange={(e) => setSelectedExamId(e.target.value)}>
                     <option value="">-- Choose exam --</option>
-                    {exams.map(ex => <option key={ex.id} value={ex.id}>{ex.name} (Term {ex.term})</option>)}
+                    {exams.filter(ex => !ex.classId || !selectedClassId || ex.classId === selectedClassId).map(ex => <option key={ex.id} value={ex.id}>{ex.name} (Term {ex.term})</option>)}
                   </select>
                 </div>
 
@@ -5886,12 +5807,12 @@ export default function SchoolPortal({ params }: PageProps) {
                       <tr>
                         <th>Student Number</th>
                         <th>Student Name</th>
-                        {exams.find(e => e.id === selectedExamId)?.isNewCurriculum ? (
+                        {selectedExam?.isNewCurriculum ? (
                           <>
-                            {school?.cbU1Active !== false && <th style={{ width: "95px" }}>U1 (%)</th>}
-                            {school?.cbU2Active !== false && <th style={{ width: "95px" }}>U2 (%)</th>}
-                            {school?.cbEtActive !== false && <th style={{ width: "95px" }}>E.T (%)</th>}
-                            {school?.cbHpgActive !== false && <th style={{ width: "95px" }}>HPG (%)</th>}
+                            {selectedExam?.cbU1Active !== false && <th style={{ width: "95px" }}>U1 (%)</th>}
+                            {selectedExam?.cbU2Active !== false && <th style={{ width: "95px" }}>U2 (%)</th>}
+                            {selectedExam?.cbEtActive !== false && <th style={{ width: "95px" }}>E.T (%)</th>}
+                            {selectedExam?.cbHpgActive !== false && <th style={{ width: "95px" }}>HPG (%)</th>}
                             <th style={{ width: "95px" }}>EOY (%)</th>
                           </>
                         ) : (
@@ -5904,7 +5825,7 @@ export default function SchoolPortal({ params }: PageProps) {
                     <tbody>
                       {students.filter(st => st.classId === selectedClassId && st.streamId === selectedStreamId).map(st => {
                         const currentMark = marks.find(m => m.studentId === st.id && m.examPaperId === selectedExamId && m.subjectId === selectedSubjectId);
-                        const isCBC = exams.find(e => e.id === selectedExamId)?.isNewCurriculum;
+                        const isCBC = selectedExam?.isNewCurriculum;
 
                         return (
                           <tr key={st.id}>
@@ -5912,7 +5833,7 @@ export default function SchoolPortal({ params }: PageProps) {
                             <td><strong>{st.name}</strong></td>
                             {isCBC ? (
                               <>
-                                {school?.cbU1Active !== false && (
+                                {selectedExam?.cbU1Active !== false && (
                                   <td>
                                     <input 
                                       type="number" 
@@ -5926,7 +5847,7 @@ export default function SchoolPortal({ params }: PageProps) {
                                     />
                                   </td>
                                 )}
-                                {school?.cbU2Active !== false && (
+                                {selectedExam?.cbU2Active !== false && (
                                   <td>
                                     <input 
                                       type="number" 
@@ -5940,7 +5861,7 @@ export default function SchoolPortal({ params }: PageProps) {
                                     />
                                   </td>
                                 )}
-                                {school?.cbEtActive !== false && (
+                                {selectedExam?.cbEtActive !== false && (
                                   <td>
                                     <input 
                                       type="number" 
@@ -5954,7 +5875,7 @@ export default function SchoolPortal({ params }: PageProps) {
                                     />
                                   </td>
                                 )}
-                                {school?.cbHpgActive !== false && (
+                                {selectedExam?.cbHpgActive !== false && (
                                   <td>
                                     <input 
                                       type="number" 

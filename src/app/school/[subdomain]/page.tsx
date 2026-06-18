@@ -234,6 +234,14 @@ export default function SchoolPortal({ params }: PageProps) {
   const [bulkStudentClassId, setBulkStudentClassId] = useState("");
   const [bulkStudentStreamId, setBulkStudentStreamId] = useState("");
 
+  const [isImportingStudents, setIsImportingStudents] = useState(false);
+  const [importStudentProgress, setImportStudentProgress] = useState(0);
+  const [importStudentTotal, setImportStudentTotal] = useState(0);
+
+  const [isImportingStaff, setIsImportingStaff] = useState(false);
+  const [importStaffProgress, setImportStaffProgress] = useState(0);
+  const [importStaffTotal, setImportStaffTotal] = useState(0);
+
   const [newSubjectName, setNewSubjectName] = useState("");
   const [newSubjectClassId, setNewSubjectClassId] = useState("");
   const [newSubjectCode, setNewSubjectCode] = useState("");
@@ -1364,12 +1372,19 @@ export default function SchoolPortal({ params }: PageProps) {
         return;
       }
 
+      setIsImportingStudents(true);
+      setImportStudentProgress(0);
+      setImportStudentTotal(rows.length - 1);
+
       let successCount = 0;
       let existingCount = students.length;
 
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
-        if (!row || !row[0]) continue;
+        if (!row || !row[0]) {
+          setImportStudentProgress(i);
+          continue;
+        }
 
         const name = String(row[0]).trim();
         let studentNumber = row[1] ? String(row[1]).trim() : "";
@@ -1405,6 +1420,7 @@ export default function SchoolPortal({ params }: PageProps) {
           gender: genderVal,
         });
         successCount++;
+        setImportStudentProgress(i);
       }
 
       setStudentExcelFile(null);
@@ -1413,6 +1429,10 @@ export default function SchoolPortal({ params }: PageProps) {
       alert(`Successfully imported ${successCount} students!`);
     } catch (err: any) {
       alert("Error importing students: " + (err.message || err));
+    } finally {
+      setIsImportingStudents(false);
+      setImportStudentProgress(0);
+      setImportStudentTotal(0);
     }
   };
 
@@ -8944,89 +8964,120 @@ export default function SchoolPortal({ params }: PageProps) {
           <div className="card" style={{ width: "100%", maxWidth: "550px", background: "white", padding: "30px", boxShadow: "var(--shadow-lg)" }}>
             <h3 style={{ marginBottom: "16px", borderBottom: "1px solid var(--border)", paddingBottom: "10px", color: "#0f172a" }}>Bulk Upload Students</h3>
             
-            <form onSubmit={handleBulkStudentUpload}>
-              <div className="grid grid-cols-2 gap-2" style={{ marginBottom: "16px" }}>
-                <div className="form-group">
-                  <label className="form-label" style={{ color: "#0f172a" }}>Target Class</label>
-                  <select 
-                    className="input-field" 
-                    value={bulkStudentClassId} 
-                    onChange={(e) => {
-                      setBulkStudentClassId(e.target.value);
-                      const sub = streams.filter(s => s.classId === e.target.value);
-                      if (sub.length > 0) setBulkStudentStreamId(sub[0].id);
-                      else setBulkStudentStreamId("");
-                    }}
-                    required
-                    style={{ color: "#0f172a", backgroundColor: "#ffffff", borderColor: "#cbd5e1", display: "block", width: "100%", height: "42px", padding: "8px 12px", borderRadius: "6px" }}
-                  >
-                    <option value="" style={{ color: "#0f172a", backgroundColor: "#ffffff" }}>-- Choose class --</option>
-                    {classes.map(c => (
-                      <option key={c.id} value={c.id} style={{ color: "#0f172a", backgroundColor: "#ffffff" }}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+            {isImportingStudents ? (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "30px 10px", textAlign: "center" }}>
+                {/* Spinning loader */}
+                <div style={{
+                  border: "5px solid rgba(15, 23, 42, 0.1)",
+                  width: "50px",
+                  height: "50px",
+                  borderRadius: "50%",
+                  borderLeftColor: "#1e3a8a",
+                  animation: "spin 1s linear infinite",
+                  marginBottom: "24px"
+                }}></div>
+                <h4 style={{ color: "#0f172a", marginBottom: "8px", fontWeight: "600", fontSize: "16px" }}>Importing Student Records...</h4>
+                <p style={{ color: "#64748b", fontSize: "14px", marginBottom: "20px" }}>
+                  Please wait, saving record <strong>{importStudentProgress}</strong> of <strong>{importStudentTotal}</strong>...
+                </p>
+                {/* Progress bar */}
+                <div style={{ width: "100%", height: "8px", backgroundColor: "#e2e8f0", borderRadius: "4px", overflow: "hidden", marginBottom: "12px" }}>
+                  <div style={{
+                    width: `${importStudentTotal > 0 ? (importStudentProgress / importStudentTotal) * 100 : 0}%`,
+                    height: "100%",
+                    backgroundColor: "#1e3a8a",
+                    transition: "width 0.2s ease"
+                  }}></div>
                 </div>
-                <div className="form-group">
-                  <label className="form-label" style={{ color: "#0f172a" }}>Target Stream</label>
-                  <select 
-                    className="input-field" 
-                    value={bulkStudentStreamId} 
-                    onChange={(e) => setBulkStudentStreamId(e.target.value)}
-                    required
-                    style={{ color: "#0f172a", backgroundColor: "#ffffff", borderColor: "#cbd5e1", display: "block", width: "100%", height: "42px", padding: "8px 12px", borderRadius: "6px" }}
-                  >
-                    <option value="" style={{ color: "#0f172a", backgroundColor: "#ffffff" }}>-- Choose stream --</option>
-                    {streams.filter(st => st.classId === bulkStudentClassId).map(st => (
-                      <option key={st.id} value={st.id} style={{ color: "#0f172a", backgroundColor: "#ffffff" }}>
-                        {st.name}
-                      </option>
-                    ))}
-                  </select>
+                <div style={{ fontSize: "12px", color: "#94a3b8", fontWeight: "500" }}>
+                  Please do not close this modal or refresh the browser.
                 </div>
               </div>
+            ) : (
+              <form onSubmit={handleBulkStudentUpload}>
+                <div className="grid grid-cols-2 gap-2" style={{ marginBottom: "16px" }}>
+                  <div className="form-group">
+                    <label className="form-label" style={{ color: "#0f172a" }}>Target Class</label>
+                    <select 
+                      className="input-field" 
+                      value={bulkStudentClassId} 
+                      onChange={(e) => {
+                        setBulkStudentClassId(e.target.value);
+                        const sub = streams.filter(s => s.classId === e.target.value);
+                        if (sub.length > 0) setBulkStudentStreamId(sub[0].id);
+                        else setBulkStudentStreamId("");
+                      }}
+                      required
+                      style={{ color: "#0f172a", backgroundColor: "#ffffff", borderColor: "#cbd5e1", display: "block", width: "100%", height: "42px", padding: "8px 12px", borderRadius: "6px" }}
+                    >
+                      <option value="" style={{ color: "#0f172a", backgroundColor: "#ffffff" }}>-- Choose class --</option>
+                      {classes.map(c => (
+                        <option key={c.id} value={c.id} style={{ color: "#0f172a", backgroundColor: "#ffffff" }}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ color: "#0f172a" }}>Target Stream</label>
+                    <select 
+                      className="input-field" 
+                      value={bulkStudentStreamId} 
+                      onChange={(e) => setBulkStudentStreamId(e.target.value)}
+                      required
+                      style={{ color: "#0f172a", backgroundColor: "#ffffff", borderColor: "#cbd5e1", display: "block", width: "100%", height: "42px", padding: "8px 12px", borderRadius: "6px" }}
+                    >
+                      <option value="" style={{ color: "#0f172a", backgroundColor: "#ffffff" }}>-- Choose stream --</option>
+                      {streams.filter(st => st.classId === bulkStudentClassId).map(st => (
+                        <option key={st.id} value={st.id} style={{ color: "#0f172a", backgroundColor: "#ffffff" }}>
+                          {st.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
 
-              <div className="form-group" style={{ marginBottom: "20px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                  <label className="form-label" style={{ margin: 0, color: "#0f172a" }}>Select Excel Data File (.xlsx, .xls)</label>
+                <div className="form-group" style={{ marginBottom: "20px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                    <label className="form-label" style={{ margin: 0, color: "#0f172a" }}>Select Excel Data File (.xlsx, .xls)</label>
+                    <button 
+                      type="button" 
+                      onClick={downloadStudentTemplate}
+                      className="btn btn-outline"
+                      style={{ padding: "4px 8px", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px", background: "#f8fafc" }}
+                    >
+                      📥 Download Excel Template
+                    </button>
+                  </div>
+                  <input 
+                    type="file" 
+                    accept=".xlsx, .xls"
+                    className="input-field" 
+                    onChange={(e) => setStudentExcelFile(e.target.files?.[0] || null)}
+                    required
+                    style={{ padding: "8px", color: "#0f172a", backgroundColor: "#ffffff", borderColor: "#cbd5e1" }}
+                  />
+                  <div style={{ fontSize: "11px", color: "#64748b", marginTop: "8px", lineHeight: "1.4" }}>
+                    Please download the official template, input the details, and upload the completed workbook.
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: "10px", marginTop: "24px" }}>
+                  <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Import List</button>
                   <button 
                     type="button" 
-                    onClick={downloadStudentTemplate}
-                    className="btn btn-outline"
-                    style={{ padding: "4px 8px", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px", background: "#f8fafc" }}
+                    onClick={() => {
+                      setShowBulkStudentModal(false);
+                      setStudentExcelFile(null);
+                    }}
+                    className="btn btn-outline" 
+                    style={{ flex: 1 }}
                   >
-                    📥 Download Excel Template
+                    Cancel
                   </button>
                 </div>
-                <input 
-                  type="file" 
-                  accept=".xlsx, .xls"
-                  className="input-field" 
-                  onChange={(e) => setStudentExcelFile(e.target.files?.[0] || null)}
-                  required
-                  style={{ padding: "8px", color: "#0f172a", backgroundColor: "#ffffff", borderColor: "#cbd5e1" }}
-                />
-                <div style={{ fontSize: "11px", color: "#64748b", marginTop: "8px", lineHeight: "1.4" }}>
-                  Please download the official template, input the details, and upload the completed workbook.
-                </div>
-              </div>
-
-              <div style={{ display: "flex", gap: "10px", marginTop: "24px" }}>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Import List</button>
-                <button 
-                  type="button" 
-                  onClick={() => {
-                    setShowBulkStudentModal(false);
-                    setStudentExcelFile(null);
-                  }}
-                  className="btn btn-outline" 
-                  style={{ flex: 1 }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
+              </form>
+            )}
           </div>
         </div>
       )}

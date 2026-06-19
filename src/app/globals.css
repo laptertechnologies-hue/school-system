@@ -370,6 +370,11 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Print Styles for Report Cards */
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 6mm 8mm;
+  }
+
   .no-print {
     display: none !important;
   }
@@ -419,14 +424,124 @@ h1, h2, h3, h4, h5, h6 {
     width: 100% !important;
     max-width: 100% !important;
     margin: 0 auto !important;
-    padding: 40px !important;
-    border: 1px solid #cbd5e1 !important;
-    border-radius: 8px !important;
+    padding: 10px 15px !important;
+    border: none !important;
+    border-radius: 0 !important;
     background: white !important;
     color: black !important;
     box-shadow: none !important;
     page-break-inside: avoid !important;
     visibility: visible !important;
+  }
+
+  /* Spacing optimizations for print to fit on a single page */
+  .report-header {
+    margin-bottom: 6px !important;
+    padding-bottom: 4px !important;
+  }
+  .report-header h2 {
+    font-size: 16px !important;
+  }
+  .report-header div {
+    font-size: 9px !important;
+    margin: 1px 0 !important;
+    line-height: 1.2 !important;
+  }
+  .report-header h3 {
+    font-size: 11px !important;
+    margin-top: 3px !important;
+  }
+
+  .student-meta-grid {
+    margin-bottom: 6px !important;
+    padding-bottom: 4px !important;
+    font-size: 10px !important;
+    gap: 4px !important;
+  }
+  .student-meta-grid img {
+    width: 50px !important;
+    height: 55px !important;
+  }
+
+  /* Compact Assessment table */
+  #printable-report table,
+  .bulk-report-card table {
+    margin-bottom: 6px !important;
+  }
+  #printable-report table th,
+  #printable-report table td,
+  .bulk-report-card table th,
+  .bulk-report-card table td {
+    padding: 2px 4px !important;
+    font-size: 8.5px !important;
+    line-height: 1.1 !important;
+  }
+  #printable-report h4,
+  .bulk-report-card h4 {
+    font-size: 10px !important;
+    margin-top: 2px !important;
+    margin-bottom: 2px !important;
+  }
+
+  /* Compact SVG chart */
+  .chart-container {
+    margin-top: 3px !important;
+    margin-bottom: 3px !important;
+    padding: 4px !important;
+  }
+  .chart-container h4 {
+    font-size: 8.5px !important;
+    margin-bottom: 2px !important;
+  }
+  .chart-container svg {
+    max-height: 75px !important;
+  }
+
+  /* Compact Legend scale */
+  .legend-container {
+    margin-top: 3px !important;
+    padding: 4px !important;
+    font-size: 8px !important;
+  }
+  .legend-container table th,
+  .legend-container table td {
+    padding: 1px 2px !important;
+    font-size: 8px !important;
+  }
+
+  /* Compact Comments panel */
+  .comments-container {
+    margin-top: 4px !important;
+    padding: 4px 8px !important;
+    font-size: 8.5px !important;
+    line-height: 1.2 !important;
+  }
+  .comments-container div {
+    margin-top: 1px !important;
+  }
+
+  /* Compact Fees display */
+  .fees-container {
+    margin-top: 4px !important;
+    padding: 3px 8px !important;
+    font-size: 8.5px !important;
+  }
+
+  /* Compact Term Dates */
+  .dates-container {
+    margin-top: 3px !important;
+    padding: 2px !important;
+    font-size: 8px !important;
+  }
+
+  /* Compact Signatures */
+  .signatures-container {
+    margin-top: 12px !important;
+    font-size: 9px !important;
+  }
+  .signatures-container div {
+    width: 110px !important;
+    padding-top: 2px !important;
   }
 
   .page-break {

@@ -520,7 +520,7 @@ export default function SchoolPortal({ params }: PageProps) {
     if (chartData.length === 0) return null;
 
     return (
-      <div style={{ border: "1px solid #cbd5e1", borderRadius: "6px", padding: "16px", background: "white", marginBottom: "20px", display: "block" }}>
+      <div className="chart-container" style={{ border: "1px solid #cbd5e1", borderRadius: "6px", padding: "16px", background: "white", marginBottom: "20px", display: "block" }}>
         <h4 style={{ textTransform: "uppercase", fontSize: "12px", marginBottom: "12px", textAlign: "center", color: "#334155" }}>Subject Performance Chart</h4>
         <svg viewBox="0 0 600 160" style={{ width: "100%", height: "auto" }}>
           {/* Gridlines */}
@@ -6528,7 +6528,7 @@ export default function SchoolPortal({ params }: PageProps) {
                             <div className="bulk-report-card" style={{ background: "white", color: "black", borderColor: "#cbd5e1", padding: "40px", fontFamily: "Arial, sans-serif", marginBottom: "40px" }}>
                               
                               {/* School Heading */}
-                              <div style={{ textAlign: "center", borderBottom: school.reportBorderType === "solid" ? "1px solid black" : school.reportBorderType === "none" ? "none" : "3px double black", paddingBottom: "14px", marginBottom: "20px" }}>
+                              <div className="report-header" style={{ textAlign: "center", borderBottom: school.reportBorderType === "solid" ? "1px solid black" : school.reportBorderType === "none" ? "none" : "3px double black", paddingBottom: "14px", marginBottom: "20px" }}>
                                 {school.reportShowBadge && (
                                   <div style={{ display: "flex", justifyContent: "center", marginBottom: "10px" }}>
                                     {school.logoUrl ? (
@@ -6558,7 +6558,7 @@ export default function SchoolPortal({ params }: PageProps) {
                               </div>
 
                               {/* Student Meta details */}
-                              <div style={{ display: "flex", justifyContent: "space-between", gap: "20px", marginBottom: "20px", borderBottom: "1px solid #94a3b8", paddingBottom: "12px" }}>
+                              <div className="student-meta-grid" style={{ display: "flex", justifyContent: "space-between", gap: "20px", marginBottom: "20px", borderBottom: "1px solid #94a3b8", paddingBottom: "12px" }}>
                                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", fontSize: "13px", flex: 1 }}>
                                   <div><strong>Student Name:</strong> {st.name}</div>
                                   {st.gender && <div><strong>Sex:</strong> {st.gender}</div>}
@@ -6627,7 +6627,7 @@ export default function SchoolPortal({ params }: PageProps) {
 
                               {/* Grading Legend Card */}
                               {school.reportShowRules && (
-                                <div style={{ marginTop: "20px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "12px", fontSize: "11px", lineHeight: "1.4" }}>
+                                <div className="legend-container" style={{ marginTop: "20px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "12px", fontSize: "11px", lineHeight: "1.4" }}>
                                   <strong style={{ fontSize: "12px", display: "block", marginBottom: "6px" }}>
                                     {classes.find(c => c.id === st.classId)?.level === "SECONDARY" ? "CBC Grading Scale & Achievement Levels" : "PLE Grading Scale & Classifications"}:
                                   </strong>
@@ -6690,7 +6690,7 @@ export default function SchoolPortal({ params }: PageProps) {
 
                               {/* Class / Head Teacher Comments */}
                               {school.reportShowComments !== false && rankInfo && (
-                                <div style={{ border: "1px solid #cbd5e1", borderRadius: "6px", padding: "12px", fontSize: "13px", marginTop: "15px", lineHeight: "1.6" }}>
+                                <div className="comments-container" style={{ border: "1px solid #cbd5e1", borderRadius: "6px", padding: "12px", fontSize: "13px", marginTop: "15px", lineHeight: "1.6" }}>
                                   {(() => {
                                     const avg = parseFloat(rankInfo.studentAverage);
                                     let classTeacherComment = "A fair performance. Focus more on your weaker subjects next term.";
@@ -6720,7 +6720,7 @@ export default function SchoolPortal({ params }: PageProps) {
 
                               {/* Fees display */}
                               {school.reportShowFees !== false && (
-                                <div style={{ display: "flex", justifyContent: "space-between", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "8px 12px", marginTop: "10px", fontSize: "12px", fontWeight: "bold" }}>
+                                <div className="fees-container" style={{ display: "flex", justifyContent: "space-between", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "8px 12px", marginTop: "10px", fontSize: "12px", fontWeight: "bold" }}>
                                   {(() => {
                                     const baseFee = st.type === "DAY" ? (school.reportNextTermFeesDay || 150000) : (school.reportNextTermFeesBoarding || 350000);
                                     const stPayments = studentPayments.filter(p => p.studentId === st.id && p.term === parseInt(selectedReportTerm));
@@ -6739,7 +6739,7 @@ export default function SchoolPortal({ params }: PageProps) {
 
                               {/* Term Dates */}
                               {school.reportShowTermDates !== false && (
-                                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#475569", marginTop: "8px", border: "1px dashed #cbd5e1", padding: "8px 4px" }}>
+                                <div className="dates-container" style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#475569", marginTop: "8px", border: "1px dashed #cbd5e1", padding: "8px 4px" }}>
                                   {(() => {
                                     const getDates = (term: string) => {
                                       if (term === "1") return { start: school.term1Start, end: school.term1End };
@@ -6762,7 +6762,7 @@ export default function SchoolPortal({ params }: PageProps) {
 
                               {/* Signatures */}
                               {school.reportShowSignatures && (
-                                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "40px", fontSize: "12px" }}>
+                                <div className="signatures-container" style={{ display: "flex", justifyContent: "space-between", marginTop: "40px", fontSize: "12px" }}>
                                   <div style={{ borderTop: "1px solid black", width: "150px", textAlign: "center", paddingTop: "6px" }}>Class Teacher</div>
                                   <div style={{ borderTop: "1px solid black", width: "150px", textAlign: "center", paddingTop: "6px" }}>Head Teacher</div>
                                   <div style={{ borderTop: "1px solid black", width: "150px", textAlign: "center", paddingTop: "6px" }}>School Stamp</div>
@@ -6798,7 +6798,7 @@ export default function SchoolPortal({ params }: PageProps) {
                       <div id="printable-report" className="card" style={{ background: "white", color: "black", borderColor: "#cbd5e1", padding: "40px", fontFamily: "Arial, sans-serif" }}>
                         
                         {/* School Heading */}
-                        <div style={{ textAlign: "center", borderBottom: school.reportBorderType === "solid" ? "1px solid black" : school.reportBorderType === "none" ? "none" : "3px double black", paddingBottom: "14px", marginBottom: "20px" }}>
+                        <div className="report-header" style={{ textAlign: "center", borderBottom: school.reportBorderType === "solid" ? "1px solid black" : school.reportBorderType === "none" ? "none" : "3px double black", paddingBottom: "14px", marginBottom: "20px" }}>
                           {school.reportShowBadge && (
                             <div style={{ display: "flex", justifyContent: "center", marginBottom: "10px" }}>
                               {school.logoUrl ? (
@@ -6828,7 +6828,7 @@ export default function SchoolPortal({ params }: PageProps) {
                         </div>
 
                         {/* Student Meta details with Optional Student Photo */}
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: "20px", marginBottom: "20px", borderBottom: "1px solid #94a3b8", paddingBottom: "12px" }}>
+                        <div className="student-meta-grid" style={{ display: "flex", justifyContent: "space-between", gap: "20px", marginBottom: "20px", borderBottom: "1px solid #94a3b8", paddingBottom: "12px" }}>
                           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", fontSize: "13px", flex: 1 }}>
                             <div><strong>Student Name:</strong> {selectedReportStudent.name}</div>
                             {selectedReportStudent.gender && <div><strong>Sex:</strong> {selectedReportStudent.gender}</div>}
@@ -6897,7 +6897,7 @@ export default function SchoolPortal({ params }: PageProps) {
 
                         {/* Grading Legend Card */}
                         {school.reportShowRules && (
-                          <div style={{ marginTop: "20px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "12px", fontSize: "11px", lineHeight: "1.4" }}>
+                          <div className="legend-container" style={{ marginTop: "20px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "12px", fontSize: "11px", lineHeight: "1.4" }}>
                             <strong style={{ fontSize: "12px", display: "block", marginBottom: "6px" }}>
                               {classes.find(c => c.id === selectedReportStudent.classId)?.level === "SECONDARY" ? "CBC Grading Scale & Achievement Levels" : "PLE Grading Scale & Classifications"}:
                             </strong>
@@ -6960,7 +6960,7 @@ export default function SchoolPortal({ params }: PageProps) {
 
                         {/* Class / Head Teacher Comments */}
                         {school.reportShowComments !== false && rankInfo && (
-                          <div style={{ border: "1px solid #cbd5e1", borderRadius: "6px", padding: "12px", fontSize: "13px", marginTop: "15px", lineHeight: "1.6" }}>
+                          <div className="comments-container" style={{ border: "1px solid #cbd5e1", borderRadius: "6px", padding: "12px", fontSize: "13px", marginTop: "15px", lineHeight: "1.6" }}>
                             {(() => {
                               const avg = parseFloat(rankInfo.studentAverage);
                               let classTeacherComment = "A fair performance. Focus more on your weaker subjects next term.";
@@ -6990,7 +6990,7 @@ export default function SchoolPortal({ params }: PageProps) {
 
                         {/* Fees display */}
                         {school.reportShowFees !== false && (
-                          <div style={{ display: "flex", justifyContent: "space-between", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "8px 12px", marginTop: "10px", fontSize: "12px", fontWeight: "bold" }}>
+                          <div className="fees-container" style={{ display: "flex", justifyContent: "space-between", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "8px 12px", marginTop: "10px", fontSize: "12px", fontWeight: "bold" }}>
                             {(() => {
                               const baseFee = selectedReportStudent.type === "DAY" ? (school.reportNextTermFeesDay || 150000) : (school.reportNextTermFeesBoarding || 350000);
                               const stPayments = studentPayments.filter(p => p.studentId === selectedReportStudent.id && p.term === parseInt(selectedReportTerm));
@@ -7009,7 +7009,7 @@ export default function SchoolPortal({ params }: PageProps) {
 
                         {/* Term Dates */}
                         {school.reportShowTermDates !== false && (
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#475569", marginTop: "8px", border: "1px dashed #cbd5e1", padding: "8px 4px" }}>
+                          <div className="dates-container" style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#475569", marginTop: "8px", border: "1px dashed #cbd5e1", padding: "8px 4px" }}>
                             {(() => {
                               const getDates = (term: string) => {
                                 if (term === "1") return { start: school.term1Start, end: school.term1End };
@@ -7032,7 +7032,7 @@ export default function SchoolPortal({ params }: PageProps) {
 
                         {/* Signatures */}
                         {school.reportShowSignatures && (
-                          <div style={{ display: "flex", justifyContent: "space-between", marginTop: "40px", fontSize: "12px" }}>
+                          <div className="signatures-container" style={{ display: "flex", justifyContent: "space-between", marginTop: "40px", fontSize: "12px" }}>
                             <div style={{ borderTop: "1px solid black", width: "150px", textAlign: "center", paddingTop: "6px" }}>Class Teacher</div>
                             <div style={{ borderTop: "1px solid black", width: "150px", textAlign: "center", paddingTop: "6px" }}>Head Teacher</div>
                             <div style={{ borderTop: "1px solid black", width: "150px", textAlign: "center", paddingTop: "6px" }}>School Stamp</div>

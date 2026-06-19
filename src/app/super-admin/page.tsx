@@ -91,6 +91,10 @@ export default function SuperAdminDashboard() {
     try {
       const user = await authenticateUser(email, password, "admin");
       if (user) {
+        if (user.id === "ERROR") {
+          setAuthError(user.name);
+          return;
+        }
         setCurrentUser(user);
       } else {
         setAuthError("Invalid super-admin credentials.");

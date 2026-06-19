@@ -1000,6 +1000,10 @@ export default function SchoolPortal({ params }: PageProps) {
     try {
       const user = await authenticateUser(email, password, subdomain);
       if (user) {
+        if (user.id === "ERROR") {
+          setAuthError(user.name);
+          return;
+        }
         setCurrentUser(user);
         await loadSchoolData(school.id);
         // Auto tab based on role

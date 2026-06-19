@@ -402,7 +402,13 @@ export async function authenticateUser(email: string, passwordHash: string, subd
       }
       const school = await prisma.school.findUnique({ where: { subdomain } });
       if (!school) {
-        throw new Error(`School with subdomain '${subdomain}' not found in database.`);
+        return serialize({
+          id: "ERROR",
+          name: `School with subdomain '${subdomain}' not found.`,
+          email: "error@error.com",
+          role: "ERROR",
+          schoolId: "error"
+        } as unknown as User);
       }
       const user = await prisma.user.findFirst({
         where: { schoolId: school.id, email: sanitizedEmail, passwordHash: sanitizedPassword },
@@ -412,7 +418,13 @@ export async function authenticateUser(email: string, passwordHash: string, subd
   } catch (err: any) {
     console.error("Prisma error in authenticateUser:", err);
     if (process.env.DATABASE_URL) {
-      throw new Error("Database error during authentication: " + err.message);
+      return serialize({
+        id: "ERROR",
+        name: `DB Error: ${err.message}`,
+        email: "error@error.com",
+        role: "ERROR",
+        schoolId: "error"
+      } as unknown as User);
     }
     // Fall through to local DB if no remote DB configured
   }

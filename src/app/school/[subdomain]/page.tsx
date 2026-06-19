@@ -19,7 +19,7 @@ import {
   getTotalAvailableSmsCredits, deductSmsCredits, getMarzSmsBalance, sendRealSms
 } from "../../../lib/services";
 
-import { Database, CreditCard, Building2, CheckCircle, MessageSquare, Sliders, User as UserIcon, Calendar } from "lucide-react";
+import { Database, CreditCard, Building2, CheckCircle, MessageSquare, Sliders, User as UserIcon, Calendar, Eye, EyeOff } from "lucide-react";
 import { 
   GraduationCap, 
   Users, 
@@ -103,6 +103,7 @@ export default function SchoolPortal({ params }: PageProps) {
   // Authentication states
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [authError, setAuthError] = useState("");
 
   // Forgot Password flow states
@@ -2920,15 +2921,36 @@ export default function SchoolPortal({ params }: PageProps) {
                     Forgot Password?
                   </button>
                 </div>
-                <input 
-                  type="password" 
-                  className="input-field" 
-                  placeholder="••••••••" 
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  style={{ background: "#0f172a", borderColor: "#374151", color: "white" }}
-                />
+                <div style={{ position: "relative" }}>
+                  <input 
+                    type={showLoginPassword ? "text" : "password"} 
+                    className="input-field" 
+                    placeholder="••••••••" 
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    style={{ background: "#0f172a", borderColor: "#374151", color: "white", paddingRight: "40px" }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginPassword(!showLoginPassword)}
+                    style={{
+                      position: "absolute",
+                      right: "12px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      background: "transparent",
+                      border: "none",
+                      color: "#9ca3af",
+                      cursor: "pointer",
+                      padding: 0,
+                      display: "flex",
+                      alignItems: "center"
+                    }}
+                  >
+                    {showLoginPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
               <button type="submit" className="btn btn-primary" style={{ width: "100%", padding: "12px" }}>

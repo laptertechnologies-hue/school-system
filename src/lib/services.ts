@@ -389,18 +389,20 @@ export async function updateSchoolMetadata(
 
 // --- Users & Authentication ---
 export async function authenticateUser(email: string, passwordHash: string, subdomain: string): Promise<User | null> {
+  const sanitizedEmail = email.trim().toLowerCase();
+  
   try {
     if (await hasDB()) {
       if (subdomain === "admin") {
         const superAdmin = await prisma.user.findFirst({
-          where: { schoolId: "super", email, passwordHash },
+          where: { schoolId: "super", email: sanitizedEmail, passwordHash },
         });
         return serialize(superAdmin as User | null);
       }
       const school = await prisma.school.findUnique({ where: { subdomain } });
       if (!school) return null;
       const user = await prisma.user.findFirst({
-        where: { schoolId: school.id, email, passwordHash },
+        where: { schoolId: school.id, email: sanitizedEmail, passwordHash },
       });
       return serialize(user as User | null);
     }
@@ -411,12 +413,12 @@ export async function authenticateUser(email: string, passwordHash: string, subd
 
   const db = getLocalDB();
   if (subdomain === "admin") {
-    const user = db.users.find((u: User) => u.schoolId === "super" && u.email === email && u.passwordHash === passwordHash);
+    const user = db.users.find((u: User) => u.schoolId === "super" && u.email.toLowerCase() === sanitizedEmail && u.passwordHash === passwordHash);
     return serialize(user || null);
   }
   const school = db.schools.find((s: School) => s.subdomain === subdomain);
   if (!school) return null;
-  const user = db.users.find((u: User) => u.schoolId === school.id && u.email === email && u.passwordHash === passwordHash);
+  const user = db.users.find((u: User) => u.schoolId === school.id && u.email.toLowerCase() === sanitizedEmail && u.passwordHash === passwordHash);
   return serialize(user || null);
 }
 

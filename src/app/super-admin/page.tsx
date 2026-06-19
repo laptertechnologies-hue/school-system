@@ -23,13 +23,16 @@ import {
   PlusCircle,
   FileText,
   Database,
-  Lock
+  Lock,
+  Eye,
+  EyeOff
 } from "lucide-react";
 
 export default function SuperAdminDashboard() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [authError, setAuthError] = useState("");
 
   const [schools, setSchools] = useState<School[]>([]);
@@ -297,15 +300,36 @@ export default function SuperAdminDashboard() {
 
             <div className="form-group" style={{ marginBottom: "24px" }}>
               <label className="form-label" style={{ color: "#1e293b" }}>Password</label>
-              <input 
-                type="password" 
-                className="input-field" 
-                placeholder="••••••••" 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                style={{ background: "#ffffff", color: "#1e293b" }}
-              />
+              <div style={{ position: "relative" }}>
+                <input 
+                  type={showLoginPassword ? "text" : "password"} 
+                  className="input-field" 
+                  placeholder="••••••••" 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  style={{ paddingRight: "40px", background: "#ffffff", color: "#1e293b" }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowLoginPassword(!showLoginPassword)}
+                  style={{
+                    position: "absolute",
+                    right: "12px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "transparent",
+                    border: "none",
+                    color: "#9ca3af",
+                    cursor: "pointer",
+                    padding: 0,
+                    display: "flex",
+                    alignItems: "center"
+                  }}
+                >
+                  {showLoginPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
 
             <button type="submit" className="btn btn-primary hover-scale" style={{ width: "100%", padding: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>

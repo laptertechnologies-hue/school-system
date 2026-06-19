@@ -997,17 +997,22 @@ export default function SchoolPortal({ params }: PageProps) {
       return;
     }
 
-    const user = await authenticateUser(email, password, subdomain);
-    if (user) {
-      setCurrentUser(user);
-      await loadSchoolData(school.id);
-      // Auto tab based on role
-      if (user.role === "TEACHER") setActiveTab("marks");
-      else if (user.role === "DOS") setActiveTab("exams");
-      else if (user.role === "DIRECTOR" && school.packageType === "PREMIUM") setActiveTab("finance");
-      else setActiveTab("overview");
-    } else {
-      setAuthError("Invalid username or password.");
+    try {
+      const user = await authenticateUser(email, password, subdomain);
+      if (user) {
+        setCurrentUser(user);
+        await loadSchoolData(school.id);
+        // Auto tab based on role
+        if (user.role === "TEACHER") setActiveTab("marks");
+        else if (user.role === "DOS") setActiveTab("exams");
+        else if (user.role === "DIRECTOR" && school.packageType === "PREMIUM") setActiveTab("finance");
+        else setActiveTab("overview");
+      } else {
+        setAuthError("Invalid username or password.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      setAuthError(err.message || "An error occurred while signing in.");
     }
   };
 

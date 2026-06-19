@@ -390,25 +390,31 @@ export async function updateSchoolMetadata(
 // --- Users & Authentication ---
 export async function authenticateUser(email: string, passwordHash: string, subdomain: string): Promise<User | null> {
   const sanitizedEmail = email.trim().toLowerCase();
+  const sanitizedPassword = passwordHash.trim();
   
   try {
     if (await hasDB()) {
       if (subdomain === "admin") {
         const superAdmin = await prisma.user.findFirst({
-          where: { schoolId: "super", email: sanitizedEmail, passwordHash },
+          where: { schoolId: "super", email: sanitizedEmail, passwordHash: sanitizedPassword },
         });
         return serialize(superAdmin as User | null);
       }
       const school = await prisma.school.findUnique({ where: { subdomain } });
-      if (!school) return null;
+      if (!school) {
+        throw new Error(`School with subdomain '${subdomain}' not found in database.`);
+      }
       const user = await prisma.user.findFirst({
-        where: { schoolId: school.id, email: sanitizedEmail, passwordHash },
+        where: { schoolId: school.id, email: sanitizedEmail, passwordHash: sanitizedPassword },
       });
       return serialize(user as User | null);
     }
   } catch (err: any) {
     console.error("Prisma error in authenticateUser:", err);
-    // Fall through to local DB
+    if (process.env.DATABASE_URL) {
+      throw new Error("Database error during authentication: " + err.message);
+    }
+    // Fall through to local DB if no remote DB configured
   }
 
   const db = getLocalDB();

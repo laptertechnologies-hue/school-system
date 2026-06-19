@@ -505,6 +505,60 @@ export default function SchoolPortal({ params }: PageProps) {
     };
   };
 
+  const renderRealPerformanceChart = (student: Student, eotExam: ExamPaper) => {
+    const stMarks = marks.filter(m => m.studentId === student.id && m.examPaperId === eotExam.id);
+    const classSubjects = subjects.filter(sub => sub.classId === student.classId);
+    const chartData = classSubjects.map(sub => {
+      const m = stMarks.find(mk => mk.subjectId === sub.id);
+      return {
+        subjectCode: sub.code || sub.name.substring(0, 3).toUpperCase(),
+        score: m ? m.score : 0,
+        hasMark: !!m
+      };
+    }).filter(d => d.hasMark);
+
+    if (chartData.length === 0) return null;
+
+    return (
+      <div style={{ border: "1px solid #cbd5e1", borderRadius: "6px", padding: "16px", background: "white", marginBottom: "20px", display: "block" }}>
+        <h4 style={{ textTransform: "uppercase", fontSize: "12px", marginBottom: "12px", textAlign: "center", color: "#334155" }}>Subject Performance Chart</h4>
+        <svg viewBox="0 0 600 160" style={{ width: "100%", height: "auto" }}>
+          {/* Gridlines */}
+          <line x1="40" y1="20" x2="580" y2="20" stroke="#e2e8f0" strokeWidth="0.5" />
+          <line x1="40" y1="50" x2="580" y2="50" stroke="#e2e8f0" strokeWidth="0.5" />
+          <line x1="40" y1="80" x2="580" y2="80" stroke="#e2e8f0" strokeWidth="0.5" />
+          <line x1="40" y1="110" x2="580" y2="110" stroke="#e2e8f0" strokeWidth="0.5" />
+          <line x1="40" y1="140" x2="580" y2="140" stroke="#cbd5e1" strokeWidth="1" />
+          
+          {/* Tick labels */}
+          <text x="30" y="24" fontSize="9px" textAnchor="end" fill="#64748b">100%</text>
+          <text x="30" y="54" fontSize="9px" textAnchor="end" fill="#64748b">75%</text>
+          <text x="30" y="84" fontSize="9px" textAnchor="end" fill="#64748b">50%</text>
+          <text x="30" y="114" fontSize="9px" textAnchor="end" fill="#64748b">25%</text>
+          <text x="30" y="144" fontSize="9px" textAnchor="end" fill="#64748b">0%</text>
+
+          {/* Bars */}
+          {chartData.map((d, i) => {
+            const barWidth = Math.min(30, 400 / chartData.length);
+            const spacing = 500 / chartData.length;
+            const x = 50 + i * spacing;
+            const height = (d.score / 100) * 120; // max height is 120px (from y=20 to y=140)
+            const y = 140 - height;
+            const color = d.score >= 80 ? "#059669" : d.score >= 50 ? (school?.reportHeaderColor || "#1e3a8a") : "#ef4444";
+            
+            return (
+              <g key={i}>
+                <rect x={x} y={y} width={barWidth} height={height} fill={color} rx="2" />
+                <text x={x + barWidth / 2} y={y - 6} fontSize="9px" textAnchor="middle" fontWeight="bold" fill="#0f172a">{d.score}%</text>
+                <text x={x + barWidth / 2} y="154" fontSize="9px" textAnchor="middle" fontWeight="600" fill="#475569">{d.subjectCode}</text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    );
+  };
+
   const renderMarksAssessmentTable = (student: Student, eotExam: ExamPaper) => {
     const isCBC = eotExam.isNewCurriculum;
     const stMarks = marks.filter(m => m.studentId === student.id && m.examPaperId === eotExam.id);
@@ -530,24 +584,29 @@ export default function SchoolPortal({ params }: PageProps) {
       const hpgMax = eotExam?.cbHpgMax ?? 3;
 
       const classStudentsIds = students.filter(st => st.classId === student.classId).map(st => st.id);
+      const rankInfo = getStudentRankAndTotals(student.id, student.classId, eotExam.id);
 
       return (
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px", marginBottom: "20px" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10px", marginBottom: "20px" }}>
           <thead>
-            <tr style={{ background: "#f1f5f9" }}>
-              <th style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "left" }}>SUBJECT</th>
-              {u1Active && <th style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", width: "45px" }}>U1</th>}
-              {u2Active && <th style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", width: "45px" }}>U2</th>}
-              {etActive && <th style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", width: "45px" }}>E.T</th>}
-              {hpgActive && <th style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", width: "45px" }}>HPG</th>}
-              <th style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", width: "55px" }}>TOTAL</th>
-              <th style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", width: "55px" }}>AVG (/3)</th>
-              <th style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", width: "60px" }}>Out of 20</th>
-              <th style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", width: "60px" }}>EOY (/80)</th>
-              <th style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", width: "70px" }}>TOT (100%)</th>
-              <th style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", width: "45px" }}>GRD</th>
-              <th style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "left", width: "130px" }}>ACHIEVEMENT LEVEL</th>
-              <th style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", width: "55px" }}>INITIAL</th>
+            <tr style={{ background: "#f1f5f9", textAlign: "center", fontWeight: "bold" }}>
+              <th style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "left" }} rowSpan={2}>SUBJECT</th>
+              <th style={{ border: "1px solid #94a3b8", padding: "5px" }} colSpan={(u1Active ? 1 : 0) + (u2Active ? 1 : 0) + (etActive ? 1 : 0) + 5}>FORMATIVE ASSESSMENT SCORES (AOI & PROJECT WORK)</th>
+              <th style={{ border: "1px solid #94a3b8", padding: "5px" }} rowSpan={2}>SUMM.<br />(/80)</th>
+              <th style={{ border: "1px solid #94a3b8", padding: "5px" }} rowSpan={2}>TOT<br />(100%)</th>
+              <th style={{ border: "1px solid #94a3b8", padding: "5px" }} rowSpan={2}>GRD</th>
+              <th style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "left" }} rowSpan={2}>ACHIEVEMENT LEVEL</th>
+              <th style={{ border: "1px solid #94a3b8", padding: "5px" }} rowSpan={2}>INITIAL</th>
+            </tr>
+            <tr style={{ background: "#f1f5f9", textAlign: "center", fontWeight: "bold" }}>
+              {u1Active && <th style={{ border: "1px solid #94a3b8", padding: "3px", width: "32px" }}>U1</th>}
+              {u2Active && <th style={{ border: "1px solid #94a3b8", padding: "3px", width: "32px" }}>U2</th>}
+              {etActive && <th style={{ border: "1px solid #94a3b8", padding: "3px", width: "32px" }}>E.T</th>}
+              <th style={{ border: "1px solid #94a3b8", padding: "3px", width: "40px" }}>TOTAL</th>
+              <th style={{ border: "1px solid #94a3b8", padding: "3px", width: "40px" }}>AVG(/3)</th>
+              <th style={{ border: "1px solid #94a3b8", padding: "3px", width: "40px" }}>Out 10</th>
+              <th style={{ border: "1px solid #94a3b8", padding: "3px", width: "40px" }}>IDENT</th>
+              {hpgActive && <th style={{ border: "1px solid #94a3b8", padding: "3px", width: "45px" }}>PROJECT</th>}
             </tr>
           </thead>
           <tbody>
@@ -567,7 +626,9 @@ export default function SchoolPortal({ params }: PageProps) {
               if (hasHpg) { maxTotal += hpgMax; if (m?.hpg !== null && m?.hpg !== undefined) totalCA += m.hpg; }
 
               const avgCA = maxTotal > 0 && m ? ((totalCA / maxTotal) * 3).toFixed(1) : "-";
-              const outOf20 = maxTotal > 0 && m ? Math.round((totalCA / maxTotal) * 20) : "-";
+              const outOf10 = maxTotal > 0 && m ? ((totalCA / maxTotal) * 10).toFixed(1) : "-";
+              const scoreIdentifier = maxTotal > 0 && m ? Math.round((totalCA / maxTotal) * 3).toFixed(1) : "-";
+              
               const eoyVal = m?.eoy !== null && m?.eoy !== undefined ? m.eoy.toFixed(1) : "-";
               const totalVal = m ? m.score.toFixed(0) : "-";
               const gradeVal = m ? m.competencyGrade : "-";
@@ -586,26 +647,45 @@ export default function SchoolPortal({ params }: PageProps) {
 
               return (
                 <tr key={sub.id}>
-                  <td style={{ border: "1px solid #94a3b8", padding: "6px", fontWeight: "bold" }}>{sub.name}</td>
-                  {u1Active && <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center" }}>{m?.u1 !== null && m?.u1 !== undefined ? m.u1.toFixed(1) : "-"}</td>}
-                  {u2Active && <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center" }}>{m?.u2 !== null && m?.u2 !== undefined ? m.u2.toFixed(1) : "-"}</td>}
-                  {etActive && <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center" }}>{m?.u3 !== null && m?.u3 !== undefined ? m.u3.toFixed(1) : "-"}</td>}
-                  {hpgActive && <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center" }}>{m?.hpg !== null && m?.hpg !== undefined ? m.hpg.toFixed(1) : "-"}</td>}
-                  <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", fontWeight: "600" }}>{m ? totalCA.toFixed(1) : "-"}</td>
-                  <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center" }}>{avgCA}</td>
-                  <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center" }}>{outOf20}</td>
-                  <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center" }}>{eoyVal}</td>
-                  <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", fontWeight: "bold" }}>{m ? `${totalVal}%` : "-"}</td>
-                  <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", fontWeight: "bold", color: "var(--primary)" }}>{gradeVal}</td>
-                  <td style={{ border: "1px solid #94a3b8", padding: "6px" }}>{achievementVal}</td>
-                  <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center", fontWeight: "bold" }}>{teacherInitials || "-"}</td>
+                  <td style={{ border: "1px solid #94a3b8", padding: "5px", fontWeight: "bold" }}>{sub.name}</td>
+                  {u1Active && <td style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "center" }}>{m?.u1 !== null && m?.u1 !== undefined ? m.u1.toFixed(1) : "-"}</td>}
+                  {u2Active && <td style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "center" }}>{m?.u2 !== null && m?.u2 !== undefined ? m.u2.toFixed(1) : "-"}</td>}
+                  {etActive && <td style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "center" }}>{m?.u3 !== null && m?.u3 !== undefined ? m.u3.toFixed(1) : "-"}</td>}
+                  <td style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "center", fontWeight: "600" }}>{m ? totalCA.toFixed(1) : "-"}</td>
+                  <td style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "center" }}>{avgCA}</td>
+                  <td style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "center" }}>{outOf10}</td>
+                  <td style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "center" }}>{scoreIdentifier}</td>
+                  {hpgActive && <td style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "center" }}>{m?.hpg !== null && m?.hpg !== undefined ? m.hpg.toFixed(1) : "-"}</td>}
+                  <td style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "center" }}>{eoyVal}</td>
+                  <td style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "center", fontWeight: "bold" }}>{m ? `${totalVal}%` : "-"}</td>
+                  <td style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "center", fontWeight: "bold", color: "var(--primary)" }}>{gradeVal}</td>
+                  <td style={{ border: "1px solid #94a3b8", padding: "5px" }}>{achievementVal}</td>
+                  <td style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "center", fontWeight: "bold" }}>{teacherInitials || "-"}</td>
                 </tr>
               );
             })}
+            {school?.reportShowSummaryRow !== false && rankInfo && (
+              <tr style={{ background: "#f8fafc", fontWeight: "bold", fontSize: "10px" }}>
+                <td style={{ border: "1px solid #94a3b8", padding: "6px" }}>OVERALL AVERAGE</td>
+                <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center" }} colSpan={(u1Active ? 1 : 0) + (u2Active ? 1 : 0) + (etActive ? 1 : 0) + (hpgActive ? 1 : 0) + 4}>
+                  CLASS RANK: {rankInfo.position} / {rankInfo.totalStudents}
+                </td>
+                <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center" }}>
+                  AVG: {rankInfo.studentAverage}%
+                </td>
+                <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center" }} colSpan={2}>
+                  CLASS AVG: {rankInfo.classAverage}%
+                </td>
+                <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center" }}>
+                  TOTAL: {rankInfo.studentTotal}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       );
     } else {
+      const rankInfo = getStudentRankAndTotals(student.id, student.classId, eotExam.id);
       return (
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", marginBottom: "20px" }}>
           <thead>
@@ -631,6 +711,20 @@ export default function SchoolPortal({ params }: PageProps) {
                 </tr>
               );
             })}
+            {school?.reportShowSummaryRow !== false && rankInfo && (
+              <tr style={{ background: "#f8fafc", fontWeight: "bold" }}>
+                <td style={{ border: "1px solid #94a3b8", padding: "8px" }}>OVERALL AVERAGE</td>
+                <td style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center" }}>
+                  AVG: {rankInfo.studentAverage}%
+                </td>
+                <td style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center" }}>
+                  RANK: {rankInfo.position} / {rankInfo.totalStudents}
+                </td>
+                <td style={{ border: "1px solid #94a3b8", padding: "8px" }}>
+                  TOTAL SCORE: {rankInfo.studentTotal}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       );
@@ -648,6 +742,16 @@ export default function SchoolPortal({ params }: PageProps) {
   const [designerShowStudentPhoto, setDesignerShowStudentPhoto] = useState<boolean>(true);
   const [designerHeaderColor, setDesignerHeaderColor] = useState<string>("#1e3a8a");
   const [designerBorderType, setDesignerBorderType] = useState<string>("double");
+  const [designerTikTok, setDesignerTikTok] = useState("");
+  const [designerWebsite, setDesignerWebsite] = useState("");
+  const [designerLocation, setDesignerLocation] = useState("");
+  const [designerShowChart, setDesignerShowChart] = useState(true);
+  const [designerShowLIN, setDesignerShowLIN] = useState(true);
+  const [designerShowPayCode, setDesignerShowPayCode] = useState(true);
+  const [designerShowComments, setDesignerShowComments] = useState(true);
+  const [designerShowFees, setDesignerShowFees] = useState(true);
+  const [designerShowTermDates, setDesignerShowTermDates] = useState(true);
+  const [designerShowSummaryRow, setDesignerShowSummaryRow] = useState(true);
 
   useEffect(() => {
     async function fetchSchool() {
@@ -711,6 +815,16 @@ export default function SchoolPortal({ params }: PageProps) {
           setDesignerShowStudentPhoto(s.reportShowStudentPhoto !== false);
           setDesignerHeaderColor(s.reportHeaderColor || "#1e3a8a");
           setDesignerBorderType(s.reportBorderType || "double");
+          setDesignerTikTok(s.reportTikTok || "");
+          setDesignerWebsite(s.reportWebsite || "");
+          setDesignerLocation(s.reportLocation || "");
+          setDesignerShowChart(s.reportShowChart !== false);
+          setDesignerShowLIN(s.reportShowLIN !== false);
+          setDesignerShowPayCode(s.reportShowPayCode !== false);
+          setDesignerShowComments(s.reportShowComments !== false);
+          setDesignerShowFees(s.reportShowFees !== false);
+          setDesignerShowTermDates(s.reportShowTermDates !== false);
+          setDesignerShowSummaryRow(s.reportShowSummaryRow !== false);
 
           setCbU1Max(s.cbU1Max ?? 3);
           setCbU2Max(s.cbU2Max ?? 3);
@@ -2358,7 +2472,17 @@ export default function SchoolPortal({ params }: PageProps) {
         reportLogoSize: designerLogoSize,
         reportShowStudentPhoto: designerShowStudentPhoto,
         reportHeaderColor: designerHeaderColor,
-        reportBorderType: designerBorderType
+        reportBorderType: designerBorderType,
+        reportTikTok: designerTikTok,
+        reportWebsite: designerWebsite,
+        reportLocation: designerLocation,
+        reportShowChart: designerShowChart,
+        reportShowLIN: designerShowLIN,
+        reportShowPayCode: designerShowPayCode,
+        reportShowComments: designerShowComments,
+        reportShowFees: designerShowFees,
+        reportShowTermDates: designerShowTermDates,
+        reportShowSummaryRow: designerShowSummaryRow
       });
       setSchool(updated);
       alert("Academic report card template layout saved successfully!");
@@ -6414,10 +6538,15 @@ export default function SchoolPortal({ params }: PageProps) {
                                     )}
                                   </div>
                                 )}
-                                <h2 style={{ fontSize: "24px", margin: 0, textTransform: "uppercase", color: school.reportHeaderColor || "#1e3a8a" }}>{school.name}</h2>
-                                <p style={{ margin: "4px 0 0", fontSize: "12px", fontStyle: "italic" }}>
-                                  P.O. Box {school.poBox || "Kampala, Uganda"} • Tel: {school.contactPhone} • Email: {school.contactEmail}
-                                </p>
+                                <h2 style={{ fontSize: "24px", margin: 0, textTransform: "uppercase", color: school.reportHeaderColor || "#1e3a8a", fontWeight: 900 }}>{school.name}</h2>
+                                <div style={{ fontSize: "12px", color: "#334155", margin: "4px 0", lineHeight: "1.4" }}>
+                                  {school.reportWebsite && <span>Website: {school.reportWebsite} | </span>}
+                                  {school.reportTikTok && <span>TikTok: {school.reportTikTok} | </span>}
+                                  <span>P.O. Box {school.poBox || "Kampala, Uganda"}</span>
+                                  <br />
+                                  {school.reportLocation && <span>Located: {school.reportLocation} | </span>}
+                                  <span>Email: {school.contactEmail} | Tel: {school.contactPhone}</span>
+                                </div>
                                 {school.reportMotto && (
                                   <p style={{ margin: "2px 0 0", fontSize: "11px", fontStyle: "italic", fontWeight: "bold", color: "#475569" }}>
                                     Motto: "{school.reportMotto}"
@@ -6430,9 +6559,16 @@ export default function SchoolPortal({ params }: PageProps) {
 
                               {/* Student Meta details */}
                               <div style={{ display: "flex", justifyContent: "space-between", gap: "20px", marginBottom: "20px", borderBottom: "1px solid #94a3b8", paddingBottom: "12px" }}>
-                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", fontSize: "13px", flex: 1 }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", fontSize: "13px", flex: 1 }}>
                                   <div><strong>Student Name:</strong> {st.name}</div>
+                                  {st.gender && <div><strong>Sex:</strong> {st.gender}</div>}
                                   <div><strong>Class:</strong> {classes.find(c => c.id === st.classId)?.name}</div>
+                                  {school.reportShowLIN !== false && st.lin && (
+                                    <div><strong>Learner ID (LIN):</strong> {st.lin}</div>
+                                  )}
+                                  {school.reportShowPayCode !== false && st.studentPaymentCode && (
+                                    <div><strong>School Pay Code:</strong> {st.studentPaymentCode}</div>
+                                  )}
                                   <div><strong>Student Number:</strong> {st.studentNumber}</div>
                                   <div><strong>Academic Term:</strong> Term {selectedReportTerm} (2026)</div>
                                   {school.reportShowResidency && (
@@ -6465,6 +6601,11 @@ export default function SchoolPortal({ params }: PageProps) {
                                 <div style={{ padding: "10px", textAlign: "center", fontStyle: "italic", border: "1px solid #cbd5e1", fontSize: "12px", color: "#64748b" }}>
                                   No exam scheduled for Term {selectedReportTerm}.
                                 </div>
+                              )}
+
+                              {/* Performance Chart */}
+                              {school.reportShowChart !== false && eotExam && (
+                                renderRealPerformanceChart(st, eotExam)
                               )}
 
                               {/* PLE Summary if Primary */}
@@ -6547,6 +6688,78 @@ export default function SchoolPortal({ params }: PageProps) {
                                 </div>
                               )}
 
+                              {/* Class / Head Teacher Comments */}
+                              {school.reportShowComments !== false && rankInfo && (
+                                <div style={{ border: "1px solid #cbd5e1", borderRadius: "6px", padding: "12px", fontSize: "13px", marginTop: "15px", lineHeight: "1.6" }}>
+                                  {(() => {
+                                    const avg = parseFloat(rankInfo.studentAverage);
+                                    let classTeacherComment = "A fair performance. Focus more on your weaker subjects next term.";
+                                    let headTeacherComment = "You have potential. Push yourself harder next term.";
+                                    
+                                    if (avg >= 80) {
+                                      classTeacherComment = "Excellent academic performance! Keep up the outstanding work.";
+                                      headTeacherComment = "An exceptional result. I am proud of your achievements.";
+                                    } else if (avg >= 65) {
+                                      classTeacherComment = "Very good progress. With continued effort, you can achieve even higher grades.";
+                                      headTeacherComment = "Good work. Maintain this standard.";
+                                    } else if (avg < 50) {
+                                      classTeacherComment = "Below average. You need to put in more effort and seek academic support.";
+                                      headTeacherComment = "Urgent improvement is required. Please double your efforts.";
+                                    }
+                                    
+                                    return (
+                                      <>
+                                        <div><strong>Class Teacher's Comment:</strong> <span style={{ fontStyle: "italic", textDecoration: "underline", color: "#1e3a8a" }}>{classTeacherComment}</span></div>
+                                        <div style={{ marginTop: "4px" }}><strong>Class Teacher's Name:</strong> {school.deputyHeadTeacher || "Mr. Okongo Wilson"} &nbsp;&nbsp;&nbsp;&nbsp; <strong>Signature:</strong> _________________</div>
+                                        <div style={{ marginTop: "8px" }}><strong>Head Teacher's Comment:</strong> <span style={{ fontStyle: "italic", textDecoration: "underline", color: "#059669" }}>{headTeacherComment}</span></div>
+                                      </>
+                                    );
+                                  })()}
+                                </div>
+                              )}
+
+                              {/* Fees display */}
+                              {school.reportShowFees !== false && (
+                                <div style={{ display: "flex", justifyContent: "space-between", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "8px 12px", marginTop: "10px", fontSize: "12px", fontWeight: "bold" }}>
+                                  {(() => {
+                                    const baseFee = st.type === "DAY" ? (school.reportNextTermFeesDay || 150000) : (school.reportNextTermFeesBoarding || 350000);
+                                    const stPayments = studentPayments.filter(p => p.studentId === st.id && p.term === parseInt(selectedReportTerm));
+                                    const latestPayment = stPayments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+                                    const outstanding = latestPayment ? latestPayment.balance : 0;
+                                    return (
+                                      <>
+                                        <span>Next Term Fees: {baseFee.toLocaleString()} UGX</span>
+                                        <span>Outstanding Balance: {outstanding.toLocaleString()} UGX</span>
+                                        <span>Total Amount Needed: {(baseFee + outstanding).toLocaleString()} UGX</span>
+                                      </>
+                                    );
+                                  })()}
+                                </div>
+                              )}
+
+                              {/* Term Dates */}
+                              {school.reportShowTermDates !== false && (
+                                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#475569", marginTop: "8px", border: "1px dashed #cbd5e1", padding: "8px 4px" }}>
+                                  {(() => {
+                                    const getDates = (term: string) => {
+                                      if (term === "1") return { start: school.term1Start, end: school.term1End };
+                                      if (term === "2") return { start: school.term2Start, end: school.term2End };
+                                      return { start: school.term3Start, end: school.term3End };
+                                    };
+                                    const dates = getDates(selectedReportTerm);
+                                    const endFmt = dates.end ? new Date(dates.end).toLocaleDateString("en-US", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : "Thursday, April 30, 2026";
+                                    const nextTermDates = getDates(String((parseInt(selectedReportTerm) % 3) + 1));
+                                    const startFmt = nextTermDates.start ? new Date(nextTermDates.start).toLocaleDateString("en-US", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : "Sunday, May 24, 2026";
+                                    return (
+                                      <>
+                                        <span>This term has ended today: <strong>{endFmt}</strong></span>
+                                        <span>Next Term Begins on: <strong>{startFmt}</strong></span>
+                                      </>
+                                    );
+                                  })()}
+                                </div>
+                              )}
+
                               {/* Signatures */}
                               {school.reportShowSignatures && (
                                 <div style={{ display: "flex", justifyContent: "space-between", marginTop: "40px", fontSize: "12px" }}>
@@ -6595,10 +6808,15 @@ export default function SchoolPortal({ params }: PageProps) {
                               )}
                             </div>
                           )}
-                          <h2 style={{ fontSize: "24px", margin: 0, textTransform: "uppercase", color: school.reportHeaderColor || "#1e3a8a" }}>{school.name}</h2>
-                          <p style={{ margin: "4px 0 0", fontSize: "12px", fontStyle: "italic" }}>
-                            P.O. Box {school.poBox || "Kampala, Uganda"} • Tel: {school.contactPhone} • Email: {school.contactEmail}
-                          </p>
+                          <h2 style={{ fontSize: "24px", margin: 0, textTransform: "uppercase", color: school.reportHeaderColor || "#1e3a8a", fontWeight: 900 }}>{school.name}</h2>
+                          <div style={{ fontSize: "12px", color: "#334155", margin: "4px 0", lineHeight: "1.4" }}>
+                            {school.reportWebsite && <span>Website: {school.reportWebsite} | </span>}
+                            {school.reportTikTok && <span>TikTok: {school.reportTikTok} | </span>}
+                            <span>P.O. Box {school.poBox || "Kampala, Uganda"}</span>
+                            <br />
+                            {school.reportLocation && <span>Located: {school.reportLocation} | </span>}
+                            <span>Email: {school.contactEmail} | Tel: {school.contactPhone}</span>
+                          </div>
                           {school.reportMotto && (
                             <p style={{ margin: "2px 0 0", fontSize: "11px", fontStyle: "italic", fontWeight: "bold", color: "#475569" }}>
                               Motto: "{school.reportMotto}"
@@ -6611,9 +6829,16 @@ export default function SchoolPortal({ params }: PageProps) {
 
                         {/* Student Meta details with Optional Student Photo */}
                         <div style={{ display: "flex", justifyContent: "space-between", gap: "20px", marginBottom: "20px", borderBottom: "1px solid #94a3b8", paddingBottom: "12px" }}>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", fontSize: "13px", flex: 1 }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", fontSize: "13px", flex: 1 }}>
                             <div><strong>Student Name:</strong> {selectedReportStudent.name}</div>
+                            {selectedReportStudent.gender && <div><strong>Sex:</strong> {selectedReportStudent.gender}</div>}
                             <div><strong>Class:</strong> {classes.find(c => c.id === selectedReportStudent.classId)?.name}</div>
+                            {school.reportShowLIN !== false && selectedReportStudent.lin && (
+                              <div><strong>Learner ID (LIN):</strong> {selectedReportStudent.lin}</div>
+                            )}
+                            {school.reportShowPayCode !== false && selectedReportStudent.studentPaymentCode && (
+                              <div><strong>School Pay Code:</strong> {selectedReportStudent.studentPaymentCode}</div>
+                            )}
                             <div><strong>Student Number:</strong> {selectedReportStudent.studentNumber}</div>
                             <div><strong>Academic Term:</strong> Term {selectedReportTerm} (2026)</div>
                             {school.reportShowResidency && (
@@ -6646,6 +6871,11 @@ export default function SchoolPortal({ params }: PageProps) {
                           <div style={{ padding: "10px", textAlign: "center", fontStyle: "italic", border: "1px solid #cbd5e1", fontSize: "12px", color: "#64748b" }}>
                             No exam scheduled for Term {selectedReportTerm}.
                           </div>
+                        )}
+
+                        {/* Performance Chart */}
+                        {school.reportShowChart !== false && eotExam && (
+                          renderRealPerformanceChart(selectedReportStudent, eotExam)
                         )}
 
                         {/* PLE Summary if Primary */}
@@ -6725,6 +6955,78 @@ export default function SchoolPortal({ params }: PageProps) {
                                 })()}
                               </tbody>
                             </table>
+                          </div>
+                        )}
+
+                        {/* Class / Head Teacher Comments */}
+                        {school.reportShowComments !== false && rankInfo && (
+                          <div style={{ border: "1px solid #cbd5e1", borderRadius: "6px", padding: "12px", fontSize: "13px", marginTop: "15px", lineHeight: "1.6" }}>
+                            {(() => {
+                              const avg = parseFloat(rankInfo.studentAverage);
+                              let classTeacherComment = "A fair performance. Focus more on your weaker subjects next term.";
+                              let headTeacherComment = "You have potential. Push yourself harder next term.";
+                              
+                              if (avg >= 80) {
+                                classTeacherComment = "Excellent academic performance! Keep up the outstanding work.";
+                                headTeacherComment = "An exceptional result. I am proud of your achievements.";
+                              } else if (avg >= 65) {
+                                classTeacherComment = "Very good progress. With continued effort, you can achieve even higher grades.";
+                                headTeacherComment = "Good work. Maintain this standard.";
+                              } else if (avg < 50) {
+                                classTeacherComment = "Below average. You need to put in more effort and seek academic support.";
+                                headTeacherComment = "Urgent improvement is required. Please double your efforts.";
+                              }
+                              
+                              return (
+                                <>
+                                  <div><strong>Class Teacher's Comment:</strong> <span style={{ fontStyle: "italic", textDecoration: "underline", color: "#1e3a8a" }}>{classTeacherComment}</span></div>
+                                  <div style={{ marginTop: "4px" }}><strong>Class Teacher's Name:</strong> {school.deputyHeadTeacher || "Mr. Okongo Wilson"} &nbsp;&nbsp;&nbsp;&nbsp; <strong>Signature:</strong> _________________</div>
+                                  <div style={{ marginTop: "8px" }}><strong>Head Teacher's Comment:</strong> <span style={{ fontStyle: "italic", textDecoration: "underline", color: "#059669" }}>{headTeacherComment}</span></div>
+                                </>
+                              );
+                            })()}
+                          </div>
+                        )}
+
+                        {/* Fees display */}
+                        {school.reportShowFees !== false && (
+                          <div style={{ display: "flex", justifyContent: "space-between", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "8px 12px", marginTop: "10px", fontSize: "12px", fontWeight: "bold" }}>
+                            {(() => {
+                              const baseFee = selectedReportStudent.type === "DAY" ? (school.reportNextTermFeesDay || 150000) : (school.reportNextTermFeesBoarding || 350000);
+                              const stPayments = studentPayments.filter(p => p.studentId === selectedReportStudent.id && p.term === parseInt(selectedReportTerm));
+                              const latestPayment = stPayments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+                              const outstanding = latestPayment ? latestPayment.balance : 0;
+                              return (
+                                <>
+                                  <span>Next Term Fees: {baseFee.toLocaleString()} UGX</span>
+                                  <span>Outstanding Balance: {outstanding.toLocaleString()} UGX</span>
+                                  <span>Total Amount Needed: {(baseFee + outstanding).toLocaleString()} UGX</span>
+                                </>
+                              );
+                            })()}
+                          </div>
+                        )}
+
+                        {/* Term Dates */}
+                        {school.reportShowTermDates !== false && (
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#475569", marginTop: "8px", border: "1px dashed #cbd5e1", padding: "8px 4px" }}>
+                            {(() => {
+                              const getDates = (term: string) => {
+                                if (term === "1") return { start: school.term1Start, end: school.term1End };
+                                if (term === "2") return { start: school.term2Start, end: school.term2End };
+                                return { start: school.term3Start, end: school.term3End };
+                              };
+                              const dates = getDates(selectedReportTerm);
+                              const endFmt = dates.end ? new Date(dates.end).toLocaleDateString("en-US", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : "Thursday, April 30, 2026";
+                              const nextTermDates = getDates(String((parseInt(selectedReportTerm) % 3) + 1));
+                              const startFmt = nextTermDates.start ? new Date(nextTermDates.start).toLocaleDateString("en-US", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : "Sunday, May 24, 2026";
+                              return (
+                                <>
+                                  <span>This term has ended today: <strong>{endFmt}</strong></span>
+                                  <span>Next Term Begins on: <strong>{startFmt}</strong></span>
+                                </>
+                              );
+                            })()}
                           </div>
                         )}
 
@@ -8570,12 +8872,46 @@ export default function SchoolPortal({ params }: PageProps) {
                       placeholder="e.g. Education for progress"
                     />
                   </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                    <div className="form-group">
+                      <label className="form-label">School Website</label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        value={designerWebsite}
+                        onChange={(e) => setDesignerWebsite(e.target.value)}
+                        placeholder="e.g. stnoamawaggalisss.ac.ug"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">TikTok Handle</label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        value={designerTikTok}
+                        onChange={(e) => setDesignerTikTok(e.target.value)}
+                        placeholder="e.g. @snoams.mbikkojinj"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">School Location / Located District</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      value={designerLocation}
+                      onChange={(e) => setDesignerLocation(e.target.value)}
+                      placeholder="e.g. MBIKKO, BUIKWE DISTRICT"
+                    />
+                  </div>
                   
                   <div style={{ height: "1px", background: "#e2e8f0", margin: "20px 0" }}></div>
                   <h4 style={{ marginBottom: "12px", fontSize: "14px", color: "#0f172a" }}>Display Layout Settings</h4>
                   
-                  <div className="flex flex-col gap-2" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "14px" }}>
+                  <div className="flex flex-col gap-2" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px" }}>
                       <input 
                         type="checkbox" 
                         checked={designerShowBadge}
@@ -8584,7 +8920,7 @@ export default function SchoolPortal({ params }: PageProps) {
                       <span>Show Official School Logo Badge</span>
                     </label>
                     
-                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "14px" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px" }}>
                       <input 
                         type="checkbox" 
                         checked={designerShowResidency}
@@ -8593,7 +8929,7 @@ export default function SchoolPortal({ params }: PageProps) {
                       <span>Show Residency Type (Day / Boarding student indicator)</span>
                     </label>
                     
-                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "14px" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px" }}>
                       <input 
                         type="checkbox" 
                         checked={designerShowSignatures}
@@ -8602,13 +8938,76 @@ export default function SchoolPortal({ params }: PageProps) {
                       <span>Show Official Teacher/Head Teacher Signature Stamps</span>
                     </label>
                     
-                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "14px" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px" }}>
                       <input 
                         type="checkbox" 
                         checked={designerShowRules}
                         onChange={(e) => setDesignerShowRules(e.target.checked)}
                       />
                       <span>Show Curriculum Criteria (Uganda CBC Grading Guideline Box)</span>
+                    </label>
+
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px" }}>
+                      <input 
+                        type="checkbox" 
+                        checked={designerShowLIN}
+                        onChange={(e) => setDesignerShowLIN(e.target.checked)}
+                      />
+                      <span>Show Learner ID No. (LIN) in Student Info</span>
+                    </label>
+
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px" }}>
+                      <input 
+                        type="checkbox" 
+                        checked={designerShowPayCode}
+                        onChange={(e) => setDesignerShowPayCode(e.target.checked)}
+                      />
+                      <span>Show School Pay Code in Student Info</span>
+                    </label>
+
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px" }}>
+                      <input 
+                        type="checkbox" 
+                        checked={designerShowChart}
+                        onChange={(e) => setDesignerShowChart(e.target.checked)}
+                      />
+                      <span>Show Subject Marks Performance Bar Chart</span>
+                    </label>
+
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px" }}>
+                      <input 
+                        type="checkbox" 
+                        checked={designerShowSummaryRow}
+                        onChange={(e) => setDesignerShowSummaryRow(e.target.checked)}
+                      />
+                      <span>Show Overall Level of Achievement Summary Row</span>
+                    </label>
+
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px" }}>
+                      <input 
+                        type="checkbox" 
+                        checked={designerShowComments}
+                        onChange={(e) => setDesignerShowComments(e.target.checked)}
+                      />
+                      <span>Show Class/Head Teacher Comments</span>
+                    </label>
+
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px" }}>
+                      <input 
+                        type="checkbox" 
+                        checked={designerShowFees}
+                        onChange={(e) => setDesignerShowFees(e.target.checked)}
+                      />
+                      <span>Show Next Term Fees & Balances</span>
+                    </label>
+
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px" }}>
+                      <input 
+                        type="checkbox" 
+                        checked={designerShowTermDates}
+                        onChange={(e) => setDesignerShowTermDates(e.target.checked)}
+                      />
+                      <span>Show Term Closing & Next Term Re-opening Dates</span>
                     </label>
                   </div>
 
@@ -8684,74 +9083,216 @@ export default function SchoolPortal({ params }: PageProps) {
                 <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "10px" }}>
                   
                   {/* Miniature Report Card Design */}
-                  <div style={{ width: "100%", maxWidth: "340px", background: "white", padding: "20px", border: "1px solid #cbd5e1", borderRadius: "8px", boxShadow: "0 4px 6px rgba(0,0,0,0.05)", textAlign: "left", fontSize: "10px", color: "black", fontFamily: "Arial, sans-serif" }}>
+                  <div style={{ width: "100%", maxWidth: "520px", background: "white", padding: "20px", border: `2px solid ${designerHeaderColor}`, borderRadius: "4px", boxShadow: "0 4px 6px rgba(0,0,0,0.05)", textAlign: "left", fontSize: "9px", color: "black", fontFamily: "Arial, sans-serif" }}>
                     
                     {/* Header */}
-                    <div style={{ textAlign: "center", borderBottom: designerBorderType === "double" ? "3px double black" : designerBorderType === "solid" ? "1px solid black" : "none", paddingBottom: "8px", marginBottom: "10px" }}>
+                    <div style={{ display: "flex", gap: "10px", alignItems: "center", justifyContent: "space-between", borderBottom: designerBorderType === "double" ? `3px double ${designerHeaderColor}` : designerBorderType === "solid" ? `1px solid ${designerHeaderColor}` : "none", paddingBottom: "8px", marginBottom: "10px" }}>
                       {designerShowBadge && (
-                        <div style={{ display: "flex", justifyContent: "center", marginBottom: "4px" }}>
+                        <div style={{ flexShrink: 0 }}>
                           {school?.logoUrl ? (
-                            <img src={school.logoUrl} alt="Logo" style={{ width: `${designerLogoSize * 0.4}px`, height: `${designerLogoSize * 0.4}px`, objectFit: "contain", border: "1px solid #e2e8f0", padding: "1px" }} />
+                            <img src={school.logoUrl} alt="Logo" style={{ width: `${designerLogoSize * 0.5}px`, height: `${designerLogoSize * 0.5}px`, objectFit: "contain", border: "1px solid #e2e8f0", padding: "1px" }} />
                           ) : (
-                            <GraduationCap size={Math.round(designerLogoSize * 0.35)} color="var(--primary)" />
+                            <GraduationCap size={Math.round(designerLogoSize * 0.45)} color={designerHeaderColor} />
                           )}
                         </div>
                       )}
-                      <h5 style={{ fontSize: "11px", margin: 0, textTransform: "uppercase", color: designerHeaderColor, fontWeight: "bold" }}>{school?.name}</h5>
-                      <span style={{ fontSize: "7px", color: "#475569" }}>P.O. Box {school?.poBox || "Kampala, Uganda"}</span>
-                      {designerMotto && (
-                        <p style={{ margin: "2px 0 0", fontSize: "7px", fontStyle: "italic", fontWeight: "bold", color: "#475569" }}>
-                          Motto: "{designerMotto}"
-                        </p>
-                      )}
-                      <h6 style={{ fontSize: "8px", margin: "6px 0 0", textTransform: "uppercase", textDecoration: "underline", color: "black", fontWeight: "bold" }}>
-                        {designerTitle || "OFFICIAL ACADEMIC REPORT CARD"}
-                      </h6>
-                    </div>
-                    
-                    {/* Student Info */}
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", marginBottom: "10px", borderBottom: "1px solid #e2e8f0", paddingBottom: "6px" }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "2px", fontSize: "8px", flex: 1 }}>
-                        <div><strong>Student:</strong> Kakooza Ronald</div>
-                        <div><strong>Class:</strong> Primary One</div>
-                        <div><strong>Roll No:</strong> STD-2026-004</div>
-                        {designerShowResidency && (
-                          <div><strong>Residency:</strong> Day Student</div>
+                      
+                      <div style={{ textAlign: "center", flex: 1 }}>
+                        <h4 style={{ fontSize: "14px", margin: 0, textTransform: "uppercase", color: designerHeaderColor, fontWeight: 900, letterSpacing: "0.5px" }}>{school?.name || "ST. NOA MAWAGGALI S.S.S"}</h4>
+                        <div style={{ fontSize: "6.5px", color: "#334155", margin: "2px 0", lineHeight: "1.3" }}>
+                          {designerWebsite && <span>Website: {designerWebsite} | </span>}
+                          {designerTikTok && <span>TikTok: {designerTikTok} | </span>}
+                          <span>P.O. Box {school?.poBox || "1922, JINJA"}</span>
+                          <br />
+                          {designerLocation && <span>Located: {designerLocation} | </span>}
+                          <span>Email: {school?.contactEmail || "stnoamawaggaliss@gmail.com"} | Tel: {school?.contactPhone || "0772658134"}</span>
+                        </div>
+                        {designerMotto && (
+                          <p style={{ margin: "2px 0 0", fontSize: "7px", fontStyle: "italic", fontWeight: "bold", color: "#475569" }}>
+                            Motto: "{designerMotto}"
+                          </p>
                         )}
+                        <h5 style={{ fontSize: "9px", margin: "6px 0 0", textTransform: "uppercase", textDecoration: "underline", color: "black", fontWeight: "bold" }}>
+                          {designerTitle || "END OF TERM I REPORT CARD"}
+                        </h5>
                       </div>
+
                       {designerShowStudentPhoto && (
-                        <div style={{ width: "32px", height: "34px", border: "1px solid #cbd5e1", borderRadius: "3px", display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9", fontSize: "6px", color: "#94a3b8", flexShrink: 0 }}>
-                          Photo
+                        <div style={{ width: "42px", height: "46px", border: "1px solid #cbd5e1", borderRadius: "3px", display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9", fontSize: "6px", color: "#94a3b8", flexShrink: 0, fontWeight: "bold" }}>
+                          Portrait
                         </div>
                       )}
                     </div>
                     
-                    {/* Marks Mock Table */}
-                    <div style={{ border: "1px solid #cbd5e1", borderRadius: "3px", padding: "4px", marginBottom: "10px", background: "#f8fafc" }}>
-                      <div style={{ fontWeight: "bold", fontSize: "8px", marginBottom: "4px" }}>Academic Marks Assessment</div>
-                      <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #e2e8f0", paddingBottom: "2px", marginBottom: "2px" }}>
-                        <span>Mathematics</span>
-                        <strong>92% (PLE: 1)</strong>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <span>English Language</span>
-                        <strong>85% (PLE: 1)</strong>
-                      </div>
+                    {/* Student Info Grid */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px", fontSize: "8px", borderBottom: "1px solid #cbd5e1", paddingBottom: "6px", marginBottom: "8px", fontWeight: "500" }}>
+                      <div><strong>Student Name:</strong> Acheing Janell Rihanna</div>
+                      <div><strong>Sex:</strong> F</div>
+                      <div><strong>Class:</strong> S.1 E</div>
+                      {designerShowLIN && <div><strong>Learner ID (LIN):</strong> LIN-2026-X83</div>}
+                      {designerShowPayCode && <div><strong>School Pay Code:</strong> PAY-8831-29</div>}
+                      <div><strong>Academic Term:</strong> Term 1 (2026)</div>
+                      {designerShowResidency && <div><strong>Residency Type:</strong> Day Student</div>}
                     </div>
                     
-                    {/* Secondary CBC box */}
+                    {/* Marks Mock Table */}
+                    <div style={{ marginBottom: "10px" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "7.5px", color: "black" }}>
+                        <thead>
+                          <tr style={{ background: "#f1f5f9", textAlign: "center", fontWeight: "bold" }}>
+                            <th style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "left" }} rowSpan={2}>SUBJECT</th>
+                            <th style={{ border: "1px solid #cbd5e1", padding: "3px" }} colSpan={8}>FORMATIVE ASSESSMENT SCORES (AOI & PROJECT WORK)</th>
+                            <th style={{ border: "1px solid #cbd5e1", padding: "3px" }} rowSpan={2}>SUMM.<br />(80)</th>
+                            <th style={{ border: "1px solid #cbd5e1", padding: "3px" }} rowSpan={2}>OVERALL<br />(100%)</th>
+                            <th style={{ border: "1px solid #cbd5e1", padding: "3px" }} rowSpan={2}>GRADE</th>
+                            <th style={{ border: "1px solid #cbd5e1", padding: "3px" }} rowSpan={2}>INIT.</th>
+                          </tr>
+                          <tr style={{ background: "#f1f5f9", textAlign: "center", fontWeight: "bold" }}>
+                            <th style={{ border: "1px solid #cbd5e1", padding: "2px" }}>U1</th>
+                            <th style={{ border: "1px solid #cbd5e1", padding: "2px" }}>U2</th>
+                            <th style={{ border: "1px solid #cbd5e1", padding: "2px" }}>U3</th>
+                            <th style={{ border: "1px solid #cbd5e1", padding: "2px" }}>PTS</th>
+                            <th style={{ border: "1px solid #cbd5e1", padding: "2px" }}>AVR</th>
+                            <th style={{ border: "1px solid #cbd5e1", padding: "2px" }}>Out 10</th>
+                            <th style={{ border: "1px solid #cbd5e1", padding: "2px" }}>IDENT</th>
+                            <th style={{ border: "1px solid #cbd5e1", padding: "2px" }}>DESC</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", fontWeight: "bold" }}>ENGLISH LANGUAGE</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>2.7</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>-</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>-</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>2.7</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>2.7</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>9.0</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>3.0</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>Outstanding</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>54.0</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center", fontWeight: "bold" }}>72%</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center", fontWeight: "bold" }}>B</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>M.M</td>
+                          </tr>
+                          <tr>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", fontWeight: "bold" }}>MATHEMATICS</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>2.4</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>-</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>-</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>2.4</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>2.4</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>8.0</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>2.0</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>Moderate</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>3.0</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center", fontWeight: "bold" }}>19%</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center", fontWeight: "bold" }}>E</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>K.S</td>
+                          </tr>
+                          <tr>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", fontWeight: "bold" }}>CHEMISTRY</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>3.0</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>3.0</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>-</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>6.0</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>3.0</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>10.0</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>3.0</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>Outstanding</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>32.0</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center", fontWeight: "bold" }}>52%</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center", fontWeight: "bold" }}>D</td>
+                            <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>N.H</td>
+                          </tr>
+                          {designerShowSummaryRow && (
+                            <tr style={{ background: "#f8fafc", fontWeight: "bold" }}>
+                              <td style={{ border: "1px solid #cbd5e1", padding: "3px" }}>OVERALL AVERAGE</td>
+                              <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }} colSpan={3}>CLASS RANK: 67 / 73</td>
+                              <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>AVG PT: 2.3</td>
+                              <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>IDENT: 2</td>
+                              <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }} colSpan={2}>DESC: Moderate</td>
+                              <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }}>SUMM AVG: 30%</td>
+                              <td style={{ border: "1px solid #cbd5e1", padding: "3px", textAlign: "center" }} colSpan={3}>TOT SCORE: 364</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                    
+                    {/* Performance Chart Mockup */}
+                    {designerShowChart && (
+                      <div style={{ border: "1px solid #cbd5e1", borderRadius: "3px", padding: "6px", background: "white", marginBottom: "8px" }}>
+                        <div style={{ fontWeight: "bold", fontSize: "7px", marginBottom: "4px", textAlign: "center", color: "#475569" }}>Subject Performance Chart</div>
+                        <svg viewBox="0 0 300 80" style={{ width: "100%", height: "auto" }}>
+                          {/* Y-axis gridlines */}
+                          <line x1="20" y1="10" x2="290" y2="10" stroke="#e2e8f0" strokeWidth="0.5" />
+                          <line x1="20" y1="30" x2="290" y2="30" stroke="#e2e8f0" strokeWidth="0.5" />
+                          <line x1="20" y1="50" x2="290" y2="50" stroke="#e2e8f0" strokeWidth="0.5" />
+                          <line x1="20" y1="70" x2="290" y2="70" stroke="#cbd5e1" strokeWidth="0.8" />
+                          
+                          {/* Bars */}
+                          {/* Eng (72%) -> height = 43px. y = 27 */}
+                          <rect x="50" y="27" width="20" height="43" fill={designerHeaderColor} rx="1" />
+                          <text x="60" y="23" fontSize="6px" textAnchor="middle" fontWeight="bold">72</text>
+                          <text x="60" y="77" fontSize="5px" textAnchor="middle" fill="#64748b">ENG</text>
+
+                          {/* Math (19%) -> height = 11px. y = 59 */}
+                          <rect x="110" y="59" width="20" height="11" fill="#ef4444" rx="1" />
+                          <text x="120" y="55" fontSize="6px" textAnchor="middle" fontWeight="bold">19</text>
+                          <text x="120" y="77" fontSize="5px" textAnchor="middle" fill="#64748b">MTH</text>
+
+                          {/* Chem (52%) -> height = 31px. y = 39 */}
+                          <rect x="170" y="39" width="20" height="31" fill="#f59e0b" rx="1" />
+                          <text x="180" y="35" fontSize="6px" textAnchor="middle" fontWeight="bold">52</text>
+                          <text x="180" y="77" fontSize="5px" textAnchor="middle" fill="#64748b">CHM</text>
+
+                          {/* Bio (28%) -> height = 17px. y = 53 */}
+                          <rect x="230" y="53" width="20" height="17" fill="#f59e0b" rx="1" />
+                          <text x="240" y="49" fontSize="6px" textAnchor="middle" fontWeight="bold">28</text>
+                          <text x="240" y="77" fontSize="5px" textAnchor="middle" fill="#64748b">BIO</text>
+                        </svg>
+                      </div>
+                    )}
+
+                    {/* CBC Guidelines Legend */}
                     {designerShowRules && (
-                      <div style={{ background: "#f1f5f9", padding: "6px", borderRadius: "4px", fontSize: "7px", border: "1px solid #cbd5e1", marginBottom: "10px", lineHeight: "1.3" }}>
-                        <strong>CBC Guidelines:</strong> Competence letter grades map Continuous projects assessments continuously.
+                      <div style={{ background: "#f8fafc", padding: "4px", borderRadius: "3px", fontSize: "6.5px", border: "1px solid #cbd5e1", marginBottom: "8px", lineHeight: "1.3" }}>
+                        <strong>Uganda Lower Secondary CBC Guidelines:</strong> Scores from Activities of Integration (AOIs) are graded from 1 to 3. Continuous assessment reports represent 20% of final grade, end of term exams represent 80%.
+                      </div>
+                    )}
+
+                    {/* Comments */}
+                    {designerShowComments && (
+                      <div style={{ borderTop: "1px dashed #cbd5e1", paddingTop: "6px", marginTop: "6px", fontSize: "7px", lineHeight: "1.4" }}>
+                        <div><strong>Class Teacher's Comment:</strong> <span style={{ fontStyle: "italic", textDecoration: "underline", color: "#1e3a8a" }}>Acheing, it would be great to see some improvement in your weakest subjects in the future.</span></div>
+                        <div><strong>Class Teacher's Name:</strong> Mr. Okongo Wilson &nbsp;&nbsp;&nbsp;&nbsp; <strong>Signature:</strong> _________________</div>
+                        <div style={{ marginTop: "3px" }}><strong>Head Teacher's Comment:</strong> <span style={{ fontStyle: "italic", textDecoration: "underline", color: "#059669" }}>Consult more on what is lacking</span></div>
+                      </div>
+                    )}
+                    
+                    {/* Fees display */}
+                    {designerShowFees && (
+                      <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid #cbd5e1", paddingTop: "4px", marginTop: "4px", fontSize: "7px", fontWeight: "bold" }}>
+                        <span>Next Term Fees: 150,000 UGX</span>
+                        <span>Outstanding Dues: 0 UGX</span>
+                        <span>Total: 150,000 UGX</span>
+                      </div>
+                    )}
+
+                    {/* Term Dates */}
+                    {designerShowTermDates && (
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "6.5px", color: "#475569", marginTop: "4px", borderTop: "1px dashed #cbd5e1", paddingTop: "4px" }}>
+                        <span>This term ended: Thursday, April 30, 2026</span>
+                        <span>Next term begins: Sunday, May 24, 2026</span>
                       </div>
                     )}
                     
                     {/* Signatures */}
                     {designerShowSignatures && (
                       <div style={{ display: "flex", justifyContent: "space-between", marginTop: "14px", fontSize: "7px" }}>
-                        <div style={{ borderTop: "1px solid black", width: "60px", textAlign: "center", paddingTop: "2px" }}>Teacher</div>
-                        <div style={{ borderTop: "1px solid black", width: "60px", textAlign: "center", paddingTop: "2px" }}>Head Teacher</div>
-                        <div style={{ borderTop: "1px solid black", width: "60px", textAlign: "center", paddingTop: "2px" }}>Stamp</div>
+                        <div style={{ borderTop: "1px solid black", width: "70px", textAlign: "center", paddingTop: "2px" }}>Class Teacher</div>
+                        <div style={{ borderTop: "1px solid black", width: "70px", textAlign: "center", paddingTop: "2px" }}>Head Teacher</div>
+                        <div style={{ borderTop: "1px solid black", width: "70px", textAlign: "center", paddingTop: "2px" }}>Signature & Stamp</div>
                       </div>
                     )}
                     

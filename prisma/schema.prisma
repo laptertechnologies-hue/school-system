@@ -76,6 +76,16 @@ model School {
   cbU2Active         Boolean?  @default(true)
   cbEtActive         Boolean?  @default(true)
   cbHpgActive        Boolean?  @default(true)
+  reportTikTok       String?   @default("")
+  reportWebsite      String?   @default("")
+  reportLocation     String?   @default("")
+  reportShowChart    Boolean?  @default(true)
+  reportShowLIN      Boolean?  @default(true)
+  reportShowPayCode  Boolean?  @default(true)
+  reportShowComments Boolean?  @default(true)
+  reportShowFees     Boolean?  @default(true)
+  reportShowTermDates Boolean? @default(true)
+  reportShowSummaryRow Boolean? @default(true)
   gradeRanges         GradeRange[]
 }
 

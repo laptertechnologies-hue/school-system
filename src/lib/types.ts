@@ -49,6 +49,16 @@ export interface School {
   cbU2Active?: boolean | null;
   cbEtActive?: boolean | null;
   cbHpgActive?: boolean | null;
+  reportTikTok?: string | null;
+  reportWebsite?: string | null;
+  reportLocation?: string | null;
+  reportShowChart?: boolean | null;
+  reportShowLIN?: boolean | null;
+  reportShowPayCode?: boolean | null;
+  reportShowComments?: boolean | null;
+  reportShowFees?: boolean | null;
+  reportShowTermDates?: boolean | null;
+  reportShowSummaryRow?: boolean | null;
 }
 
 export interface User {

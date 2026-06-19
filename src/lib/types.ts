@@ -61,6 +61,7 @@ export interface User {
   createdAt: Date;
   photo?: string | null;
   staffNumber?: string | null;
+  contact?: string | null; // Staff/Teacher phone number for SMS
   mustChangePassword?: boolean;
 }
 
@@ -87,9 +88,10 @@ export interface Student {
   type: "DAY" | "BOARDING";
   photo?: string | null;
   lin?: string | null;
-  studentPaymentCode?: string | null;
+  studentPaymentCode?: string | null; // Admin-assigned identifier for payments
   registrationNumber?: string | null;
   gender?: string | null;
+  parentContact?: string | null; // Parent/Guardian phone number for SMS
 }
 
 export interface Subject {
@@ -222,4 +224,37 @@ export interface Attendance {
   status: "PRESENT" | "ABSENT" | "SICK";
   term: number;
   year: number;
+}
+
+export interface SmsLog {
+  id: string;
+  schoolId: string;
+  sentById: string;
+  sentByName: string;
+  audience: string;
+  targetClassName?: string | null;
+  message: string;
+  recipientCount: number;
+  successCount: number;
+  failedCount: number;
+  totalCharged: number;
+  profitCollected: number;
+  smsCost: number;
+  payerPhone?: string | null;
+  marzPayRef?: string | null;
+  status: string;
+  creditUsed: boolean;
+  createdAt: Date;
+}
+
+export interface SmsCredit {
+  id: string;
+  schoolId: string;
+  creditsPurchased: number;
+  creditsUsed: number;
+  marzPayRef?: string | null;
+  payerPhone?: string | null;
+  amountPaid: number;
+  status: string;
+  purchasedAt: Date;
 }

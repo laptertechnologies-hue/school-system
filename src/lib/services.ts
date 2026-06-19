@@ -22,7 +22,9 @@ import type {
   FeeStructure,
   StudentPayment,
   Expense,
-  Attendance
+  Attendance,
+  SmsLog,
+  SmsCredit
 } from "./types";
 
 
@@ -445,6 +447,7 @@ export async function createUser(data: Omit<User, "id" | "createdAt">): Promise<
           role: data.role,
           photo: data.photo || null,
           staffNumber: data.staffNumber || null,
+          contact: data.contact || null,
           mustChangePassword: data.mustChangePassword ?? true,
         },
       })) as User;
@@ -1297,29 +1300,217 @@ export async function checkMarzpayCollectionStatus(uuid: string): Promise<any> {
   }
 }
 
-// --- SMS Broadcasting Simulation ---
-export async function sendSmsBroadcast(schoolId: string, group: string, message: string): Promise<any> {
-  const logDir = path.join(process.cwd(), "logs");
-  if (!fs.existsSync(logDir)) {
-    fs.mkdirSync(logDir, { recursive: true });
-  }
-  const logPath = path.join(logDir, "sms_broadcasts.log");
-  const timestamp = new Date().toISOString();
-  const logEntry = `[${timestamp}] School: ${schoolId} | Group: ${group} | Message: "${message}"\n`;
-  
+// --- SMS Log Management ---
+export async function getSmsLogs(schoolId: string): Promise<SmsLog[]> {
   try {
-    fs.appendFileSync(logPath, logEntry, "utf8");
-    return {
-      status: "success",
-      timestamp,
-      count: group === "Class Parents" ? 45 : group === "All Staff" ? 18 : 280
-    };
+    if (await hasDB()) {
+      const logs = await prisma.smsLog.findMany({
+        where: { schoolId },
+        orderBy: { createdAt: "desc" }
+      });
+      return logs as SmsLog[];
+    }
   } catch (err: any) {
-    console.error("SMS Broadcast Logging Failed:", err);
-    return {
-      status: "failed",
-      message: err.message
-    };
+    console.error("Prisma error in getSmsLogs:", err);
+  }
+  const db = getLocalDB();
+  if (!db.smsLogs) db.smsLogs = [];
+  return db.smsLogs.filter((l: SmsLog) => l.schoolId === schoolId)
+    .sort((a: SmsLog, b: SmsLog) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+export async function saveSmsLog(data: Omit<SmsLog, "id" | "createdAt">): Promise<SmsLog> {
+  try {
+    if (await hasDB()) {
+      return (await prisma.smsLog.create({ data })) as SmsLog;
+    }
+  } catch (err: any) {
+    console.error("Prisma error in saveSmsLog:", err);
+  }
+  const db = getLocalDB();
+  if (!db.smsLogs) db.smsLogs = [];
+  const newLog: SmsLog = { ...data, id: "slog-" + uuid(), createdAt: new Date() };
+  db.smsLogs.push(newLog);
+  saveLocalDB(db);
+  return newLog;
+}
+
+export async function updateSmsLog(id: string, data: Partial<Omit<SmsLog, "id" | "schoolId" | "createdAt">>): Promise<SmsLog> {
+  try {
+    if (await hasDB()) {
+      return (await prisma.smsLog.update({ where: { id }, data })) as SmsLog;
+    }
+  } catch (err: any) {
+    console.error("Prisma error in updateSmsLog:", err);
+  }
+  const db = getLocalDB();
+  if (!db.smsLogs) db.smsLogs = [];
+  const idx = db.smsLogs.findIndex((l: SmsLog) => l.id === id);
+  if (idx !== -1) {
+    db.smsLogs[idx] = { ...db.smsLogs[idx], ...data };
+    saveLocalDB(db);
+    return db.smsLogs[idx];
+  }
+  throw new Error("SmsLog not found");
+}
+
+// --- SMS Credits Management ---
+export async function getSmsCredits(schoolId: string): Promise<SmsCredit[]> {
+  try {
+    if (await hasDB()) {
+      return (await prisma.smsCredit.findMany({ where: { schoolId }, orderBy: { purchasedAt: "desc" } })) as SmsCredit[];
+    }
+  } catch (err: any) {
+    console.error("Prisma error in getSmsCredits:", err);
+  }
+  const db = getLocalDB();
+  if (!db.smsCredits) db.smsCredits = [];
+  return db.smsCredits.filter((c: SmsCredit) => c.schoolId === schoolId);
+}
+
+export async function getTotalAvailableSmsCredits(schoolId: string): Promise<number> {
+  const credits = await getSmsCredits(schoolId);
+  const confirmed = credits.filter(c => c.status === "CONFIRMED");
+  return confirmed.reduce((sum, c) => sum + (c.creditsPurchased - c.creditsUsed), 0);
+}
+
+export async function deductSmsCredits(schoolId: string, amount: number): Promise<void> {
+  let remaining = amount;
+  try {
+    if (await hasDB()) {
+      const credits = await prisma.smsCredit.findMany({
+        where: { schoolId, status: "CONFIRMED" },
+        orderBy: { purchasedAt: "asc" }
+      });
+      for (const credit of credits) {
+        if (remaining <= 0) break;
+        const available = credit.creditsPurchased - credit.creditsUsed;
+        const deduct = Math.min(available, remaining);
+        await prisma.smsCredit.update({ where: { id: credit.id }, data: { creditsUsed: credit.creditsUsed + deduct } });
+        remaining -= deduct;
+      }
+      return;
+    }
+  } catch (err: any) {
+    console.error("Prisma error in deductSmsCredits:", err);
+  }
+  const db = getLocalDB();
+  if (!db.smsCredits) return;
+  for (const credit of db.smsCredits.filter((c: SmsCredit) => c.schoolId === schoolId && c.status === "CONFIRMED")) {
+    if (remaining <= 0) break;
+    const available = credit.creditsPurchased - credit.creditsUsed;
+    const deduct = Math.min(available, remaining);
+    credit.creditsUsed += deduct;
+    remaining -= deduct;
+  }
+  saveLocalDB(db);
+}
+
+export async function saveSmsCredit(data: Omit<SmsCredit, "id" | "purchasedAt">): Promise<SmsCredit> {
+  try {
+    if (await hasDB()) {
+      return (await prisma.smsCredit.create({ data })) as SmsCredit;
+    }
+  } catch (err: any) {
+    console.error("Prisma error in saveSmsCredit:", err);
+  }
+  const db = getLocalDB();
+  if (!db.smsCredits) db.smsCredits = [];
+  const newCredit: SmsCredit = { ...data, id: "scred-" + uuid(), purchasedAt: new Date() };
+  db.smsCredits.push(newCredit);
+  saveLocalDB(db);
+  return newCredit;
+}
+
+export async function updateSmsCredit(id: string, data: Partial<Omit<SmsCredit, "id" | "schoolId">>): Promise<SmsCredit> {
+  try {
+    if (await hasDB()) {
+      return (await prisma.smsCredit.update({ where: { id }, data })) as SmsCredit;
+    }
+  } catch (err: any) {
+    console.error("Prisma error in updateSmsCredit:", err);
+  }
+  const db = getLocalDB();
+  if (!db.smsCredits) db.smsCredits = [];
+  const idx = db.smsCredits.findIndex((c: SmsCredit) => c.id === id);
+  if (idx !== -1) {
+    db.smsCredits[idx] = { ...db.smsCredits[idx], ...data };
+    saveLocalDB(db);
+    return db.smsCredits[idx];
+  }
+  throw new Error("SmsCredit not found");
+}
+
+// --- Real MarzSMS Send ---
+const MARZ_SMS_API_KEY = process.env.MARZ_SMS_API_KEY || "";
+const MARZ_SMS_API_SECRET = process.env.MARZ_SMS_API_SECRET || "";
+const MARZ_SMS_BASE64 = process.env.MARZ_SMS_BASE64 || "";
+
+function getMarzSmsAuthHeader(): string {
+  if (MARZ_SMS_BASE64) return `Basic ${MARZ_SMS_BASE64}`;
+  if (MARZ_SMS_API_KEY && MARZ_SMS_API_SECRET) {
+    const encoded = Buffer.from(`${MARZ_SMS_API_KEY}:${MARZ_SMS_API_SECRET}`).toString("base64");
+    return `Basic ${encoded}`;
+  }
+  return "";
+}
+
+export async function getMarzSmsBalance(): Promise<{ success: boolean; balance?: number; costPerSms?: number; currency?: string; error?: string }> {
+  try {
+    const auth = getMarzSmsAuthHeader();
+    if (!auth) return { success: false, error: "MarzSMS API credentials not configured" };
+    const response = await fetch("https://sms.wearemarz.com/api/v1/account/balance", {
+      method: "GET",
+      headers: { "Authorization": auth }
+    });
+    const result = await response.json();
+    if (result.success && result.data) {
+      return { success: true, balance: result.data.balance, costPerSms: result.data.cost_per_sms, currency: result.data.currency };
+    }
+    return { success: false, error: result.message || "Failed to get balance" };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Network error" };
+  }
+}
+
+export async function sendRealSms(recipients: string[], message: string): Promise<{
+  success: boolean;
+  totalSent: number;
+  totalFailed: number;
+  results?: any[];
+  error?: string;
+}> {
+  try {
+    const auth = getMarzSmsAuthHeader();
+    if (!auth) return { success: false, totalSent: 0, totalFailed: recipients.length, error: "MarzSMS API credentials not configured" };
+
+    // Format recipients: normalize Uganda phone numbers
+    const formattedRecipients = recipients.map(phone => {
+      let p = phone.trim().replace(/\s+/g, "");
+      if (p.startsWith("0")) p = "+256" + p.substring(1);
+      else if (p.startsWith("256") && !p.startsWith("+")) p = "+" + p;
+      else if (!p.startsWith("+")) p = "+256" + p;
+      return p;
+    });
+
+    const recipientStr = formattedRecipients.join(", ");
+    const response = await fetch("https://sms.wearemarz.com/api/v1/sms/send", {
+      method: "POST",
+      headers: { "Authorization": auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ recipient: recipientStr, message })
+    });
+    const result = await response.json();
+    if (result.success && result.data) {
+      return {
+        success: true,
+        totalSent: result.data.successful || 0,
+        totalFailed: result.data.failed || 0,
+        results: result.data.results
+      };
+    }
+    return { success: false, totalSent: 0, totalFailed: recipients.length, error: result.message || "SMS send failed" };
+  } catch (err: any) {
+    return { success: false, totalSent: 0, totalFailed: recipients.length, error: err.message || "Network error" };
   }
 }
 

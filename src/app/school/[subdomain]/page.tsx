@@ -2,7 +2,7 @@
 import React, { useState, useEffect, use } from "react";
 import * as XLSX from "xlsx";
 import type { 
-  School, User, Class, Stream, Student, Subject, ExamPaper, Mark, Payment, FeeStructure, StudentPayment, Expense, GradeRange, TeacherSubject, SchoolPayTransaction
+  School, User, Class, Stream, Student, Subject, ExamPaper, Mark, Payment, FeeStructure, StudentPayment, Expense, GradeRange, TeacherSubject, SchoolPayTransaction, SmsLog, SmsCredit
 } from "../../../lib/types";
 import { 
   checkDatabaseConnection, getSchoolBySubdomain, getUsers, getClasses, getStreams, getStudents, getSubjects,
@@ -10,11 +10,13 @@ import {
   createClass, createStream, createUser, createStudent, createSubject, createExamPaper, updateExamPaper, deleteExamPaper, addMark,
   createFeeStructure, recordStudentPayment, createExpense, recordAttendance, promoteStudents,
   processTeacherSalary, createPayment, getPayments, updateSchoolStatus, updateSchoolMetadata,
-  initiateMarzpayCollection, checkMarzpayCollectionStatus, sendSmsBroadcast,
+  initiateMarzpayCollection, checkMarzpayCollectionStatus,
   updateStudent, deleteStudent, updateUser, deleteUser, getGradeRanges, saveGradeRanges,
   getTeacherSubjects, createTeacherSubject, deleteTeacherSubject, resetUserPassword, runDiagnostics,
   deleteStudentPayment, getSchoolPayTransactions,
-  updateClass, deleteClass, updateStream, deleteStream, deleteSubject
+  updateClass, deleteClass, updateStream, deleteStream, deleteSubject,
+  getSmsLogs, saveSmsLog, updateSmsLog, getSmsCredits, saveSmsCredit, updateSmsCredit,
+  getTotalAvailableSmsCredits, deductSmsCredits, getMarzSmsBalance, sendRealSms
 } from "../../../lib/services";
 
 import { Database, CreditCard, Building2, CheckCircle, MessageSquare, Sliders, User as UserIcon, Calendar } from "lucide-react";
@@ -184,9 +186,11 @@ export default function SchoolPortal({ params }: PageProps) {
   const [newStudentPaymentCode, setNewStudentPaymentCode] = useState("");
   const [newStudentRegNumber, setNewStudentRegNumber] = useState("");
   const [newStudentGender, setNewStudentGender] = useState<"MALE" | "FEMALE">("MALE");
+  const [newStudentParentContact, setNewStudentParentContact] = useState("");
 
   const [newTeacherPhoto, setNewTeacherPhoto] = useState("");
   const [newTeacherStaffNumber, setNewTeacherStaffNumber] = useState("");
+  const [newTeacherContact, setNewTeacherContact] = useState("");
 
   // Modals view/edit states for Students
   const [selectedViewStudent, setSelectedViewStudent] = useState<Student | null>(null);
@@ -217,6 +221,11 @@ export default function SchoolPortal({ params }: PageProps) {
   const [editStaffRole, setEditStaffRole] = useState<"ADMIN" | "TEACHER" | "DOS" | "HEADTEACHER" | "DIRECTOR">("TEACHER");
   const [editStaffNumber, setEditStaffNumber] = useState("");
   const [editStaffPhoto, setEditStaffPhoto] = useState("");
+  const [editStaffContact, setEditStaffContact] = useState("");
+
+  // Edit student extra fields
+  const [editStudentParentContact, setEditStudentParentContact] = useState("");
+  const [editStudentPaymentCode, setEditStudentPaymentCode] = useState("");
 
   // Class & Stream edit states
   const [showEditClassModal, setShowEditClassModal] = useState(false);
@@ -429,11 +438,24 @@ export default function SchoolPortal({ params }: PageProps) {
   const [momoCompletedSplits, setMomoCompletedSplits] = useState<{ amount: number; uuid: string }[]>([]);
 
   // SMS Broadcaster States
-  const [smsCredits, setSmsCredits] = useState(500);
-  const [smsGroup, setSmsGroup] = useState("All Parents");
+  const [smsGroup, setSmsGroup] = useState("CLASS_PARENTS");
   const [smsTemplate, setSmsTemplate] = useState("");
   const [smsMessage, setSmsMessage] = useState("");
-  const [smsLogs, setSmsLogs] = useState<any[]>([]);
+  const [smsLogs, setSmsLogs] = useState<SmsLog[]>([]);
+  const [smsCredits, setSmsCredits] = useState<SmsCredit[]>([]);
+  const [smsTotalCredits, setSmsTotalCredits] = useState(0);
+  const [smsTargetClassId, setSmsTargetClassId] = useState("");
+  const [smsPayerPhone, setSmsPayerPhone] = useState("");
+  const [smsPaymentMode, setSmsPaymentMode] = useState<"PER_SEND" | "USE_CREDITS">("PER_SEND");
+  const [smsSendStatus, setSmsSendStatus] = useState<"idle" | "collecting" | "sending" | "done" | "error">("idle");
+  const [smsSendResult, setSmsSendResult] = useState<any>(null);
+  const [smsMarzBalance, setSmsMarzBalance] = useState<number | null>(null);
+  // Credit purchase states
+  const [showBuyCreditModal, setShowBuyCreditModal] = useState(false);
+  const [buyCreditsAmount, setBuyCreditsAmount] = useState(10);
+  const [buyCreditsPhone, setBuyCreditsPhone] = useState("");
+  const [buyCreditsStatus, setBuyCreditsStatus] = useState<"idle" | "collecting" | "done" | "error">("idle");
+  const [buyCreditsResult, setBuyCreditsResult] = useState<any>(null);
 
   // Rank and Totals calculator for Report Cards
   const getStudentRankAndTotals = (studentId: string, classId: string, examPaperId: string) => {
@@ -838,7 +860,6 @@ export default function SchoolPortal({ params }: PageProps) {
       const pmts = await getPayments(schoolId);
       pmts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setPayments(pmts);
-
       if (school?.packageType === "PREMIUM") {
         setFeeStructures(await getFeeStructures(schoolId));
         setStudentPayments(await getStudentPayments(schoolId));
@@ -852,6 +873,20 @@ export default function SchoolPortal({ params }: PageProps) {
           setSelectedPayStudentId(studs[0].id);
         }
       }
+
+      // Load SMS logs and credits
+      try {
+        const logs = await getSmsLogs(schoolId);
+        setSmsLogs(logs);
+        const credits = await getSmsCredits(schoolId);
+        setSmsCredits(credits);
+        const totalCredits = credits.filter(c => c.status === "CONFIRMED")
+          .reduce((sum, c) => sum + (c.creditsPurchased - c.creditsUsed), 0);
+        setSmsTotalCredits(totalCredits);
+      } catch {}
+
+      // Pre-set SMS target class to first class
+      if (cls.length > 0) setSmsTargetClassId(cls[0].id);
     } catch (err) {
       console.error("Error loading data:", err);
     }
@@ -1212,6 +1247,7 @@ export default function SchoolPortal({ params }: PageProps) {
         role: newTeacherRole,
         photo: newTeacherPhoto || null,
         staffNumber: newTeacherStaffNumber || null,
+        contact: newTeacherContact || null,
       });
       if (!res.success) {
         alert("Failed to create staff account: " + res.error);
@@ -1221,6 +1257,7 @@ export default function SchoolPortal({ params }: PageProps) {
       setNewTeacherEmail("");
       setNewTeacherPassword("password");
       setNewTeacherPhoto("");
+      setNewTeacherContact("");
       await loadSchoolData(school.id);
       alert("Staff member user account created successfully!");
     } catch (err: any) {
@@ -1246,6 +1283,7 @@ export default function SchoolPortal({ params }: PageProps) {
         studentPaymentCode: newStudentPaymentCode || null,
         registrationNumber: newStudentRegNumber || null,
         gender: newStudentGender,
+        parentContact: newStudentParentContact || null,
       });
       setNewStudentName("");
       setNewStudentNumber("");
@@ -1254,6 +1292,7 @@ export default function SchoolPortal({ params }: PageProps) {
       setNewStudentPaymentCode("");
       setNewStudentRegNumber("");
       setNewStudentGender("MALE");
+      setNewStudentParentContact("");
       await loadSchoolData(school.id);
       alert("Student registered successfully!");
     } catch (err: any) {
@@ -1339,10 +1378,10 @@ export default function SchoolPortal({ params }: PageProps) {
 
   // Excel Parsing and Template Downloads
   const downloadStudentTemplate = () => {
-    const headers = [["Name", "Student Number (Optional)", "Residency (DAY or BOARDING)", "LIN (Optional)", "Gender (MALE or FEMALE)"]];
+    const headers = [["Name", "Student Number (Optional)", "Residency (DAY or BOARDING)", "LIN (Optional)", "Gender (MALE or FEMALE)", "Pay Code (Optional)", "Parent Contact (Optional)"]];
     const sampleData = [
-      ["Namusoke Joy", "", "DAY", "", "FEMALE"],
-      ["Opio Peter", "STU-0002", "BOARDING", "LIN-98765432", "MALE"]
+      ["Namusoke Joy", "", "DAY", "", "FEMALE", "194570001", "0771234567"],
+      ["Opio Peter", "STU-0002", "BOARDING", "LIN-98765432", "MALE", "194570002", "0700987654"]
     ];
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet([]);
@@ -1417,6 +1456,8 @@ export default function SchoolPortal({ params }: PageProps) {
         let typeStr = row[2] ? String(row[2]).trim() : "DAY";
         let lin = row[3] ? String(row[3]).trim() : "";
         let genderStr = row[4] ? String(row[4]).trim() : "MALE";
+        let payCode = row[5] ? String(row[5]).trim() : "";
+        let parentContact = row[6] ? String(row[6]).trim() : "";
 
         if (!studentNumber) {
           existingCount++;
@@ -1444,6 +1485,8 @@ export default function SchoolPortal({ params }: PageProps) {
           photo: null,
           lin: lin || null,
           gender: genderVal,
+          studentPaymentCode: payCode || null,
+          parentContact: parentContact || null,
         });
         successCount++;
         setImportStudentProgress(i);
@@ -1708,6 +1751,150 @@ export default function SchoolPortal({ params }: PageProps) {
   };
 
   // Save marks for a class
+  const handleDownloadMarksTemplate = () => {
+    if (!selectedExamId || !selectedSubjectId || !selectedClassId || !selectedStreamId) {
+      alert("Please select exam, class, stream, and subject first.");
+      return;
+    }
+    const currentExam = exams.find(ex => ex.id === selectedExamId);
+    if (!currentExam) return;
+
+    const relevantStudents = students.filter(st => st.classId === selectedClassId && st.streamId === selectedStreamId);
+    if (relevantStudents.length === 0) {
+      alert("No students found in the selected class and stream.");
+      return;
+    }
+
+    let headers: string[] = [];
+    if (currentExam.isNewCurriculum) {
+      headers = ["Student Number", "Student Name"];
+      if (currentExam.cbU1Active !== false) headers.push("U1 (%)");
+      if (currentExam.cbU2Active !== false) headers.push("U2 (%)");
+      if (currentExam.cbEtActive !== false) headers.push("E.T (%)");
+      if (currentExam.cbHpgActive !== false) headers.push("HPG (%)");
+      headers.push("EOY (%)");
+      headers.push("Remarks");
+    } else {
+      headers = ["Student Number", "Student Name", "Score", "Remarks"];
+    }
+
+    const templateData = relevantStudents.map(st => {
+      const row: any[] = [st.studentNumber, st.name];
+      if (currentExam.isNewCurriculum) {
+        if (currentExam.cbU1Active !== false) row.push("");
+        if (currentExam.cbU2Active !== false) row.push("");
+        if (currentExam.cbEtActive !== false) row.push("");
+        if (currentExam.cbHpgActive !== false) row.push("");
+        row.push("");
+        row.push("");
+      } else {
+        row.push("");
+        row.push("");
+      }
+      return row;
+    });
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...templateData]);
+    // Set column widths
+    const wscols = [
+      { wch: 15 }, // Student Number
+      { wch: 25 }, // Student Name
+      ...Array(headers.length - 2).fill({ wch: 10 }), // Scores
+      { wch: 30 } // Remarks
+    ];
+    ws['!cols'] = wscols;
+
+    XLSX.utils.book_append_sheet(wb, ws, "Marks Template");
+    const streamName = streams.find(s => s.id === selectedStreamId)?.name || "";
+    const subjectName = subjects.find(s => s.id === selectedSubjectId)?.name || "";
+    XLSX.writeFile(wb, `Marks_Template_${streamName}_${subjectName}.xlsx`);
+  };
+
+  const handleBulkMarksUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!selectedExamId || !selectedSubjectId || !selectedClassId || !selectedStreamId) {
+      alert("Please select exam, class, stream, and subject first.");
+      if (e.target) e.target.value = '';
+      return;
+    }
+
+    const currentExam = exams.find(ex => ex.id === selectedExamId);
+    if (!currentExam) return;
+
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: "binary" });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json<any>(ws, { header: 1 });
+
+        if (data.length < 2) {
+          alert("The Excel file is empty or missing data.");
+          return;
+        }
+
+        const headers = data[0] as string[];
+        const rows = data.slice(1);
+        let successCount = 0;
+
+        rows.forEach(row => {
+          if (!row[0]) return; // Skip empty rows
+          const studentNumber = row[0].toString();
+          const st = students.find(s => s.studentNumber === studentNumber && s.classId === selectedClassId && s.streamId === selectedStreamId);
+          if (!st) return;
+
+          const studentId = st.id;
+          if (currentExam.isNewCurriculum) {
+            let colIdx = 2; // Starts after Student Number and Student Name
+            if (currentExam.cbU1Active !== false) {
+              const val = row[colIdx];
+              if (val !== undefined && val !== null && val !== "") setInputU1(prev => ({ ...prev, [studentId]: val.toString() }));
+              colIdx++;
+            }
+            if (currentExam.cbU2Active !== false) {
+              const val = row[colIdx];
+              if (val !== undefined && val !== null && val !== "") setInputU2(prev => ({ ...prev, [studentId]: val.toString() }));
+              colIdx++;
+            }
+            if (currentExam.cbEtActive !== false) {
+              const val = row[colIdx];
+              if (val !== undefined && val !== null && val !== "") setInputU3(prev => ({ ...prev, [studentId]: val.toString() }));
+              colIdx++;
+            }
+            if (currentExam.cbHpgActive !== false) {
+              const val = row[colIdx];
+              if (val !== undefined && val !== null && val !== "") setInputHPG(prev => ({ ...prev, [studentId]: val.toString() }));
+              colIdx++;
+            }
+            const eoyVal = row[colIdx];
+            if (eoyVal !== undefined && eoyVal !== null && eoyVal !== "") setInputEOY(prev => ({ ...prev, [studentId]: eoyVal.toString() }));
+            colIdx++;
+
+            const remarkVal = row[colIdx];
+            if (remarkVal !== undefined && remarkVal !== null && remarkVal !== "") setInputComments(prev => ({ ...prev, [studentId]: remarkVal.toString() }));
+          } else {
+            const scoreVal = row[2];
+            if (scoreVal !== undefined && scoreVal !== null && scoreVal !== "") setInputScores(prev => ({ ...prev, [studentId]: scoreVal.toString() }));
+            const remarkVal = row[3];
+            if (remarkVal !== undefined && remarkVal !== null && remarkVal !== "") setInputComments(prev => ({ ...prev, [studentId]: remarkVal.toString() }));
+          }
+          successCount++;
+        });
+
+        alert(`Successfully imported marks for ${successCount} students. Please review the grid and click "Save Grid Marks" to save.`);
+      } catch (err: any) {
+        alert("Error parsing Excel file: " + (err.message || err));
+      }
+    };
+    reader.readAsBinaryString(file);
+    if (e.target) e.target.value = ''; // Reset input
+  };
+
   const handleSaveMarks = async () => {
     if (!selectedExamId || !selectedSubjectId || !currentUser) {
       alert("Please select exam and subject first.");
@@ -4992,15 +5179,27 @@ export default function SchoolPortal({ params }: PageProps) {
                         onChange={(e) => setNewStudentPaymentCode(e.target.value)}
                       />
                     </div>
-                    <div className="form-group" style={{ marginBottom: "16px" }}>
-                      <label className="form-label">Registration Number</label>
-                      <input 
-                        type="text" 
-                        className="input-field" 
-                        placeholder="e.g. REG-123" 
-                        value={newStudentRegNumber}
-                        onChange={(e) => setNewStudentRegNumber(e.target.value)}
-                      />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="form-group" style={{ marginBottom: "16px" }}>
+                        <label className="form-label">📱 Parent Contact</label>
+                        <input 
+                          type="tel" 
+                          className="input-field" 
+                          placeholder="e.g. 0771234567" 
+                          value={newStudentParentContact}
+                          onChange={(e) => setNewStudentParentContact(e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: "16px" }}>
+                        <label className="form-label">Registration Number</label>
+                        <input 
+                          type="text" 
+                          className="input-field" 
+                          placeholder="e.g. REG-123" 
+                          value={newStudentRegNumber}
+                          onChange={(e) => setNewStudentRegNumber(e.target.value)}
+                        />
+                      </div>
                     </div>
                     <div className="form-group" style={{ marginBottom: "16px" }}>
                       <label className="form-label">Student Portrait Photo (Required)</label>
@@ -5108,6 +5307,8 @@ export default function SchoolPortal({ params }: PageProps) {
                                           setEditStudentPhotoChanged(false);
                                           setEditStudentLin(st.lin || "");
                                           setEditStudentGender((st.gender as any) || "MALE");
+                                          setEditStudentParentContact(st.parentContact || "");
+                                          setEditStudentPaymentCode(st.studentPaymentCode || "");
                                           setShowEditStudentModal(true);
                                         }}
                                         className="btn btn-outline" 
@@ -5241,6 +5442,16 @@ export default function SchoolPortal({ params }: PageProps) {
                         value={newTeacherStaffNumber}
                         onChange={(e) => setNewTeacherStaffNumber(e.target.value)}
                         required
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginTop: "12px" }}>
+                      <label className="form-label">📱 Staff Phone Contact</label>
+                      <input 
+                        type="tel" 
+                        className="input-field" 
+                        placeholder="e.g. 0701234567" 
+                        value={newTeacherContact}
+                        onChange={(e) => setNewTeacherContact(e.target.value)}
                       />
                     </div>
                     <div className="form-group" style={{ marginBottom: "16px" }}>
@@ -5895,7 +6106,18 @@ export default function SchoolPortal({ params }: PageProps) {
                         : `Max marks for this paper is: ${exams.find(e => e.id === selectedExamId)?.maxMarks || 100}`}
                     </span>
                   </div>
-                  <button onClick={handleSaveMarks} className="btn btn-primary">Save Grid Marks</button>
+                  <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                    <button onClick={handleDownloadMarksTemplate} className="btn btn-outline" style={{ fontSize: "12px", padding: "6px 12px", background: "white" }}>
+                      📥 Download Excel Template
+                    </button>
+                    <label className="btn btn-outline" style={{ fontSize: "12px", padding: "6px 12px", background: "white", cursor: "pointer", margin: 0 }}>
+                      📤 Upload Marks via Excel
+                      <input type="file" accept=".xlsx, .xls" style={{ display: "none" }} onChange={handleBulkMarksUpload} />
+                    </label>
+                    <button onClick={handleSaveMarks} className="btn btn-primary" style={{ padding: "6px 16px" }}>
+                      💾 Save Grid Marks
+                    </button>
+                  </div>
                 </div>
 
                 <div className="table-container">
@@ -7829,148 +8051,379 @@ export default function SchoolPortal({ params }: PageProps) {
         )}
 
         {/* TAB: SMS BROADCASTER */}
-        {activeTab === "sms" && (
+        {activeTab === "sms" && ["ADMIN", "HEADTEACHER", "DOS", "DIRECTOR"].includes(currentUser.role) && (
           <div className="tab-content-anim">
-            <h2 style={{ marginBottom: "10px" }}>SMS Broadcast Center</h2>
-            <p style={{ color: "#64748b", marginBottom: "30px" }}>Draft, template, and dispatch term announcements or fee reminders directly to student contacts.</p>
-            
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }} className="flex-mobile-col">
-              <div className="card">
-                <h4 style={{ marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px" }}><MessageSquare size={18} /> Dispatch Broadcast Message</h4>
-                
-                {/* Form */}
-                <form onSubmit={async (e) => {
-                  e.preventDefault();
-                  if (!school) return;
-                  if (!smsMessage) {
-                    alert("Please write a message first.");
-                    return;
-                  }
-                  if (smsCredits < 1) {
-                    alert("Insufficient SMS credits.");
-                    return;
-                  }
-                  try {
-                    const res = await sendSmsBroadcast(school.id, smsGroup, smsMessage);
-                    if (res && res.status === "success") {
-                      // Deduct simulated credits
-                      const cost = res.count;
-                      setSmsCredits(prev => Math.max(0, prev - cost));
-                      
-                      // Add log
-                      const newLog = {
-                        id: Math.random().toString(36).substring(7),
-                        date: new Date().toLocaleString(),
-                        group: smsGroup,
-                        message: smsMessage,
-                        count: res.count,
-                        status: "Delivered"
-                      };
-                      setSmsLogs(prev => [newLog, ...prev]);
-                      setSmsMessage("");
-                      alert(`SMS broadcast successfully dispatched to ${res.count} contacts!`);
-                    } else {
-                      alert("Failed to send broadcast: " + res?.message);
-                    }
-                  } catch (err: any) {
-                    alert("Error queuing broadcast: " + (err.message || err));
-                  }
-                }}>
-                  <div className="form-group">
-                    <label className="form-label">Recipient Group</label>
-                    <select className="input-field" value={smsGroup} onChange={(e) => setSmsGroup(e.target.value)}>
-                      <option value="All Parents">All Student Parents ({students.length} contacts)</option>
-                      <option value="All Staff">All School Staff ({users.length} contacts)</option>
-                      <option value="Class Parents">Class Parents - P1/S1 (45 contacts)</option>
-                    </select>
-                  </div>
-                  
-                  <div className="form-group">
-                    <label className="form-label">Load Template</label>
-                    <select 
-                      className="input-field" 
-                      value={smsTemplate} 
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setSmsTemplate(val);
-                        if (val === "defaulter") {
-                          setSmsMessage(`Dear Parent, this is a reminder from ${school?.name} that your child's term tuition balance remains unpaid. Please clear it urgently. Thank you.`);
-                        } else if (val === "report") {
-                          setSmsMessage(`Dear Parent, Academic Report Cards for Term 1 have been finalized. You are invited for parent-teacher discussions on Friday at the school. DOS.`);
-                        } else if (val === "welcome") {
-                          setSmsMessage(`Welcome back to the new term at ${school?.name}! We look forward to a successful and productive term with your child.`);
-                        } else {
-                          setSmsMessage("");
-                        }
-                      }}
-                    >
-                      <option value="">-- Choose message template --</option>
-                      <option value="defaulter">Tuition Fee Defaulter Reminder</option>
-                      <option value="report">Report Cards Release Announcement</option>
-                      <option value="welcome">New Term Resumption Welcome</option>
-                    </select>
-                  </div>
-                  
-                  <div className="form-group">
-                    <label className="form-label">Message (Max 160 chars per SMS)</label>
-                    <textarea 
-                      className="input-field" 
-                      style={{ minHeight: "120px", fontFamily: "var(--font-sans)", resize: "none" }}
-                      maxLength={480}
-                      value={smsMessage}
-                      onChange={(e) => setSmsMessage(e.target.value)}
-                      placeholder="Write your text message here..."
-                      required
-                    />
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#64748b", marginTop: "4px" }}>
-                      <span>{smsMessage.length} characters</span>
-                      <span>{Math.ceil(smsMessage.length / 160)} SMS Parts</span>
-                    </div>
-                  </div>
-                  
-                  <button type="submit" className="btn btn-primary hover-scale" style={{ width: "100%", padding: "12px" }}>
-                    🚀 Dispatch SMS Queue
-                  </button>
-                </form>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px", flexWrap: "wrap", gap: "12px" }}>
+              <div>
+                <h2 style={{ marginBottom: "4px" }}>📱 SMS Broadcast Center</h2>
+                <p style={{ color: "#64748b", margin: 0 }}>Send real SMS messages to parents and staff via MarzSMS. Cost: <strong>40 UGX/SMS</strong> (30 UGX SMS + 10 UGX service fee).</p>
               </div>
-              
-              <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-                {/* Credit Balance Card */}
-                <div className="card" style={{ display: "flex", alignItems: "center", gap: "16px", background: "linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)", color: "white", border: "none" }}>
-                  <div style={{ padding: "16px", borderRadius: "12px", background: "rgba(255,255,255,0.2)" }}>
-                    <MessageSquare size={32} />
+              <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                {smsMarzBalance !== null && (
+                  <span style={{ background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", borderRadius: "8px", padding: "6px 14px", fontSize: "13px", fontWeight: 600 }}>
+                    MarzSMS Balance: {smsMarzBalance.toLocaleString()} UGX
+                  </span>
+                )}
+                <button className="btn btn-outline" style={{ fontSize: "12px", padding: "6px 14px" }} onClick={async () => {
+                  const bal = await getMarzSmsBalance();
+                  if (bal.success) setSmsMarzBalance(bal.balance ?? null);
+                  else alert("Could not fetch balance: " + bal.error);
+                }}>🔄 Check Balance</button>
+                <button className="btn btn-primary" style={{ fontSize: "12px", padding: "6px 14px" }} onClick={() => setShowBuyCreditModal(true)}>
+                  💳 Buy Credits ({smsTotalCredits} left)
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: "24px" }} className="flex-mobile-col">
+              {/* LEFT: Compose Form */}
+              <div className="card" style={{ background: "white" }}>
+                <h4 style={{ marginBottom: "18px", display: "flex", alignItems: "center", gap: "8px", color: "var(--primary)" }}>
+                  <MessageSquare size={18} /> Compose & Send SMS
+                </h4>
+
+                {/* Audience */}
+                <div className="form-group">
+                  <label className="form-label">📣 Recipient Audience</label>
+                  <select className="input-field" value={smsGroup} onChange={(e) => setSmsGroup(e.target.value)}>
+                    <option value="CLASS_PARENTS">Parents of a Specific Class</option>
+                    <option value="ALL_TEACHERS">All Teachers / Staff</option>
+                    <option value="ALL">Everyone (All Parents + Staff)</option>
+                  </select>
+                </div>
+
+                {/* Class selector (only when CLASS_PARENTS) */}
+                {smsGroup === "CLASS_PARENTS" && (
+                  <div className="form-group">
+                    <label className="form-label">🏫 Select Class</label>
+                    <select className="input-field" value={smsTargetClassId} onChange={(e) => setSmsTargetClassId(e.target.value)}>
+                      {classes.map(c => {
+                        const classStudents = students.filter(s => s.classId === c.id && s.parentContact);
+                        return <option key={c.id} value={c.id}>{c.name} ({classStudents.length} contacts)</option>;
+                      })}
+                    </select>
                   </div>
-                  <div>
-                    <span style={{ fontSize: "12px", textTransform: "uppercase", opacity: 0.8 }}>Simulated SMS Balance</span>
-                    <h2 style={{ fontSize: "32px", fontWeight: 800 }}>{smsCredits.toLocaleString()} Credits</h2>
-                    <span style={{ fontSize: "11px", opacity: 0.7 }}>Recharge requests can be simulated via settings.</span>
+                )}
+
+                {/* Message Template */}
+                <div className="form-group">
+                  <label className="form-label">📝 Load Template</label>
+                  <select className="input-field" value={smsTemplate} onChange={(e) => {
+                    const val = e.target.value;
+                    setSmsTemplate(val);
+                    if (val === "defaulter") setSmsMessage(`Dear Parent, this is a reminder from ${school?.name} that your child's school fees remain outstanding. Please clear urgently. Thank you.`);
+                    else if (val === "report") setSmsMessage(`Dear Parent, Academic Report Cards for this term have been finalized. Please collect from the school office. DOS, ${school?.name}.`);
+                    else if (val === "welcome") setSmsMessage(`Welcome back to ${school?.name}! We look forward to a productive term. Please ensure your child reports on time.`);
+                    else if (val === "meeting") setSmsMessage(`Dear Parent/Guardian, you are invited to a Parent-Teacher meeting at ${school?.name} on [DATE] at [TIME]. Please attend.`);
+                    else setSmsMessage("");
+                  }}>
+                    <option value="">-- Choose a template --</option>
+                    <option value="defaulter">🔴 Fee Defaulter Reminder</option>
+                    <option value="report">📋 Report Cards Release</option>
+                    <option value="welcome">🎉 New Term Welcome</option>
+                    <option value="meeting">📅 Parent-Teacher Meeting</option>
+                  </select>
+                </div>
+
+                {/* Message textarea */}
+                <div className="form-group">
+                  <label className="form-label">✉️ Message (max 320 characters = 2 SMS units)</label>
+                  <textarea
+                    className="input-field"
+                    style={{ minHeight: "100px", fontFamily: "var(--font-sans)", resize: "none" }}
+                    maxLength={320}
+                    value={smsMessage}
+                    onChange={(e) => setSmsMessage(e.target.value)}
+                    placeholder="Write your message here..."
+                  />
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#64748b", marginTop: "4px" }}>
+                    <span>{smsMessage.length}/320 characters</span>
+                    <span>{smsMessage.length <= 160 ? "1 SMS unit" : "2 SMS units"} per recipient</span>
                   </div>
                 </div>
-                
-                {/* Sent Logs Card */}
-                <div className="card" style={{ flex: 1 }}>
-                  <h4 style={{ marginBottom: "16px" }}>Recent Dispatches History</h4>
-                  <div className="table-container" style={{ maxHeight: "250px", overflowY: "auto" }}>
-                    <table className="table">
+
+                {/* Live cost calculator */}
+                {(() => {
+                  let recipients: string[] = [];
+                  if (smsGroup === "CLASS_PARENTS") {
+                    recipients = students.filter(s => s.classId === smsTargetClassId && s.parentContact).map(s => s.parentContact!);
+                  } else if (smsGroup === "ALL_TEACHERS") {
+                    recipients = users.filter(u => u.contact).map(u => u.contact!);
+                  } else {
+                    const parentContacts = students.filter(s => s.parentContact).map(s => s.parentContact!);
+                    const staffContacts = users.filter(u => u.contact).map(u => u.contact!);
+                    recipients = [...new Set([...parentContacts, ...staffContacts])];
+                  }
+                  const smsUnits = smsMessage.length <= 160 ? 1 : 2;
+                  const totalCost = recipients.length * smsUnits * 40;
+                  const profitAmount = recipients.length * smsUnits * 10;
+                  const smsCostAmount = recipients.length * smsUnits * 30;
+                  return (
+                    <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "14px", marginBottom: "16px" }}>
+                      <div style={{ fontWeight: 600, marginBottom: "8px", color: "#0f172a", fontSize: "13px" }}>📊 Cost Estimate</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: "12px" }}>
+                        <span style={{ color: "#64748b" }}>Recipients with contacts:</span>
+                        <span style={{ fontWeight: 600 }}>{recipients.length}</span>
+                        <span style={{ color: "#64748b" }}>SMS units/message:</span>
+                        <span style={{ fontWeight: 600 }}>{smsUnits}</span>
+                        <span style={{ color: "#64748b" }}>Total SMS to send:</span>
+                        <span style={{ fontWeight: 600 }}>{recipients.length * smsUnits}</span>
+                        <span style={{ color: "#64748b" }}>Cost per SMS:</span>
+                        <span style={{ fontWeight: 600 }}>40 UGX</span>
+                        <span style={{ color: "#dc2626", fontWeight: 600 }}>Total Amount Needed:</span>
+                        <span style={{ color: "#dc2626", fontWeight: 700 }}>{totalCost.toLocaleString()} UGX</span>
+                        <span style={{ color: "#059669", fontSize: "11px" }}>↳ Your profit (10 UGX×{recipients.length * smsUnits}):</span>
+                        <span style={{ color: "#059669", fontWeight: 600 }}>{profitAmount.toLocaleString()} UGX</span>
+                        <span style={{ color: "#3b82f6", fontSize: "11px" }}>↳ SMS cost (30 UGX×{recipients.length * smsUnits}):</span>
+                        <span style={{ color: "#3b82f6", fontWeight: 600 }}>{smsCostAmount.toLocaleString()} UGX</span>
+                      </div>
+                      {recipients.length === 0 && (
+                        <div style={{ marginTop: "8px", color: "#ef4444", fontSize: "12px" }}>
+                          ⚠️ No contacts found for this audience. Make sure students/staff have phone numbers saved.
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Payment mode */}
+                <div className="form-group">
+                  <label className="form-label">💳 Payment Method</label>
+                  <div style={{ display: "flex", gap: "12px" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", padding: "8px 14px", borderRadius: "8px", border: smsPaymentMode === "PER_SEND" ? "2px solid var(--primary)" : "1px solid #e2e8f0", background: smsPaymentMode === "PER_SEND" ? "#eff6ff" : "white", flex: 1, justifyContent: "center" }}>
+                      <input type="radio" name="smsPayMode" checked={smsPaymentMode === "PER_SEND"} onChange={() => setSmsPaymentMode("PER_SEND")} />
+                      <span style={{ fontSize: "13px", fontWeight: 500 }}>Pay Per Send</span>
+                    </label>
+                    <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", padding: "8px 14px", borderRadius: "8px", border: smsPaymentMode === "USE_CREDITS" ? "2px solid var(--primary)" : "1px solid #e2e8f0", background: smsPaymentMode === "USE_CREDITS" ? "#eff6ff" : "white", flex: 1, justifyContent: "center" }}>
+                      <input type="radio" name="smsPayMode" checked={smsPaymentMode === "USE_CREDITS"} onChange={() => setSmsPaymentMode("USE_CREDITS")} />
+                      <span style={{ fontSize: "13px", fontWeight: 500 }}>Use Credits ({smsTotalCredits} left)</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Payer phone (only for PER_SEND) */}
+                {smsPaymentMode === "PER_SEND" && (
+                  <div className="form-group">
+                    <label className="form-label">📱 Your MTN/Airtel Number (for MoMo payment)</label>
+                    <input
+                      type="tel"
+                      className="input-field"
+                      placeholder="e.g. 0771234567 or 0701234567"
+                      value={smsPayerPhone}
+                      onChange={(e) => setSmsPayerPhone(e.target.value)}
+                    />
+                    <div style={{ fontSize: "11px", color: "#64748b", marginTop: "4px" }}>You will receive a USSD prompt to approve the payment. Minimum charge: 500 UGX.</div>
+                  </div>
+                )}
+
+                {/* Status display */}
+                {smsSendStatus === "collecting" && (
+                  <div style={{ background: "#fef3c7", border: "1px solid #fcd34d", borderRadius: "8px", padding: "12px", marginBottom: "12px", fontSize: "13px" }}>
+                    ⏳ <strong>Waiting for payment...</strong> Please approve the MoMo prompt on your phone. Checking every 3 seconds...
+                  </div>
+                )}
+                {smsSendStatus === "sending" && (
+                  <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "8px", padding: "12px", marginBottom: "12px", fontSize: "13px" }}>
+                    📤 <strong>Sending SMS...</strong> Messages are being dispatched via MarzSMS.
+                  </div>
+                )}
+                {smsSendStatus === "done" && smsSendResult && (
+                  <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "8px", padding: "12px", marginBottom: "12px", fontSize: "13px" }}>
+                    ✅ <strong>Sent!</strong> {smsSendResult.totalSent} of {smsSendResult.totalSent + smsSendResult.totalFailed} messages delivered.
+                    {smsSendResult.totalFailed > 0 && <span style={{ color: "#dc2626" }}> {smsSendResult.totalFailed} failed.</span>}
+                  </div>
+                )}
+                {smsSendStatus === "error" && smsSendResult && (
+                  <div style={{ background: "#fff1f2", border: "1px solid #fecdd3", borderRadius: "8px", padding: "12px", marginBottom: "12px", fontSize: "13px" }}>
+                    ❌ <strong>Error:</strong> {smsSendResult.error || "An unexpected error occurred."}
+                  </div>
+                )}
+
+                <button
+                  className="btn btn-primary hover-scale"
+                  style={{ width: "100%", padding: "12px", marginTop: "8px", fontSize: "15px", fontWeight: 700, opacity: smsSendStatus === "collecting" || smsSendStatus === "sending" ? 0.6 : 1 }}
+                  disabled={smsSendStatus === "collecting" || smsSendStatus === "sending"}
+                  onClick={async () => {
+                    if (!school || !smsMessage.trim()) { alert("Please compose a message first."); return; }
+
+                    // Compute recipients
+                    let recipients: string[] = [];
+                    let targetClassName: string | undefined;
+                    if (smsGroup === "CLASS_PARENTS") {
+                      const cls = classes.find(c => c.id === smsTargetClassId);
+                      targetClassName = cls?.name;
+                      recipients = students.filter(s => s.classId === smsTargetClassId && s.parentContact).map(s => s.parentContact!);
+                    } else if (smsGroup === "ALL_TEACHERS") {
+                      recipients = users.filter(u => u.contact).map(u => u.contact!);
+                    } else {
+                      const parentContacts = students.filter(s => s.parentContact).map(s => s.parentContact!);
+                      const staffContacts = users.filter(u => u.contact).map(u => u.contact!);
+                      recipients = [...new Set([...parentContacts, ...staffContacts])];
+                    }
+
+                    if (recipients.length === 0) { alert("No contacts found for the selected audience. Please add phone numbers to students or staff."); return; }
+
+                    const smsUnits = smsMessage.length <= 160 ? 1 : 2;
+                    const totalCost = recipients.length * smsUnits * 40;
+                    const profitAmount = Math.max(500, recipients.length * smsUnits * 10); // min 500 UGX
+                    const smsCostAmount = recipients.length * smsUnits * 30;
+
+                    if (smsPaymentMode === "USE_CREDITS") {
+                      const needed = recipients.length * smsUnits;
+                      if (smsTotalCredits < needed) { alert(`Insufficient credits. You have ${smsTotalCredits} but need ${needed}. Please buy more credits.`); return; }
+                    } else {
+                      if (!smsPayerPhone.trim()) { alert("Please enter your mobile money number for payment."); return; }
+                    }
+
+                    if (!confirm(`Confirm sending SMS to ${recipients.length} recipient(s)?\n\nTotal cost: ${totalCost.toLocaleString()} UGX\n${smsPaymentMode === "PER_SEND" ? `A MoMo request of ${profitAmount.toLocaleString()} UGX will be sent to ${smsPayerPhone}.` : `${recipients.length * smsUnits} credits will be deducted.`}`)) return;
+
+                    // Create log entry
+                    const logData = {
+                      schoolId: school.id,
+                      sentById: currentUser.id,
+                      sentByName: currentUser.name,
+                      audience: smsGroup,
+                      targetClassName: targetClassName || null,
+                      message: smsMessage,
+                      recipientCount: recipients.length,
+                      successCount: 0,
+                      failedCount: 0,
+                      totalCharged: totalCost,
+                      profitCollected: profitAmount,
+                      smsCost: smsCostAmount,
+                      payerPhone: smsPaymentMode === "PER_SEND" ? smsPayerPhone : null,
+                      marzPayRef: null,
+                      status: "PENDING",
+                      creditUsed: smsPaymentMode === "USE_CREDITS",
+                    };
+
+                    let savedLog: any = null;
+                    try { savedLog = await saveSmsLog(logData); } catch {}
+
+                    if (smsPaymentMode === "PER_SEND") {
+                      // Step 1: MarzPay collection
+                      setSmsSendStatus("collecting");
+                      const collectRes = await initiateMarzpayCollection(profitAmount, "mobile_money", smsPayerPhone, `SMS Service Fee - ${school.name}`);
+                      if (!collectRes || collectRes.status !== "success") {
+                        setSmsSendStatus("error");
+                        setSmsSendResult({ error: collectRes?.message || "MarzPay collection failed. Check phone number and try again." });
+                        if (savedLog) await updateSmsLog(savedLog.id, { status: "FAILED" }).catch(() => {});
+                        return;
+                      }
+
+                      const collectionUuid = collectRes.data?.transaction?.uuid;
+                      if (savedLog && collectionUuid) await updateSmsLog(savedLog.id, { marzPayRef: collectionUuid, status: "PENDING" }).catch(() => {});
+
+                      // Poll until completed
+                      let confirmed = false;
+                      for (let attempt = 0; attempt < 20; attempt++) {
+                        await new Promise(r => setTimeout(r, 3000));
+                        const statusRes = await checkMarzpayCollectionStatus(collectionUuid);
+                        const txStatus = statusRes?.data?.transaction?.status || statusRes?.status || "";
+                        if (txStatus === "completed") { confirmed = true; break; }
+                        if (txStatus === "failed") break;
+                      }
+
+                      if (!confirmed) {
+                        setSmsSendStatus("error");
+                        setSmsSendResult({ error: "Payment not confirmed. The USSD prompt may have expired or been declined. Please try again." });
+                        if (savedLog) await updateSmsLog(savedLog.id, { status: "FAILED" }).catch(() => {});
+                        return;
+                      }
+                      if (savedLog) await updateSmsLog(savedLog.id, { status: "PAYMENT_CONFIRMED" }).catch(() => {});
+                    } else {
+                      // Use credits — deduct them
+                      await deductSmsCredits(school.id, recipients.length * smsUnits);
+                      const updCredits = await getSmsCredits(school.id);
+                      setSmsCredits(updCredits);
+                      setSmsTotalCredits(updCredits.filter(c => c.status === "CONFIRMED").reduce((s, c) => s + (c.creditsPurchased - c.creditsUsed), 0));
+                    }
+
+                    // Step 2: Send SMS
+                    setSmsSendStatus("sending");
+                    const sendRes = await sendRealSms(recipients, smsMessage);
+                    const finalStatus = sendRes.success ? "SENT" : "FAILED";
+                    if (savedLog) await updateSmsLog(savedLog.id, { status: finalStatus, successCount: sendRes.totalSent, failedCount: sendRes.totalFailed }).catch(() => {});
+
+                    setSmsSendResult(sendRes);
+                    setSmsSendStatus(sendRes.success ? "done" : "error");
+                    if (sendRes.success) setSmsMessage("");
+
+                    // Refresh logs
+                    try {
+                      const refreshedLogs = await getSmsLogs(school.id);
+                      setSmsLogs(refreshedLogs);
+                    } catch {}
+                  }}
+                >
+                  🚀 Send SMS Now
+                </button>
+              </div>
+
+              {/* RIGHT: Stats + History */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                {/* Balance card */}
+                <div className="card" style={{ background: "linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)", color: "white", border: "none", padding: "20px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                    <div style={{ padding: "14px", borderRadius: "12px", background: "rgba(255,255,255,0.2)" }}>
+                      <MessageSquare size={28} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: "11px", textTransform: "uppercase", opacity: 0.8 }}>Pre-purchased Credits</div>
+                      <div style={{ fontSize: "28px", fontWeight: 800 }}>{smsTotalCredits.toLocaleString()}</div>
+                      <div style={{ fontSize: "11px", opacity: 0.7 }}>Each credit = 1 SMS unit = 40 UGX</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stats row */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <div className="card" style={{ padding: "14px", textAlign: "center" }}>
+                    <div style={{ fontSize: "22px", fontWeight: 800, color: "var(--primary)" }}>
+                      {students.filter(s => s.parentContact).length}
+                    </div>
+                    <div style={{ fontSize: "11px", color: "#64748b" }}>Parents with contacts</div>
+                  </div>
+                  <div className="card" style={{ padding: "14px", textAlign: "center" }}>
+                    <div style={{ fontSize: "22px", fontWeight: 800, color: "#059669" }}>
+                      {users.filter(u => u.contact).length}
+                    </div>
+                    <div style={{ fontSize: "11px", color: "#64748b" }}>Staff with contacts</div>
+                  </div>
+                </div>
+
+                {/* SMS History */}
+                <div className="card" style={{ flex: 1, padding: "16px" }}>
+                  <h4 style={{ marginBottom: "12px", fontSize: "14px" }}>📜 SMS Send History</h4>
+                  <div style={{ maxHeight: "320px", overflowY: "auto" }}>
+                    <table className="table" style={{ fontSize: "12px" }}>
                       <thead>
                         <tr>
                           <th>Date</th>
-                          <th>Group</th>
+                          <th>Audience</th>
                           <th>Sent</th>
+                          <th>Cost</th>
                           <th>Status</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {smsLogs.map((log: any) => (
+                        {smsLogs.map((log) => (
                           <tr key={log.id}>
-                            <td>{log.date.split(",")[0]}</td>
-                            <td><strong>{log.group}</strong></td>
-                            <td>{log.count} SMS</td>
-                            <td><span className="badge badge-success">{log.status}</span></td>
+                            <td style={{ whiteSpace: "nowrap" }}>{new Date(log.createdAt).toLocaleDateString()}</td>
+                            <td>
+                              <strong>{log.audience === "CLASS_PARENTS" ? `${log.targetClassName || "Class"} Parents` : log.audience === "ALL_TEACHERS" ? "All Staff" : "Everyone"}</strong>
+                            </td>
+                            <td>{log.successCount}/{log.recipientCount}</td>
+                            <td>{log.totalCharged.toLocaleString()} UGX</td>
+                            <td>
+                              <span className={`badge ${log.status === "SENT" ? "badge-success" : log.status === "PENDING" || log.status === "PAYMENT_CONFIRMED" ? "badge-warning" : "badge-danger"}`}>
+                                {log.status}
+                              </span>
+                            </td>
                           </tr>
                         ))}
                         {smsLogs.length === 0 && (
-                          <tr><td colSpan={4} style={{ textAlign: "center", color: "#64748b", fontStyle: "italic", padding: "16px" }}>No SMS dispatches triggered yet.</td></tr>
+                          <tr><td colSpan={5} style={{ textAlign: "center", color: "#64748b", fontStyle: "italic", padding: "16px" }}>No SMS history yet.</td></tr>
                         )}
                       </tbody>
                     </table>
@@ -7978,6 +8431,99 @@ export default function SchoolPortal({ params }: PageProps) {
                 </div>
               </div>
             </div>
+
+            {/* Buy Credits Modal */}
+            {showBuyCreditModal && (
+              <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15,23,42,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1200, padding: "20px" }}>
+                <div className="card" style={{ width: "100%", maxWidth: "420px", background: "white", padding: "30px", boxShadow: "var(--shadow-lg)" }}>
+                  <h3 style={{ marginBottom: "20px", borderBottom: "1px solid var(--border)", paddingBottom: "10px" }}>💳 Buy SMS Credits</h3>
+                  <p style={{ color: "#64748b", marginBottom: "18px", fontSize: "13px" }}>
+                    Pre-purchase SMS credits at <strong>40 UGX each</strong>. Credits are deducted when you send (no MoMo prompt needed per-send).
+                  </p>
+                  <div className="form-group">
+                    <label className="form-label">Number of Credits to Buy</label>
+                    <input type="number" min={1} className="input-field" value={buyCreditsAmount} onChange={(e) => setBuyCreditsAmount(Number(e.target.value))} />
+                    <div style={{ fontSize: "12px", color: "#64748b", marginTop: "4px" }}>
+                      Total: <strong>{(buyCreditsAmount * 40).toLocaleString()} UGX</strong> (min MoMo charge: 500 UGX = {Math.ceil(500/40)} credits min)
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">📱 Your MTN/Airtel Number</label>
+                    <input type="tel" className="input-field" placeholder="e.g. 0771234567" value={buyCreditsPhone} onChange={(e) => setBuyCreditsPhone(e.target.value)} />
+                  </div>
+
+                  {buyCreditsStatus === "collecting" && (
+                    <div style={{ background: "#fef3c7", border: "1px solid #fcd34d", borderRadius: "8px", padding: "10px", marginBottom: "12px", fontSize: "13px" }}>
+                      ⏳ Waiting for MoMo payment approval...
+                    </div>
+                  )}
+                  {buyCreditsStatus === "done" && (
+                    <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "8px", padding: "10px", marginBottom: "12px", fontSize: "13px" }}>
+                      ✅ Credits purchased successfully! Your balance is now <strong>{smsTotalCredits}</strong>.
+                    </div>
+                  )}
+                  {buyCreditsStatus === "error" && buyCreditsResult && (
+                    <div style={{ background: "#fff1f2", border: "1px solid #fecdd3", borderRadius: "8px", padding: "10px", marginBottom: "12px", fontSize: "13px" }}>
+                      ❌ {buyCreditsResult.error || "Payment failed. Please try again."}
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+                    <button
+                      className="btn btn-primary" style={{ flex: 1 }}
+                      disabled={buyCreditsStatus === "collecting"}
+                      onClick={async () => {
+                        if (!school || !buyCreditsPhone.trim() || buyCreditsAmount < 1) { alert("Please fill all fields."); return; }
+                        const amount = Math.max(500, buyCreditsAmount * 40);
+                        setBuyCreditsStatus("collecting");
+                        const collectRes = await initiateMarzpayCollection(amount, "mobile_money", buyCreditsPhone, `SMS Credit Purchase - ${school.name}`);
+                        if (!collectRes || collectRes.status !== "success") {
+                          setBuyCreditsStatus("error");
+                          setBuyCreditsResult({ error: collectRes?.message || "MarzPay failed." });
+                          return;
+                        }
+                        const uuid = collectRes.data?.transaction?.uuid;
+                        // Save pending credit
+                        const newCredit = await saveSmsCredit({
+                          schoolId: school.id,
+                          creditsPurchased: buyCreditsAmount,
+                          creditsUsed: 0,
+                          marzPayRef: uuid,
+                          payerPhone: buyCreditsPhone,
+                          amountPaid: amount,
+                          status: "PENDING",
+                        }).catch(() => null);
+                        // Poll
+                        let confirmed = false;
+                        for (let i = 0; i < 20; i++) {
+                          await new Promise(r => setTimeout(r, 3000));
+                          const s = await checkMarzpayCollectionStatus(uuid);
+                          const st = s?.data?.transaction?.status || s?.status || "";
+                          if (st === "completed") { confirmed = true; break; }
+                          if (st === "failed") break;
+                        }
+                        if (confirmed && newCredit) {
+                          await updateSmsCredit(newCredit.id, { status: "CONFIRMED" }).catch(() => {});
+                          const updCredits = await getSmsCredits(school.id);
+                          setSmsCredits(updCredits);
+                          setSmsTotalCredits(updCredits.filter(c => c.status === "CONFIRMED").reduce((s, c) => s + (c.creditsPurchased - c.creditsUsed), 0));
+                          setBuyCreditsStatus("done");
+                        } else {
+                          if (newCredit) await updateSmsCredit(newCredit.id, { status: "FAILED" as any }).catch(() => {});
+                          setBuyCreditsStatus("error");
+                          setBuyCreditsResult({ error: "Payment not confirmed. USSD prompt may have expired." });
+                        }
+                      }}
+                    >
+                      {buyCreditsStatus === "collecting" ? "⏳ Processing..." : "💳 Pay & Buy Credits"}
+                    </button>
+                    <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => { setShowBuyCreditModal(false); setBuyCreditsStatus("idle"); setBuyCreditsResult(null); }}>
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -8519,7 +9065,7 @@ export default function SchoolPortal({ params }: PageProps) {
       {/* 2. Edit Student Modal */}
       {showEditStudentModal && selectedEditStudent && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1050, padding: "20px" }}>
-          <div className="card" style={{ width: "100%", maxWidth: "450px", background: "white", padding: "30px", boxShadow: "var(--shadow-lg)" }}>
+          <div className="card" style={{ width: "100%", maxWidth: "480px", background: "white", padding: "30px", boxShadow: "var(--shadow-lg)", maxHeight: "90vh", overflowY: "auto" }}>
             <h3 style={{ marginBottom: "20px", borderBottom: "1px solid var(--border)", paddingBottom: "10px" }}>Edit Student Record</h3>
             
             <form onSubmit={async (e) => {
@@ -8532,6 +9078,8 @@ export default function SchoolPortal({ params }: PageProps) {
                 type: editStudentType,
                 lin: editStudentLin || null,
                 gender: editStudentGender,
+                parentContact: editStudentParentContact || null,
+                studentPaymentCode: editStudentPaymentCode || null,
                 ...(editStudentPhotoChanged ? { photo: editStudentPhoto || null } : {})
               });
               setShowEditStudentModal(false);
@@ -8604,7 +9152,7 @@ export default function SchoolPortal({ params }: PageProps) {
 
               <div className="grid grid-cols-2 gap-2">
                 <div className="form-group">
-                  <label className="form-label">Learner Identification Number (LIN)</label>
+                  <label className="form-label">LIN (Learner ID)</label>
                   <input 
                     type="text" 
                     className="input-field" 
@@ -8623,6 +9171,29 @@ export default function SchoolPortal({ params }: PageProps) {
                     <option value="MALE">Male</option>
                     <option value="FEMALE">Female</option>
                   </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="form-group">
+                  <label className="form-label">Pay Code</label>
+                  <input 
+                    type="text" 
+                    className="input-field" 
+                    placeholder="e.g. 194570001" 
+                    value={editStudentPaymentCode}
+                    onChange={(e) => setEditStudentPaymentCode(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">📱 Parent Contact</label>
+                  <input 
+                    type="tel" 
+                    className="input-field" 
+                    placeholder="e.g. 0771234567" 
+                    value={editStudentParentContact}
+                    onChange={(e) => setEditStudentParentContact(e.target.value)}
+                  />
                 </div>
               </div>
 

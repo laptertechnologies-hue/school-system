@@ -28,6 +28,8 @@ model School {
   payments     Payment[]
   expenses     Expense[]
   feeStructures FeeStructure[]
+  smsLogs      SmsLog[]
+  smsCredits   SmsCredit[]
 
   schoolPayTransactions SchoolPayTransaction[]
 
@@ -88,6 +90,7 @@ model User {
   createdAt    DateTime  @default(now())
   photo        String?
   staffNumber  String?
+  contact      String?   // Staff/Teacher phone number for SMS
   mustChangePassword Boolean @default(false)
   marksCreated Mark[]    @relation("MarkCreator")
   teacherSubjects TeacherSubject[]
@@ -131,9 +134,10 @@ model Student {
   type             String    // "DAY", "BOARDING"
   photo            String?
   lin              String?
-  studentPaymentCode String?
+  studentPaymentCode String? // Admin-assigned pay code (primary identifier for payments)
   registrationNumber String?
   gender             String?
+  parentContact    String?   // Parent/Guardian phone number for SMS
   marks            Mark[]
   studentPayments  StudentPayment[]
   attendances      Attendance[]
@@ -294,4 +298,39 @@ model SchoolPayTransaction {
   studentRegistrationNum String?
   reconciled            Boolean  @default(false)
   createdAt             DateTime @default(now())
+}
+
+model SmsLog {
+  id              String   @id @default(uuid())
+  schoolId        String
+  school          School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  sentById        String   // userId of sender
+  sentByName      String
+  audience        String   // "CLASS_PARENTS", "ALL_TEACHERS", "ALL"
+  targetClassName String?  // e.g. "P1" when audience is CLASS_PARENTS
+  message         String
+  recipientCount  Int
+  successCount    Int      @default(0)
+  failedCount     Int      @default(0)
+  totalCharged    Float    // 40 UGX × recipients × smsUnits
+  profitCollected Float    // 10 UGX × recipients × smsUnits
+  smsCost         Float    // 30 UGX × recipients × smsUnits
+  payerPhone      String?
+  marzPayRef      String?
+  status          String   @default("PENDING") // PENDING, PAYMENT_CONFIRMED, SENT, FAILED
+  creditUsed      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+}
+
+model SmsCredit {
+  id           String   @id @default(uuid())
+  schoolId     String
+  school       School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  creditsPurchased Int  // Total SMS credits bought (each credit = 1 SMS unit = 40 UGX)
+  creditsUsed  Int      @default(0)
+  marzPayRef   String?
+  payerPhone   String?
+  amountPaid   Float    // Total amount collected
+  status       String   @default("PENDING") // PENDING, CONFIRMED
+  purchasedAt  DateTime @default(now())
 }

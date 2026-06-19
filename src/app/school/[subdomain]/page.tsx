@@ -8087,22 +8087,7 @@ export default function SchoolPortal({ params }: PageProps) {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px", flexWrap: "wrap", gap: "12px" }}>
               <div>
                 <h2 style={{ marginBottom: "4px" }}>📱 SMS Broadcast Center</h2>
-                <p style={{ color: "#64748b", margin: 0 }}>Send real SMS messages to parents and staff via MarzSMS. Cost: <strong>40 UGX/SMS</strong> (30 UGX SMS + 10 UGX service fee).</p>
-              </div>
-              <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-                {smsMarzBalance !== null && (
-                  <span style={{ background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", borderRadius: "8px", padding: "6px 14px", fontSize: "13px", fontWeight: 600 }}>
-                    MarzSMS Balance: {smsMarzBalance.toLocaleString()} UGX
-                  </span>
-                )}
-                <button className="btn btn-outline" style={{ fontSize: "12px", padding: "6px 14px" }} onClick={async () => {
-                  const bal = await getMarzSmsBalance();
-                  if (bal.success) setSmsMarzBalance(bal.balance ?? null);
-                  else alert("Could not fetch balance: " + bal.error);
-                }}>🔄 Check Balance</button>
-                <button className="btn btn-primary" style={{ fontSize: "12px", padding: "6px 14px" }} onClick={() => setShowBuyCreditModal(true)}>
-                  💳 Buy Credits ({smsTotalCredits} left)
-                </button>
+                <p style={{ color: "#64748b", margin: 0 }}>Send SMS messages to parents and staff. Cost: <strong>40 UGX/SMS</strong></p>
               </div>
             </div>
 
@@ -8187,8 +8172,6 @@ export default function SchoolPortal({ params }: PageProps) {
                   }
                   const smsUnits = smsMessage.length <= 160 ? 1 : 2;
                   const totalCost = recipients.length * smsUnits * 40;
-                  const profitAmount = recipients.length * smsUnits * 10;
-                  const smsCostAmount = recipients.length * smsUnits * 30;
                   return (
                     <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "14px", marginBottom: "16px" }}>
                       <div style={{ fontWeight: 600, marginBottom: "8px", color: "#0f172a", fontSize: "13px" }}>📊 Cost Estimate</div>
@@ -8203,10 +8186,6 @@ export default function SchoolPortal({ params }: PageProps) {
                         <span style={{ fontWeight: 600 }}>40 UGX</span>
                         <span style={{ color: "#dc2626", fontWeight: 600 }}>Total Amount Needed:</span>
                         <span style={{ color: "#dc2626", fontWeight: 700 }}>{totalCost.toLocaleString()} UGX</span>
-                        <span style={{ color: "#059669", fontSize: "11px" }}>↳ Your profit (10 UGX×{recipients.length * smsUnits}):</span>
-                        <span style={{ color: "#059669", fontWeight: 600 }}>{profitAmount.toLocaleString()} UGX</span>
-                        <span style={{ color: "#3b82f6", fontSize: "11px" }}>↳ SMS cost (30 UGX×{recipients.length * smsUnits}):</span>
-                        <span style={{ color: "#3b82f6", fontWeight: 600 }}>{smsCostAmount.toLocaleString()} UGX</span>
                       </div>
                       {recipients.length === 0 && (
                         <div style={{ marginTop: "8px", color: "#ef4444", fontSize: "12px" }}>

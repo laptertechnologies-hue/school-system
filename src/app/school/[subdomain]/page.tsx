@@ -4912,7 +4912,7 @@ export default function SchoolPortal({ params }: PageProps) {
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }} className="flex-mobile-col">
+            <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: "24px" }} className="flex-mobile-col">
               {/* Configure Subjects */}
               <div className="card">
                 <h4 style={{ marginBottom: "16px" }}><PlusCircle size={18} /> Add Subject</h4>

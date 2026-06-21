@@ -652,22 +652,38 @@ export async function createStream(classId: string, name: string): Promise<Strea
   return newStream;
 }
 
-export async function updateClass(id: string, name: string, level: "PRIMARY" | "SECONDARY"): Promise<Class> {
+export async function updateClass(id: string, name: string, level: "PRIMARY" | "SECONDARY", themeColor?: string | null): Promise<Class> {
   if (await hasDB()) {
     return (await prisma.class.update({
       where: { id },
-      data: { name, level },
+      data: { name, level, themeColor },
     })) as Class;
   }
   const db = getLocalDB();
   const idx = db.classes.findIndex((c: Class) => c.id === id);
   if (idx !== -1) {
-    db.classes[idx] = { ...db.classes[idx], name, level };
+    db.classes[idx] = { ...db.classes[idx], name, level, themeColor };
     saveLocalDB(db);
     return db.classes[idx];
   }
   throw new Error("Class not found");
 }
+
+export async function deleteStudentsByClass(classId: string): Promise<boolean> {
+  if (await hasDB()) {
+    await prisma.student.deleteMany({ where: { classId } });
+    return true;
+  }
+  const db = getLocalDB();
+  const initialLength = db.students.length;
+  db.students = db.students.filter((s: Student) => s.classId !== classId);
+  if (db.students.length !== initialLength) {
+    saveLocalDB(db);
+    return true;
+  }
+  return false;
+}
+
 
 export async function deleteClass(classId: string): Promise<boolean> {
   if (await hasDB()) {

@@ -80,6 +80,7 @@ export interface Class {
   schoolId: string;
   name: string;
   level: "PRIMARY" | "SECONDARY";
+  themeColor?: string | null;
 }
 
 export interface Stream {
@@ -102,6 +103,8 @@ export interface Student {
   registrationNumber?: string | null;
   gender?: string | null;
   parentContact?: string | null; // Parent/Guardian phone number for SMS
+  classTeacherComment?: string | null;
+  headTeacherComment?: string | null;
 }
 
 export interface Subject {

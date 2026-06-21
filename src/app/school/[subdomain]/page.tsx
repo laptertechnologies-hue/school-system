@@ -11,7 +11,7 @@ import {
   createFeeStructure, recordStudentPayment, createExpense, recordAttendance, promoteStudents,
   processTeacherSalary, createPayment, getPayments, updateSchoolStatus, updateSchoolMetadata,
   initiateMarzpayCollection, checkMarzpayCollectionStatus,
-  updateStudent, deleteStudent, updateUser, deleteUser, getGradeRanges, saveGradeRanges,
+  updateStudent, deleteStudent, deleteStudentsByClass, updateUser, deleteUser, getGradeRanges, saveGradeRanges,
   getTeacherSubjects, createTeacherSubject, deleteTeacherSubject, resetUserPassword, runDiagnostics,
   deleteStudentPayment, getSchoolPayTransactions,
   updateClass, deleteClass, updateStream, deleteStream, deleteSubject,
@@ -355,6 +355,9 @@ export default function SchoolPortal({ params }: PageProps) {
   const [selectedReportTerm, setSelectedReportTerm] = useState("1");
   const [selectedReportStudent, setSelectedReportStudent] = useState<Student | null>(null);
   const [isBulkReportMode, setIsBulkReportMode] = useState(false);
+  const [selectedFilterClassId, setSelectedFilterClassId] = useState("");
+  const [tempClassTeacherComment, setTempClassTeacherComment] = useState("");
+  const [tempHeadTeacherComment, setTempHeadTeacherComment] = useState("");
 
   // Student Promotion States
   const [promoteFromClassId, setPromoteFromClassId] = useState("");
@@ -752,6 +755,16 @@ export default function SchoolPortal({ params }: PageProps) {
   const [designerShowFees, setDesignerShowFees] = useState(true);
   const [designerShowTermDates, setDesignerShowTermDates] = useState(true);
   const [designerShowSummaryRow, setDesignerShowSummaryRow] = useState(true);
+
+  useEffect(() => {
+    if (selectedReportStudent) {
+      setTempClassTeacherComment(selectedReportStudent.classTeacherComment || "");
+      setTempHeadTeacherComment(selectedReportStudent.headTeacherComment || "");
+    } else {
+      setTempClassTeacherComment("");
+      setTempHeadTeacherComment("");
+    }
+  }, [selectedReportStudent]);
 
   useEffect(() => {
     async function fetchSchool() {
@@ -1450,6 +1463,25 @@ export default function SchoolPortal({ params }: PageProps) {
         alert("Class and all associated records deleted successfully!");
       } catch (err: any) {
         alert("Error deleting class: " + (err.message || err));
+      }
+    }
+  };
+
+  const handleDeleteAllStudentsOfClass = async (classId: string) => {
+    const cls = classes.find(c => c.id === classId);
+    if (!cls) return;
+    const studentCount = students.filter(st => st.classId === classId).length;
+    if (studentCount === 0) {
+      alert(`There are no students registered in class "${cls.name}" to delete.`);
+      return;
+    }
+    if (confirm(`⚠️ WARNING: Are you sure you want to permanently delete ALL ${studentCount} students in class "${cls.name}"? This will also delete all their marks, payments, and attendance records. This action CANNOT be undone.`)) {
+      try {
+        await deleteStudentsByClass(classId);
+        await loadSchoolData(school!.id);
+        alert(`Successfully deleted all students of class "${cls.name}".`);
+      } catch (err: any) {
+        alert("Error deleting class students: " + (err.message || err));
       }
     }
   };
@@ -5187,6 +5219,14 @@ export default function SchoolPortal({ params }: PageProps) {
                                   >
                                     🗑️ Delete
                                   </button>
+                                  <button 
+                                    onClick={() => handleDeleteAllStudentsOfClass(c.id)}
+                                    className="btn btn-outline"
+                                    style={{ padding: "4px 8px", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px", color: "var(--danger)", borderColor: "var(--danger)", background: "white" }}
+                                    title="Delete all students in this class"
+                                  >
+                                    🚫 Clear Students
+                                  </button>
                                 </div>
                               </td>
                             </tr>
@@ -5395,7 +5435,32 @@ export default function SchoolPortal({ params }: PageProps) {
 
               {/* Student Directory List */}
               <div className="card">
-                <h4 style={{ marginBottom: "16px" }}>Current Enrolled Students</h4>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", marginBottom: "16px", flexWrap: "wrap" }} className="no-print">
+                  <h4 style={{ margin: 0 }}>Current Enrolled Students</h4>
+                  <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span style={{ fontSize: "12px", color: "#64748b", fontWeight: "bold" }}>Class Filter:</span>
+                      <select 
+                        className="input-field" 
+                        style={{ width: "140px", padding: "6px 10px", fontSize: "12px", height: "32px" }}
+                        value={selectedFilterClassId}
+                        onChange={(e) => setSelectedFilterClassId(e.target.value)}
+                      >
+                        <option value="">All Classes</option>
+                        {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
+                    {selectedFilterClassId && (
+                      <button 
+                        onClick={() => window.print()}
+                        className="btn btn-primary"
+                        style={{ padding: "6px 12px", fontSize: "12px", height: "32px", display: "flex", alignItems: "center", gap: "4px" }}
+                      >
+                        <Printer size={14} /> Print Attendance Sheet
+                      </button>
+                    )}
+                  </div>
+                </div>
                 <div className="table-container">
                   <table className="table">
                     <thead>
@@ -5410,10 +5475,14 @@ export default function SchoolPortal({ params }: PageProps) {
                       </tr>
                     </thead>
                     <tbody>
-                      {students.length === 0 ? (
-                        <tr><td colSpan={7} style={{ textAlign: "center", color: "#64748b" }}>No students registered yet.</td></tr>
-                      ) : (
-                        students.map(st => {
+                      {(() => {
+                        const filtered = selectedFilterClassId 
+                          ? students.filter(st => st.classId === selectedFilterClassId)
+                          : students;
+                        if (filtered.length === 0) {
+                          return <tr><td colSpan={7} style={{ textAlign: "center", color: "#64748b" }}>No students registered in this class.</td></tr>;
+                        }
+                        return filtered.map(st => {
                           const cls = classes.find(c => c.id === st.classId)?.name || "N/A";
                           const strm = streams.find(s => s.id === st.streamId)?.name || "N/A";
                           return (
@@ -5489,13 +5558,76 @@ export default function SchoolPortal({ params }: PageProps) {
                               </td>
                             </tr>
                           );
-                        })
-                      )}
+                        });
+                      })()}
                     </tbody>
                   </table>
                 </div>
               </div>
             </div>
+
+            {/* Printable Attendance Sheet (Hidden on screen, shown in print) */}
+            {selectedFilterClassId && (
+              <div id="printable-attendance-sheet" className="print-only">
+                <div style={{ textAlign: "center", marginBottom: "20px" }}>
+                  <h2 style={{ margin: "0 0 5px 0", fontSize: "20px", textTransform: "uppercase", fontWeight: "bold" }}>
+                    {school?.name}
+                  </h2>
+                  <p style={{ margin: "0", fontSize: "12px", color: "#334155" }}>
+                    P.O. Box {school?.poBox || "Kampala, Uganda"} | Tel: {school?.contactPhone}
+                  </p>
+                  <h3 style={{ margin: "15px 0 5px 0", fontSize: "14px", textTransform: "uppercase", textDecoration: "underline", fontWeight: "bold" }}>
+                    Student Attendance Register
+                  </h3>
+                  <div style={{ display: "flex", justifyContent: "center", gap: "20px", fontSize: "12px", marginTop: "5px", fontWeight: "bold" }}>
+                    <span>Class: {classes.find(c => c.id === selectedFilterClassId)?.name}</span>
+                    <span>Term: Term {school?.currentTerm || "1"}</span>
+                    <span>Year: {school?.currentYear || "2026"}</span>
+                  </div>
+                </div>
+
+                <table>
+                  <thead>
+                    <tr>
+                      <th style={{ width: "35px" }}>No.</th>
+                      <th style={{ width: "100px" }}>Student ID</th>
+                      <th style={{ width: "200px" }}>Student Name</th>
+                      <th style={{ width: "50px" }}>Gender</th>
+                      {/* 15 empty cells for marking daily attendance */}
+                      {[...Array(15)].map((_, i) => (
+                        <th key={i} style={{ width: "25px", textAlign: "center" }}>{i + 1}</th>
+                      ))}
+                      <th style={{ width: "50px" }}>Total</th>
+                      <th>Remarks</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {students.filter(st => st.classId === selectedFilterClassId).map((st, idx) => (
+                      <tr key={st.id}>
+                        <td>{idx + 1}</td>
+                        <td><code>{st.studentNumber}</code></td>
+                        <td><strong>{st.name}</strong></td>
+                        <td>{st.gender === "FEMALE" ? "F" : "M"}</td>
+                        {[...Array(15)].map((_, i) => (
+                          <td key={i} style={{ height: "24px" }}></td>
+                        ))}
+                        <td></td>
+                        <td></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <div style={{ marginTop: "40px", display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
+                  <div>
+                    Class Teacher Signature: ___________________________
+                  </div>
+                  <div>
+                    Date: ___________________________
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -6451,6 +6583,50 @@ export default function SchoolPortal({ params }: PageProps) {
                   </select>
                 </div>
 
+                <div className="form-group">
+                  <label className="form-label" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span>Class Report Theme Color</span>
+                  </label>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <input 
+                      type="color" 
+                      style={{ width: "40px", height: "36px", padding: "2px", border: "1px solid var(--border)", borderRadius: "4px", cursor: "pointer" }}
+                      value={classes.find(c => c.id === selectedReportClassId)?.themeColor || "#ffffff"}
+                      onChange={async (e) => {
+                        const classObj = classes.find(c => c.id === selectedReportClassId);
+                        if (classObj) {
+                          await updateClass(classObj.id, classObj.name, classObj.level, e.target.value);
+                          await loadSchoolData(school!.id);
+                        }
+                      }}
+                      title="Custom Color Picker"
+                    />
+                    <select
+                      className="input-field"
+                      style={{ flex: 1, padding: "6px 12px" }}
+                      value={classes.find(c => c.id === selectedReportClassId)?.themeColor || "#ffffff"}
+                      onChange={async (e) => {
+                        const classObj = classes.find(c => c.id === selectedReportClassId);
+                        if (classObj) {
+                          await updateClass(classObj.id, classObj.name, classObj.level, e.target.value);
+                          await loadSchoolData(school!.id);
+                        }
+                      }}
+                    >
+                      <option value="#ffffff">Default (White)</option>
+                      <option value="#f0f9ff">Pastel Blue (#f0f9ff)</option>
+                      <option value="#f0fdf4">Pastel Green (#f0fdf4)</option>
+                      <option value="#fffbeb">Pastel Yellow (#fffbeb)</option>
+                      <option value="#fdf2f8">Pastel Pink (#fdf2f8)</option>
+                      <option value="#faf5ff">Pastel Purple (#faf5ff)</option>
+                      <option value="#f0fdfa">Pastel Teal (#f0fdfa)</option>
+                      <option value="#f8fafc">Pastel Slate (#f8fafc)</option>
+                      <option value="#ffedd5">Pastel Orange (#ffedd5)</option>
+                      <option value="#fee2e2">Pastel Red (#fee2e2)</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div style={{ margin: "14px 0" }}>
                   <button 
                     onClick={() => {
@@ -6525,7 +6701,7 @@ export default function SchoolPortal({ params }: PageProps) {
                         const rankInfo = eotExam ? getStudentRankAndTotals(st.id, st.classId, eotExam.id) : null;
                         return (
                           <React.Fragment key={st.id}>
-                            <div className="bulk-report-card" style={{ background: "white", color: "black", borderColor: "#cbd5e1", padding: "40px", fontFamily: "Arial, sans-serif", marginBottom: "40px" }}>
+                            <div className="bulk-report-card" style={{ background: classes.find(c => c.id === selectedReportClassId)?.themeColor || "#ffffff", color: "black", borderColor: "#cbd5e1", padding: "40px", fontFamily: "Arial, sans-serif", marginBottom: "40px" }}>
                               
                               {/* School Heading */}
                               <div className="report-header" style={{ textAlign: "center", borderBottom: school.reportBorderType === "solid" ? "1px solid black" : school.reportBorderType === "none" ? "none" : "3px double black", paddingBottom: "14px", marginBottom: "20px" }}>
@@ -6693,18 +6869,25 @@ export default function SchoolPortal({ params }: PageProps) {
                                 <div className="comments-container" style={{ border: "1px solid #cbd5e1", borderRadius: "6px", padding: "12px", fontSize: "13px", marginTop: "15px", lineHeight: "1.6" }}>
                                   {(() => {
                                     const avg = parseFloat(rankInfo.studentAverage);
-                                    let classTeacherComment = "A fair performance. Focus more on your weaker subjects next term.";
-                                    let headTeacherComment = "You have potential. Push yourself harder next term.";
+                                    let classTeacherComment = st.classTeacherComment || "A fair performance. Focus more on your weaker subjects next term.";
+                                    let headTeacherComment = st.headTeacherComment || "You have potential. Push yourself harder next term.";
                                     
-                                    if (avg >= 80) {
-                                      classTeacherComment = "Excellent academic performance! Keep up the outstanding work.";
-                                      headTeacherComment = "An exceptional result. I am proud of your achievements.";
-                                    } else if (avg >= 65) {
-                                      classTeacherComment = "Very good progress. With continued effort, you can achieve even higher grades.";
-                                      headTeacherComment = "Good work. Maintain this standard.";
-                                    } else if (avg < 50) {
-                                      classTeacherComment = "Below average. You need to put in more effort and seek academic support.";
-                                      headTeacherComment = "Urgent improvement is required. Please double your efforts.";
+                                    if (!st.classTeacherComment || !st.headTeacherComment) {
+                                      let defaultClassTeacherComment = "A fair performance. Focus more on your weaker subjects next term.";
+                                      let defaultHeadTeacherComment = "You have potential. Push yourself harder next term.";
+                                      if (avg >= 80) {
+                                        defaultClassTeacherComment = "Excellent academic performance! Keep up the outstanding work.";
+                                        defaultHeadTeacherComment = "An exceptional result. I am proud of your achievements.";
+                                      } else if (avg >= 65) {
+                                        defaultClassTeacherComment = "Very good progress. With continued effort, you can achieve even higher grades.";
+                                        defaultHeadTeacherComment = "Good work. Maintain this standard.";
+                                      } else if (avg < 50) {
+                                        defaultClassTeacherComment = "Below average. You need to put in more effort and seek academic support.";
+                                        defaultHeadTeacherComment = "Urgent improvement is required. Please double your efforts.";
+                                      }
+
+                                      if (!st.classTeacherComment) classTeacherComment = defaultClassTeacherComment;
+                                      if (!st.headTeacherComment) headTeacherComment = defaultHeadTeacherComment;
                                     }
                                     
                                     return (
@@ -6794,8 +6977,58 @@ export default function SchoolPortal({ params }: PageProps) {
                         </button>
                       </div>
 
+                      {/* Comments Editor Panel (no-print) */}
+                      <div className="card no-print" style={{ marginBottom: "24px", background: "#f8fafc", borderColor: "#cbd5e1", padding: "16px", borderRadius: "8px" }}>
+                        <h4 style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "6px", fontSize: "14px", fontWeight: "bold" }}>
+                          ✏️ Customize Teacher Comments for {selectedReportStudent.name}
+                        </h4>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "12px" }}>
+                          <div className="form-group" style={{ margin: 0 }}>
+                            <label className="form-label" style={{ fontSize: "12px", marginBottom: "4px" }}>Class Teacher's Comment</label>
+                            <textarea 
+                              className="input-field"
+                              style={{ height: "60px", padding: "8px", fontSize: "13px", background: "white", color: "black", borderColor: "#cbd5e1" }}
+                              placeholder="e.g. Excellent progress..."
+                              value={tempClassTeacherComment}
+                              onChange={(e) => setTempClassTeacherComment(e.target.value)}
+                            />
+                          </div>
+                          <div className="form-group" style={{ margin: 0 }}>
+                            <label className="form-label" style={{ fontSize: "12px", marginBottom: "4px" }}>Head Teacher's Comment</label>
+                            <textarea 
+                              className="input-field"
+                              style={{ height: "60px", padding: "8px", fontSize: "13px", background: "white", color: "black", borderColor: "#cbd5e1" }}
+                              placeholder="e.g. You have potential. Push yourself harder next term."
+                              value={tempHeadTeacherComment}
+                              onChange={(e) => setTempHeadTeacherComment(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                          <button 
+                            onClick={async () => {
+                              try {
+                                await updateStudent(selectedReportStudent.id, {
+                                  classTeacherComment: tempClassTeacherComment,
+                                  headTeacherComment: tempHeadTeacherComment
+                                });
+                                await loadSchoolData(school!.id);
+                                setSelectedReportStudent(prev => prev ? { ...prev, classTeacherComment: tempClassTeacherComment, headTeacherComment: tempHeadTeacherComment } : null);
+                                alert("Comments saved successfully!");
+                              } catch (err: any) {
+                                alert("Failed to save comments: " + (err.message || err));
+                              }
+                            }}
+                            className="btn btn-primary"
+                            style={{ padding: "6px 12px", fontSize: "12px", height: "32px" }}
+                          >
+                            Save Comments
+                          </button>
+                        </div>
+                      </div>
+
                       {/* Report Card Template (Print Target) */}
-                      <div id="printable-report" className="card" style={{ background: "white", color: "black", borderColor: "#cbd5e1", padding: "40px", fontFamily: "Arial, sans-serif" }}>
+                      <div id="printable-report" className="card" style={{ background: classes.find(c => c.id === selectedReportStudent.classId)?.themeColor || "#ffffff", color: "black", borderColor: "#cbd5e1", padding: "40px", fontFamily: "Arial, sans-serif" }}>
                         
                         {/* School Heading */}
                         <div className="report-header" style={{ textAlign: "center", borderBottom: school.reportBorderType === "solid" ? "1px solid black" : school.reportBorderType === "none" ? "none" : "3px double black", paddingBottom: "14px", marginBottom: "20px" }}>
@@ -6963,18 +7196,25 @@ export default function SchoolPortal({ params }: PageProps) {
                           <div className="comments-container" style={{ border: "1px solid #cbd5e1", borderRadius: "6px", padding: "12px", fontSize: "13px", marginTop: "15px", lineHeight: "1.6" }}>
                             {(() => {
                               const avg = parseFloat(rankInfo.studentAverage);
-                              let classTeacherComment = "A fair performance. Focus more on your weaker subjects next term.";
-                              let headTeacherComment = "You have potential. Push yourself harder next term.";
+                              let classTeacherComment = selectedReportStudent.classTeacherComment || "A fair performance. Focus more on your weaker subjects next term.";
+                              let headTeacherComment = selectedReportStudent.headTeacherComment || "You have potential. Push yourself harder next term.";
                               
-                              if (avg >= 80) {
-                                classTeacherComment = "Excellent academic performance! Keep up the outstanding work.";
-                                headTeacherComment = "An exceptional result. I am proud of your achievements.";
-                              } else if (avg >= 65) {
-                                classTeacherComment = "Very good progress. With continued effort, you can achieve even higher grades.";
-                                headTeacherComment = "Good work. Maintain this standard.";
-                              } else if (avg < 50) {
-                                classTeacherComment = "Below average. You need to put in more effort and seek academic support.";
-                                headTeacherComment = "Urgent improvement is required. Please double your efforts.";
+                              if (!selectedReportStudent.classTeacherComment || !selectedReportStudent.headTeacherComment) {
+                                let defaultClassTeacherComment = "A fair performance. Focus more on your weaker subjects next term.";
+                                let defaultHeadTeacherComment = "You have potential. Push yourself harder next term.";
+                                if (avg >= 80) {
+                                  defaultClassTeacherComment = "Excellent academic performance! Keep up the outstanding work.";
+                                  defaultHeadTeacherComment = "An exceptional result. I am proud of your achievements.";
+                                } else if (avg >= 65) {
+                                  defaultClassTeacherComment = "Very good progress. With continued effort, you can achieve even higher grades.";
+                                  defaultHeadTeacherComment = "Good work. Maintain this standard.";
+                                } else if (avg < 50) {
+                                  defaultClassTeacherComment = "Below average. You need to put in more effort and seek academic support.";
+                                  defaultHeadTeacherComment = "Urgent improvement is required. Please double your efforts.";
+                                }
+
+                                if (!selectedReportStudent.classTeacherComment) classTeacherComment = defaultClassTeacherComment;
+                                if (!selectedReportStudent.headTeacherComment) headTeacherComment = defaultHeadTeacherComment;
                               }
                               
                               return (

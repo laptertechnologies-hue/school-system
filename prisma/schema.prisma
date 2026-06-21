@@ -114,6 +114,7 @@ model Class {
   school       School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   name         String    // e.g. "P1", "S4"
   level        String    // "PRIMARY", "SECONDARY"
+  themeColor   String?   // Add theme color for class report cards
   streams      Stream[]
   students     Student[]
   subjects     Subject[]
@@ -148,6 +149,8 @@ model Student {
   registrationNumber String?
   gender             String?
   parentContact    String?   // Parent/Guardian phone number for SMS
+  classTeacherComment String? // Custom class teacher comment
+  headTeacherComment  String? // Custom head teacher comment
   marks            Mark[]
   studentPayments  StudentPayment[]
   attendances      Attendance[]

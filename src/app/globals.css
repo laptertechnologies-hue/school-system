@@ -384,7 +384,8 @@ h1, h2, h3, h4, h5, h6 {
   }
 
   #printable-report, #printable-report *,
-  .bulk-printable-reports, .bulk-printable-reports * {
+  .bulk-printable-reports, .bulk-printable-reports *,
+  #printable-attendance-sheet, #printable-attendance-sheet * {
     visibility: visible !important;
   }
 
@@ -427,11 +428,12 @@ h1, h2, h3, h4, h5, h6 {
     padding: 10px 15px !important;
     border: none !important;
     border-radius: 0 !important;
-    background: white !important;
     color: black !important;
     box-shadow: none !important;
     page-break-inside: avoid !important;
     visibility: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   /* Spacing optimizations for print to fit on a single page */
@@ -652,4 +654,48 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); 
   position: relative; 
   margin: auto; 
+}
+
+/* Print-only screen and print styles */
+@media screen {
+  .print-only {
+    display: none !important;
+  }
+}
+
+@media print {
+  #printable-attendance-sheet, #printable-attendance-sheet * {
+    visibility: visible !important;
+  }
+
+  #printable-attendance-sheet {
+    display: block !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    background: white !important;
+    color: black !important;
+    padding: 20px !important;
+    font-family: Arial, sans-serif !important;
+  }
+
+  #printable-attendance-sheet table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    margin-top: 15px !important;
+  }
+
+  #printable-attendance-sheet th, #printable-attendance-sheet td {
+    border: 1px solid black !important;
+    padding: 6px 4px !important;
+    font-size: 10px !important;
+    text-align: left !important;
+  }
+
+  #printable-attendance-sheet th {
+    background-color: #f2f2f2 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
 }

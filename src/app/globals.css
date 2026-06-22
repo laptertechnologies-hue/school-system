@@ -409,7 +409,7 @@ h1, h2, h3, h4, h5, h6 {
   }
 
   /* Make sure the card holding the preview has no padding or border in print */
-  .main-workspace .card {
+  .main-workspace .card:not(#printable-report) {
     border: none !important;
     box-shadow: none !important;
     background: transparent !important;
@@ -428,7 +428,6 @@ h1, h2, h3, h4, h5, h6 {
     padding: 10px 15px !important;
     border: none !important;
     border-radius: 0 !important;
-    color: black !important;
     box-shadow: none !important;
     page-break-inside: avoid !important;
     visibility: visible !important;

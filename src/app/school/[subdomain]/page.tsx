@@ -244,6 +244,13 @@ export default function SchoolPortal({ params }: PageProps) {
   const [bulkStudentClassId, setBulkStudentClassId] = useState("");
   const [bulkStudentStreamId, setBulkStudentStreamId] = useState("");
 
+  // Bulk student photo upload states
+  const [showBulkPhotoModal, setShowBulkPhotoModal] = useState(false);
+  const [bulkPhotoClassId, setBulkPhotoClassId] = useState("");
+  const [bulkPhotoStreamId, setBulkPhotoStreamId] = useState("");
+  const [bulkPhotoMatches, setBulkPhotoMatches] = useState<any[]>([]);
+  const [isApplyingPhotos, setIsApplyingPhotos] = useState(false);
+
   const [isImportingStudents, setIsImportingStudents] = useState(false);
   const [importStudentProgress, setImportStudentProgress] = useState(0);
   const [importStudentTotal, setImportStudentTotal] = useState(0);
@@ -1811,6 +1818,119 @@ export default function SchoolPortal({ params }: PageProps) {
       alert(`Successfully imported ${successCount} staff accounts!`);
     } catch (err: any) {
       alert("Error importing staff: " + (err.message || err));
+    }
+  };
+
+  // Helper to match filename to student name
+  const matchStudentPhotoFilename = (filename: string, classStudents: any[]) => {
+    const filenameWithNoExt = filename.substring(0, filename.lastIndexOf('.')) || filename;
+    const normalizedFilename = filenameWithNoExt.trim().toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ');
+    const fileWords = normalizedFilename.split(' ').filter((w: string) => w.length > 0);
+    
+    let matchedStudentId = "";
+    let matchType: "Exact" | "Fuzzy" | "Unmatched" = "Unmatched";
+    let highestScore = 0;
+    
+    for (const student of classStudents) {
+      const normalizedStudentName = student.name.trim().toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ');
+      
+      // Exact match
+      if (normalizedStudentName === normalizedFilename) {
+        matchedStudentId = student.id;
+        matchType = "Exact";
+        break;
+      }
+      
+      // Fuzzy match based on words overlap
+      const studentWords = normalizedStudentName.split(' ').filter((w: string) => w.length > 0);
+      const commonWords = fileWords.filter((w: string) => studentWords.includes(w));
+      
+      if (fileWords.length > 0 && studentWords.length > 0) {
+        const score = commonWords.length / Math.max(fileWords.length, studentWords.length);
+        const allFileWordsInStudent = fileWords.every((w: string) => studentWords.includes(w));
+        const allStudentWordsInFile = studentWords.every((w: string) => studentWords.includes(w));
+        
+        if ((allFileWordsInStudent || allStudentWordsInFile || score > 0.4) && score > highestScore) {
+          highestScore = score;
+          matchedStudentId = student.id;
+          matchType = "Fuzzy";
+        }
+      }
+    }
+    
+    return { matchedStudentId, matchType };
+  };
+
+  // Bulk student photo upload selected handler
+  const handleBulkPhotoUploadSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const files = Array.from(e.target.files);
+    
+    // Filter students in selected class/stream
+    const classStudents = students.filter(st => {
+      const matchClass = !bulkPhotoClassId || st.classId === bulkPhotoClassId;
+      const matchStream = !bulkPhotoStreamId || st.streamId === bulkPhotoStreamId;
+      return matchClass && matchStream;
+    });
+
+    const matches: any[] = [];
+    
+    for (const file of files) {
+      try {
+        // Convert file to base64 Data URL
+        const base64Data = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        
+        // Match filename
+        const { matchedStudentId, matchType } = matchStudentPhotoFilename(file.name, classStudents);
+        
+        matches.push({
+          filename: file.name,
+          fileSize: file.size,
+          base64Data,
+          matchedStudentId,
+          matchType,
+        });
+      } catch (err) {
+        console.error("Error reading file " + file.name + ":", err);
+      }
+    }
+    
+    setBulkPhotoMatches(matches);
+  };
+
+  // Apply bulk student photos handler
+  const handleApplyBulkPhotos = async () => {
+    const validMatches = bulkPhotoMatches.filter(m => m.matchedStudentId);
+    if (validMatches.length === 0) {
+      alert("No student matches to apply.");
+      return;
+    }
+    
+    setIsApplyingPhotos(true);
+    try {
+      let successCount = 0;
+      for (const match of validMatches) {
+        try {
+          await updateStudent(match.matchedStudentId, { photo: match.base64Data });
+          successCount++;
+        } catch (err) {
+          console.error(`Failed to update photo for student ID ${match.matchedStudentId}:`, err);
+        }
+      }
+      
+      await loadSchoolData(school!.id);
+      setShowBulkPhotoModal(false);
+      setBulkPhotoMatches([]);
+      alert(`Successfully uploaded and aligned photos for ${successCount} students!`);
+    } catch (err: any) {
+      alert("Error applying student photos: " + (err.message || err));
+    } finally {
+      setIsApplyingPhotos(false);
     }
   };
 
@@ -5337,22 +5457,43 @@ export default function SchoolPortal({ params }: PageProps) {
                 <p style={{ color: "#64748b", margin: 0 }}>Register new student parameters and manage the current student directory.</p>
               </div>
               {currentUser.role === "ADMIN" && (
-                <button 
-                  onClick={() => {
-                    if (classes.length > 0) {
-                      setBulkStudentClassId(classes[0].id);
-                      const subStreams = streams.filter(s => s.classId === classes[0].id);
-                      if (subStreams.length > 0) {
-                        setBulkStudentStreamId(subStreams[0].id);
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button 
+                    onClick={() => {
+                      if (classes.length > 0) {
+                        setBulkPhotoClassId(classes[0].id);
+                        const subStreams = streams.filter(s => s.classId === classes[0].id);
+                        if (subStreams.length > 0) {
+                          setBulkPhotoStreamId(subStreams[0].id);
+                        } else {
+                          setBulkPhotoStreamId("");
+                        }
                       }
-                    }
-                    setShowBulkStudentModal(true);
-                  }}
-                  className="btn btn-outline"
-                  style={{ display: "flex", alignItems: "center", gap: "8px", background: "white" }}
-                >
-                  <PlusCircle size={16} /> Bulk Upload Students
-                </button>
+                      setBulkPhotoMatches([]);
+                      setShowBulkPhotoModal(true);
+                    }}
+                    className="btn btn-outline"
+                    style={{ display: "flex", alignItems: "center", gap: "8px", background: "white" }}
+                  >
+                    <span>📷 Bulk Upload Photos</span>
+                  </button>
+                  <button 
+                    onClick={() => {
+                      if (classes.length > 0) {
+                        setBulkStudentClassId(classes[0].id);
+                        const subStreams = streams.filter(s => s.classId === classes[0].id);
+                        if (subStreams.length > 0) {
+                          setBulkStudentStreamId(subStreams[0].id);
+                        }
+                      }
+                      setShowBulkStudentModal(true);
+                    }}
+                    className="btn btn-outline"
+                    style={{ display: "flex", alignItems: "center", gap: "8px", background: "white" }}
+                  >
+                    <PlusCircle size={16} /> Bulk Upload Students
+                  </button>
+                </div>
               )}
             </div>
 
@@ -6682,7 +6823,9 @@ export default function SchoolPortal({ params }: PageProps) {
                       onChange={async (e) => {
                         const classObj = classes.find(c => c.id === selectedReportClassId);
                         if (classObj) {
-                          await updateClass(classObj.id, classObj.name, classObj.level, e.target.value, classObj.themeTextColor || "#000000");
+                          const val = e.target.value;
+                          setClasses(prev => prev.map(c => c.id === classObj.id ? { ...c, themeColor: val } : c));
+                          await updateClass(classObj.id, classObj.name, classObj.level, val, classObj.themeTextColor || "#000000");
                           await loadSchoolData(school!.id);
                         }
                       }}
@@ -6695,7 +6838,9 @@ export default function SchoolPortal({ params }: PageProps) {
                       onChange={async (e) => {
                         const classObj = classes.find(c => c.id === selectedReportClassId);
                         if (classObj) {
-                          await updateClass(classObj.id, classObj.name, classObj.level, e.target.value, classObj.themeTextColor || "#000000");
+                          const val = e.target.value;
+                          setClasses(prev => prev.map(c => c.id === classObj.id ? { ...c, themeColor: val } : c));
+                          await updateClass(classObj.id, classObj.name, classObj.level, val, classObj.themeTextColor || "#000000");
                           await loadSchoolData(school!.id);
                         }
                       }}
@@ -6726,7 +6871,9 @@ export default function SchoolPortal({ params }: PageProps) {
                       onChange={async (e) => {
                         const classObj = classes.find(c => c.id === selectedReportClassId);
                         if (classObj) {
-                          await updateClass(classObj.id, classObj.name, classObj.level, classObj.themeColor || "#ffffff", e.target.value);
+                          const val = e.target.value;
+                          setClasses(prev => prev.map(c => c.id === classObj.id ? { ...c, themeTextColor: val } : c));
+                          await updateClass(classObj.id, classObj.name, classObj.level, classObj.themeColor || "#ffffff", val);
                           await loadSchoolData(school!.id);
                         }
                       }}
@@ -6739,7 +6886,9 @@ export default function SchoolPortal({ params }: PageProps) {
                       onChange={async (e) => {
                         const classObj = classes.find(c => c.id === selectedReportClassId);
                         if (classObj) {
-                          await updateClass(classObj.id, classObj.name, classObj.level, classObj.themeColor || "#ffffff", e.target.value);
+                          const val = e.target.value;
+                          setClasses(prev => prev.map(c => c.id === classObj.id ? { ...c, themeTextColor: val } : c));
+                          await updateClass(classObj.id, classObj.name, classObj.level, classObj.themeColor || "#ffffff", val);
                           await loadSchoolData(school!.id);
                         }
                       }}
@@ -10679,6 +10828,237 @@ export default function SchoolPortal({ params }: PageProps) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Student Photo Upload Modal */}
+      {showBulkPhotoModal && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1050, padding: "20px" }}>
+          <div className="card" style={{ width: "100%", maxWidth: "700px", background: "white", padding: "30px", boxShadow: "var(--shadow-lg)" }}>
+            <h3 style={{ marginBottom: "16px", borderBottom: "1px solid var(--border)", paddingBottom: "10px", color: "#0f172a" }}>Bulk Upload Student Photos</h3>
+            
+            {isApplyingPhotos ? (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "30px 10px", textAlign: "center" }}>
+                <div style={{
+                  border: "5px solid rgba(15, 23, 42, 0.1)",
+                  width: "50px",
+                  height: "50px",
+                  borderRadius: "50%",
+                  borderLeftColor: "#1e3a8a",
+                  animation: "spin 1s linear infinite",
+                  marginBottom: "24px"
+                }}></div>
+                <h4 style={{ color: "#0f172a", marginBottom: "8px", fontWeight: "600" }}>Applying Student Photos...</h4>
+                <p style={{ color: "#64748b", fontSize: "14px" }}>Please wait while we save the images to the database...</p>
+              </div>
+            ) : (
+              <div>
+                <div className="grid grid-cols-2 gap-2" style={{ marginBottom: "16px" }}>
+                  <div className="form-group">
+                    <label className="form-label" style={{ color: "#0f172a" }}>Filter Class</label>
+                    <select 
+                      className="input-field" 
+                      value={bulkPhotoClassId} 
+                      onChange={(e) => {
+                        const newClassId = e.target.value;
+                        setBulkPhotoClassId(newClassId);
+                        const sub = streams.filter(s => s.classId === newClassId);
+                        const newStreamId = sub.length > 0 ? sub[0].id : "";
+                        setBulkPhotoStreamId(newStreamId);
+                        
+                        // Re-match existing matches
+                        const classStudents = students.filter(st => {
+                          const matchClass = !newClassId || st.classId === newClassId;
+                          const matchStream = !newStreamId || st.streamId === newStreamId;
+                          return matchClass && matchStream;
+                        });
+                        setBulkPhotoMatches(prev => prev.map(match => {
+                          const { matchedStudentId, matchType } = matchStudentPhotoFilename(match.filename, classStudents);
+                          return { ...match, matchedStudentId, matchType };
+                        }));
+                      }}
+                      required
+                      style={{ color: "#0f172a", backgroundColor: "#ffffff", borderColor: "#cbd5e1", display: "block", width: "100%", height: "42px", padding: "8px 12px", borderRadius: "6px" }}
+                    >
+                      <option value="" style={{ color: "#0f172a", backgroundColor: "#ffffff" }}>-- Choose class --</option>
+                      {classes.map(c => (
+                        <option key={c.id} value={c.id} style={{ color: "#0f172a", backgroundColor: "#ffffff" }}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ color: "#0f172a" }}>Filter Stream</label>
+                    <select 
+                      className="input-field" 
+                      value={bulkPhotoStreamId} 
+                      onChange={(e) => {
+                        const newStreamId = e.target.value;
+                        setBulkPhotoStreamId(newStreamId);
+                        
+                        // Re-match existing matches
+                        const classStudents = students.filter(st => {
+                          const matchClass = !bulkPhotoClassId || st.classId === bulkPhotoClassId;
+                          const matchStream = !newStreamId || st.streamId === newStreamId;
+                          return matchClass && matchStream;
+                        });
+                        setBulkPhotoMatches(prev => prev.map(match => {
+                          const { matchedStudentId, matchType } = matchStudentPhotoFilename(match.filename, classStudents);
+                          return { ...match, matchedStudentId, matchType };
+                        }));
+                      }}
+                      style={{ color: "#0f172a", backgroundColor: "#ffffff", borderColor: "#cbd5e1", display: "block", width: "100%", height: "42px", padding: "8px 12px", borderRadius: "6px" }}
+                    >
+                      <option value="" style={{ color: "#0f172a", backgroundColor: "#ffffff" }}>All Streams</option>
+                      {streams.filter(st => st.classId === bulkPhotoClassId).map(st => (
+                        <option key={st.id} value={st.id} style={{ color: "#0f172a", backgroundColor: "#ffffff" }}>
+                          {st.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ marginBottom: "20px" }}>
+                  <label className="form-label" style={{ color: "#0f172a" }}>Select Photos (Multiple allowed)</label>
+                  <input 
+                    type="file" 
+                    multiple
+                    accept="image/*"
+                    className="input-field" 
+                    onChange={handleBulkPhotoUploadSelected}
+                    style={{ padding: "8px", color: "#0f172a", backgroundColor: "#ffffff", borderColor: "#cbd5e1" }}
+                  />
+                  <div style={{ fontSize: "11px", color: "#64748b", marginTop: "6px", lineHeight: "1.4" }}>
+                    Select image files. The system will automatically align photos to student records using filename matches. You can review and manually adjust the alignments below.
+                  </div>
+                </div>
+
+                {bulkPhotoMatches.length > 0 && (
+                  <div style={{ marginBottom: "20px" }}>
+                    <h4 style={{ color: "#0f172a", marginBottom: "8px", fontSize: "14px", fontWeight: "600" }}>Upload Match Verification</h4>
+                    <div className="table-container" style={{ maxHeight: "300px", overflowY: "auto", border: "1px solid var(--border)", borderRadius: "6px" }}>
+                      <table className="table" style={{ width: "100%", borderCollapse: "collapse" }}>
+                        <thead>
+                          <tr style={{ background: "#f8fafc" }}>
+                            <th style={{ padding: "10px", fontSize: "12px", textAlign: "left" }}>Photo</th>
+                            <th style={{ padding: "10px", fontSize: "12px", textAlign: "left" }}>File Name</th>
+                            <th style={{ padding: "10px", fontSize: "12px", textAlign: "left" }}>Match Status</th>
+                            <th style={{ padding: "10px", fontSize: "12px", textAlign: "left" }}>Aligned Student</th>
+                            <th style={{ padding: "10px", fontSize: "12px", textAlign: "center" }}>Remove</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {bulkPhotoMatches.map((match, idx) => {
+                            const currentFilteredStudents = students.filter(st => {
+                              const matchClass = !bulkPhotoClassId || st.classId === bulkPhotoClassId;
+                              const matchStream = !bulkPhotoStreamId || st.streamId === bulkPhotoStreamId;
+                              return matchClass && matchStream;
+                            });
+                            
+                            return (
+                              <tr key={idx} style={{ borderTop: "1px solid var(--border)" }}>
+                                <td style={{ padding: "10px" }}>
+                                  <img 
+                                    src={match.base64Data} 
+                                    alt="Preview" 
+                                    style={{ width: "40px", height: "40px", borderRadius: "50%", objectFit: "cover", border: "1px solid var(--border)" }}
+                                  />
+                                </td>
+                                <td style={{ padding: "10px", fontSize: "13px", color: "#334155" }}>
+                                  {match.filename}
+                                </td>
+                                <td style={{ padding: "10px" }}>
+                                  {match.matchType === "Exact" && (
+                                    <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: "9999px", fontSize: "11px", fontWeight: "600", background: "#def7ec", color: "#03543f" }}>
+                                      Exact Match
+                                    </span>
+                                  )}
+                                  {match.matchType === "Fuzzy" && (
+                                    <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: "9999px", fontSize: "11px", fontWeight: "600", background: "#fef3c7", color: "#92400e" }}>
+                                      Fuzzy Match
+                                    </span>
+                                  )}
+                                  {match.matchType === "Unmatched" && (
+                                    <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: "9999px", fontSize: "11px", fontWeight: "600", background: "#f3f4f6", color: "#374151" }}>
+                                      Unmatched
+                                    </span>
+                                  )}
+                                </td>
+                                <td style={{ padding: "10px" }}>
+                                  <select
+                                    value={match.matchedStudentId || ""}
+                                    onChange={(e) => {
+                                      const selectedId = e.target.value;
+                                      setBulkPhotoMatches(prev => prev.map((m, i) => {
+                                        if (i === idx) {
+                                          return {
+                                            ...m,
+                                            matchedStudentId: selectedId,
+                                            matchType: selectedId ? "Exact" : "Unmatched"
+                                          };
+                                        }
+                                        return m;
+                                      }));
+                                    }}
+                                    className="input-field"
+                                    style={{ padding: "4px 8px", fontSize: "12px", width: "100%", minWidth: "150px", height: "32px" }}
+                                  >
+                                    <option value="">-- Choose Student --</option>
+                                    {currentFilteredStudents.map(st => (
+                                      <option key={st.id} value={st.id}>
+                                        {st.name} ({st.studentNumber})
+                                      </option>
+                                    ))}
+                                  </select>
+                                </td>
+                                <td style={{ padding: "10px", textAlign: "center" }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setBulkPhotoMatches(prev => prev.filter((_, i) => i !== idx));
+                                    }}
+                                    style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: "16px", padding: "4px" }}
+                                    title="Remove image from upload"
+                                  >
+                                    &times;
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ display: "flex", gap: "10px", marginTop: "24px" }}>
+                  <button 
+                    type="button" 
+                    onClick={handleApplyBulkPhotos} 
+                    className="btn btn-primary" 
+                    style={{ flex: 1 }}
+                    disabled={bulkPhotoMatches.filter(m => m.matchedStudentId).length === 0}
+                  >
+                    Apply & Save Photos ({bulkPhotoMatches.filter(m => m.matchedStudentId).length})
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setShowBulkPhotoModal(false);
+                      setBulkPhotoMatches([]);
+                    }}
+                    className="btn btn-outline" 
+                    style={{ flex: 1 }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

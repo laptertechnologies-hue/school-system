@@ -60,26 +60,28 @@ const computeGradeFromRanges = (score: number, systemType: "PRIMARY" | "SECONDAR
     return {
       grade: match.grade,
       level: match.achievementLevel,
-      descriptor: match.descriptor
+      descriptor: match.descriptor,
+      classTeacherComment: match.classTeacherComment,
+      headTeacherComment: match.headTeacherComment
     };
   }
   // Fallback to defaults if no match found or ranges empty
   if (systemType === "SECONDARY") {
-    if (score >= 80) return { grade: "A", level: "Exceptional", descriptor: "Highly proficient in subject skills" };
-    if (score >= 70) return { grade: "B", level: "Outstanding", descriptor: "Consistently demonstrates subject skills" };
-    if (score >= 55) return { grade: "C", level: "Satisfactory", descriptor: "Demonstrates basic subject skills" };
-    if (score >= 40) return { grade: "D", level: "Basic", descriptor: "Beginning to develop subject skills" };
-    return { grade: "E", level: "Elementary", descriptor: "Needs guidance to develop skills" };
+    if (score >= 80) return { grade: "A", level: "Exceptional", descriptor: "Highly proficient in subject skills", classTeacherComment: "Excellent academic performance! Keep up the outstanding work.", headTeacherComment: "An exceptional result. I am proud of your achievements." };
+    if (score >= 70) return { grade: "B", level: "Outstanding", descriptor: "Consistently demonstrates subject skills", classTeacherComment: "Very good progress. With continued effort, you can achieve even higher grades.", headTeacherComment: "Good work. Maintain this standard." };
+    if (score >= 55) return { grade: "C", level: "Satisfactory", descriptor: "Demonstrates basic subject skills", classTeacherComment: "A fair performance. Focus more on your weaker subjects next term.", headTeacherComment: "You have potential. Push yourself harder next term." };
+    if (score >= 40) return { grade: "D", level: "Basic", descriptor: "Beginning to develop subject skills", classTeacherComment: "Below average. You need to put in more effort.", headTeacherComment: "Urgent improvement is required. Please double your efforts." };
+    return { grade: "E", level: "Elementary", descriptor: "Needs guidance to develop skills", classTeacherComment: "Poor performance. Consult your teachers for support.", headTeacherComment: "Academic probation warning. You must work much harder." };
   } else {
-    if (score >= 90) return { grade: "1", level: "Distinction", descriptor: "Outstanding performance" };
-    if (score >= 80) return { grade: "2", level: "Distinction", descriptor: "Very good performance" };
-    if (score >= 70) return { grade: "3", level: "Credit", descriptor: "Good performance" };
-    if (score >= 60) return { grade: "4", level: "Credit", descriptor: "Fairly good performance" };
-    if (score >= 55) return { grade: "5", level: "Credit", descriptor: "Average performance" };
-    if (score >= 50) return { grade: "6", level: "Credit", descriptor: "Satisfactory performance" };
-    if (score >= 45) return { grade: "7", level: "Pass", descriptor: "Pass level performance" };
-    if (score >= 40) return { grade: "8", level: "Pass", descriptor: "Weak pass performance" };
-    return { grade: "9", level: "Fail", descriptor: "Failure level performance" };
+    if (score >= 90) return { grade: "1", level: "Distinction", descriptor: "Outstanding performance", classTeacherComment: "Excellent academic performance!", headTeacherComment: "An exceptional result." };
+    if (score >= 80) return { grade: "2", level: "Distinction", descriptor: "Very good performance", classTeacherComment: "Very good progress.", headTeacherComment: "Good work." };
+    if (score >= 70) return { grade: "3", level: "Credit", descriptor: "Good performance", classTeacherComment: "Good performance overall.", headTeacherComment: "Satisfactory effort." };
+    if (score >= 60) return { grade: "4", level: "Credit", descriptor: "Fairly good performance", classTeacherComment: "A fair performance.", headTeacherComment: "You have potential." };
+    if (score >= 55) return { grade: "5", level: "Credit", descriptor: "Average performance", classTeacherComment: "Average performance.", headTeacherComment: "Push yourself harder." };
+    if (score >= 50) return { grade: "6", level: "Credit", descriptor: "Satisfactory performance", classTeacherComment: "Below average.", headTeacherComment: "Improvement is needed." };
+    if (score >= 45) return { grade: "7", level: "Pass", descriptor: "Pass level performance", classTeacherComment: "Weak pass.", headTeacherComment: "Please double your efforts." };
+    if (score >= 40) return { grade: "8", level: "Pass", descriptor: "Weak pass performance", classTeacherComment: "Barely passed.", headTeacherComment: "Seek immediate academic support." };
+    return { grade: "9", level: "Fail", descriptor: "Failure level performance", classTeacherComment: "Failed.", headTeacherComment: "Academic probation warning." };
   }
 };
 
@@ -4737,11 +4739,13 @@ export default function SchoolPortal({ params }: PageProps) {
                       <table className="table" style={{ fontSize: "12px", minWidth: "650px", borderCollapse: "collapse" }}>
                         <thead>
                           <tr style={{ background: "#f8fafc", textAlign: "left" }}>
-                            <th style={{ padding: "8px", width: "80px" }}>Grade</th>
-                            <th style={{ padding: "8px", width: "110px" }}>Min Mark (%)</th>
-                            <th style={{ padding: "8px", width: "110px" }}>Max Mark (%)</th>
-                            <th style={{ padding: "8px", width: "160px" }}>Achievement Level</th>
-                            <th style={{ padding: "8px" }}>Remarks / Descriptor</th>
+                            <th style={{ padding: "8px", width: "60px" }}>Grade</th>
+                            <th style={{ padding: "8px", width: "90px" }}>Min (%)</th>
+                            <th style={{ padding: "8px", width: "90px" }}>Max (%)</th>
+                            <th style={{ padding: "8px", width: "120px" }}>Achievement</th>
+                            <th style={{ padding: "8px", width: "140px" }}>Descriptor</th>
+                            <th style={{ padding: "8px", width: "160px" }}>Class Teacher Comment</th>
+                            <th style={{ padding: "8px", width: "160px" }}>Head Teacher Comment</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -4792,6 +4796,26 @@ export default function SchoolPortal({ params }: PageProps) {
                                     required 
                                   />
                                 </td>
+                                <td style={{ padding: "4px" }}>
+                                  <input 
+                                    type="text" 
+                                    className="input-field" 
+                                    placeholder="Auto-comment..."
+                                    value={r.classTeacherComment || ""} 
+                                    onChange={(e) => handleGradeRangeChange(idx, "classTeacherComment", e.target.value)}
+                                    style={{ padding: "4px 8px", fontSize: "12px", height: "auto" }}
+                                  />
+                                </td>
+                                <td style={{ padding: "4px" }}>
+                                  <input 
+                                    type="text" 
+                                    className="input-field" 
+                                    placeholder="Auto-comment..."
+                                    value={r.headTeacherComment || ""} 
+                                    onChange={(e) => handleGradeRangeChange(idx, "headTeacherComment", e.target.value)}
+                                    style={{ padding: "4px 8px", fontSize: "12px", height: "auto" }}
+                                  />
+                                </td>
                               </tr>
                             );
                           })}
@@ -4811,11 +4835,13 @@ export default function SchoolPortal({ params }: PageProps) {
                       <table className="table" style={{ fontSize: "12px", minWidth: "650px", borderCollapse: "collapse" }}>
                         <thead>
                           <tr style={{ background: "#f8fafc", textAlign: "left" }}>
-                            <th style={{ padding: "8px", width: "80px" }}>Division</th>
-                            <th style={{ padding: "8px", width: "110px" }}>Min Mark (%)</th>
-                            <th style={{ padding: "8px", width: "110px" }}>Max Mark (%)</th>
-                            <th style={{ padding: "8px", width: "160px" }}>Classification</th>
-                            <th style={{ padding: "8px" }}>Remarks / Descriptor</th>
+                            <th style={{ padding: "8px", width: "60px" }}>Division</th>
+                            <th style={{ padding: "8px", width: "90px" }}>Min (%)</th>
+                            <th style={{ padding: "8px", width: "90px" }}>Max (%)</th>
+                            <th style={{ padding: "8px", width: "120px" }}>Classification</th>
+                            <th style={{ padding: "8px", width: "140px" }}>Descriptor</th>
+                            <th style={{ padding: "8px", width: "160px" }}>Class Teacher Comment</th>
+                            <th style={{ padding: "8px", width: "160px" }}>Head Teacher Comment</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -4864,6 +4890,26 @@ export default function SchoolPortal({ params }: PageProps) {
                                     onChange={(e) => handleGradeRangeChange(idx, "descriptor", e.target.value)}
                                     style={{ padding: "4px 8px", fontSize: "12px", height: "auto" }}
                                     required 
+                                  />
+                                </td>
+                                <td style={{ padding: "4px" }}>
+                                  <input 
+                                    type="text" 
+                                    className="input-field" 
+                                    placeholder="Auto-comment..."
+                                    value={r.classTeacherComment || ""} 
+                                    onChange={(e) => handleGradeRangeChange(idx, "classTeacherComment", e.target.value)}
+                                    style={{ padding: "4px 8px", fontSize: "12px", height: "auto" }}
+                                  />
+                                </td>
+                                <td style={{ padding: "4px" }}>
+                                  <input 
+                                    type="text" 
+                                    className="input-field" 
+                                    placeholder="Auto-comment..."
+                                    value={r.headTeacherComment || ""} 
+                                    onChange={(e) => handleGradeRangeChange(idx, "headTeacherComment", e.target.value)}
+                                    style={{ padding: "4px 8px", fontSize: "12px", height: "auto" }}
                                   />
                                 </td>
                               </tr>
@@ -7456,24 +7502,18 @@ export default function SchoolPortal({ params }: PageProps) {
                           <div className="comments-container" style={{ marginTop: "20px", fontSize: "14px", lineHeight: "2.2", fontFamily: "Times New Roman, serif" }}>
                             {(() => {
                               const avg = parseFloat(rankInfo.studentAverage);
-                              let classTeacherComment = selectedReportStudent.classTeacherComment || "A fair performance. Focus more on your weaker subjects next term.";
-                              let headTeacherComment = selectedReportStudent.headTeacherComment || "You have potential. Push yourself harder next term.";
+                              const sysType = classes.find(c => c.id === selectedReportStudent.classId)?.level === "PRIMARY" ? "PRIMARY" : "SECONDARY";
+                              const computedRanges = computeGradeFromRanges(avg, sysType, gradeRanges);
+
+                              let classTeacherComment = selectedReportStudent.classTeacherComment;
+                              let headTeacherComment = selectedReportStudent.headTeacherComment;
                               
-                              if (!selectedReportStudent.classTeacherComment || !selectedReportStudent.headTeacherComment) {
-                                let defaultClassTeacherComment = "A fair performance. Focus more on your weaker subjects next term.";
-                                let defaultHeadTeacherComment = "You have potential. Push yourself harder next term.";
-                                if (avg >= 80) {
-                                  defaultClassTeacherComment = "Excellent academic performance! Keep up the outstanding work.";
-                                  defaultHeadTeacherComment = "An exceptional result. I am proud of your achievements.";
-                                } else if (avg >= 65) {
-                                  defaultClassTeacherComment = "Very good progress. With continued effort, you can achieve even higher grades.";
-                                  defaultHeadTeacherComment = "Good work. Maintain this standard.";
-                                } else if (avg < 50) {
-                                  defaultClassTeacherComment = "Below average. You need to put in more effort and seek academic support.";
-                                  defaultHeadTeacherComment = "Urgent improvement is required. Please double your efforts.";
-                                }
-                                if (!selectedReportStudent.classTeacherComment) classTeacherComment = defaultClassTeacherComment;
-                                if (!selectedReportStudent.headTeacherComment) headTeacherComment = defaultHeadTeacherComment;
+                              if (!classTeacherComment) {
+                                classTeacherComment = computedRanges.classTeacherComment || "A fair performance. Focus more on your weaker subjects next term.";
+                              }
+                              
+                              if (!headTeacherComment) {
+                                headTeacherComment = computedRanges.headTeacherComment || "You have potential. Push yourself harder next term.";
                               }
                               
                               return (

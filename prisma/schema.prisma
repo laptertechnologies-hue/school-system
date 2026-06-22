@@ -294,6 +294,8 @@ model GradeRange {
   maxMark          Float
   achievementLevel String
   descriptor       String   @default("")
+  classTeacherComment String? @default("")
+  headTeacherComment  String? @default("")
 }
 
 model SchoolPayTransaction {

@@ -169,6 +169,8 @@ export interface GradeRange {
   maxMark: number;
   achievementLevel: string;
   descriptor: string;
+  classTeacherComment?: string | null;
+  headTeacherComment?: string | null;
 }
 
 export interface Payment {

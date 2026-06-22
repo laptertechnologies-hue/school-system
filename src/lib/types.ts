@@ -112,6 +112,7 @@ export interface Subject {
   id: string;
   schoolId: string;
   classId: string;
+  streamId?: string | null;
   name: string;
   code?: string;
 }

@@ -131,6 +131,7 @@ model Stream {
   name         String    // e.g. "A", "B"
   students     Student[]
   teacherSubjects TeacherSubject[]
+  subjects     Subject[]
 }
 
 model Student {
@@ -165,6 +166,8 @@ model Subject {
   school       School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   classId      String
   class        Class     @relation(fields: [classId], references: [id])
+  streamId     String?
+  stream       Stream?   @relation(fields: [streamId], references: [id])
   name         String    // e.g. "Mathematics"
   code         String?   // e.g. "MTC"
   marks        Mark[]

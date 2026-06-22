@@ -263,6 +263,7 @@ export default function SchoolPortal({ params }: PageProps) {
 
   const [newSubjectName, setNewSubjectName] = useState("");
   const [newSubjectClassId, setNewSubjectClassId] = useState("");
+  const [newSubjectStreamId, setNewSubjectStreamId] = useState("");
   const [newSubjectCode, setNewSubjectCode] = useState("");
 
   // Subject multiple add / pool assignment states
@@ -1970,11 +1971,13 @@ export default function SchoolPortal({ params }: PageProps) {
       await createSubject({
         schoolId: school.id,
         classId: newSubjectClassId,
+        streamId: newSubjectStreamId || null,
         name: newSubjectName,
         code: newSubjectCode,
       });
       setNewSubjectName("");
       setNewSubjectCode("");
+      setNewSubjectStreamId("");
       await loadSchoolData(school.id);
       alert("Subject created successfully!");
     } catch (err: any) {
@@ -1983,7 +1986,7 @@ export default function SchoolPortal({ params }: PageProps) {
     }
   };
 
-  const handleBulkCreateSubjects = async (e: React.FormEvent, targetClassId: string, subjectString: string) => {
+  const handleBulkCreateSubjects = async (e: React.FormEvent, targetClassId: string, targetStreamId: string, subjectString: string) => {
     e.preventDefault();
     if (!targetClassId || !subjectString.trim() || !school) return;
     try {
@@ -2002,6 +2005,7 @@ export default function SchoolPortal({ params }: PageProps) {
         await createSubject({
           schoolId: school.id,
           classId: targetClassId,
+          streamId: targetStreamId || null,
           name,
           code,
         });
@@ -5270,7 +5274,10 @@ export default function SchoolPortal({ params }: PageProps) {
                         <select 
                           className="input-field" 
                           value={newSubjectClassId}
-                          onChange={(e) => setNewSubjectClassId(e.target.value)}
+                          onChange={(e) => {
+                            setNewSubjectClassId(e.target.value);
+                            setNewSubjectStreamId("");
+                          }}
                           required
                         >
                           <option value="">-- Choose class --</option>
@@ -5278,6 +5285,17 @@ export default function SchoolPortal({ params }: PageProps) {
                         </select>
                       </div>
                       <div className="form-group">
+                        <label className="form-label">Select Stream (Optional)</label>
+                        <select 
+                          className="input-field" 
+                          value={newSubjectStreamId}
+                          onChange={(e) => setNewSubjectStreamId(e.target.value)}
+                        >
+                          <option value="">-- All Streams --</option>
+                          {newSubjectClassId && streams.filter(s => s.classId === newSubjectClassId).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                      </div>
+                      <div className="form-group" style={{ gridColumn: "1 / -1" }}>
                         <label className="form-label">Subject Code (e.g. ENG, MTC)</label>
                         <input 
                           type="text" 
@@ -5298,21 +5316,37 @@ export default function SchoolPortal({ params }: PageProps) {
                     onSubmit={(e) => {
                       const txtEl = e.currentTarget.elements.namedItem("bulkSubjects") as HTMLTextAreaElement;
                       const selEl = e.currentTarget.elements.namedItem("targetClass") as HTMLSelectElement;
-                      handleBulkCreateSubjects(e, selEl.value, txtEl.value);
+                      const streamEl = e.currentTarget.elements.namedItem("targetStream") as HTMLSelectElement;
+                      handleBulkCreateSubjects(e, selEl.value, streamEl.value, txtEl.value);
                       txtEl.value = "";
                     }} 
                     className="flex flex-col gap-2"
                   >
-                    <div className="form-group">
-                      <label className="form-label">Select Class</label>
-                      <select 
-                        name="targetClass"
-                        className="input-field" 
-                        required
-                      >
-                        <option value="">-- Choose class --</option>
-                        {classes.map(c => <option key={c.id} value={c.id}>{c.name} ({c.level})</option>)}
-                      </select>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="form-group">
+                        <label className="form-label">Select Class</label>
+                        <select 
+                          name="targetClass"
+                          className="input-field" 
+                          required
+                        >
+                          <option value="">-- Choose class --</option>
+                          {classes.map(c => <option key={c.id} value={c.id}>{c.name} ({c.level})</option>)}
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Select Stream (Optional)</label>
+                        <select 
+                          name="targetStream"
+                          className="input-field" 
+                        >
+                          <option value="">-- All Streams --</option>
+                          {streams.map(s => {
+                            const c = classes.find(cl => cl.id === s.classId);
+                            return <option key={s.id} value={s.id}>{c?.name} - {s.name}</option>;
+                          })}
+                        </select>
+                      </div>
                     </div>
                     <div className="form-group">
                       <label className="form-label">Subject Titles (Comma-separated)</label>
@@ -5458,7 +5492,7 @@ export default function SchoolPortal({ params }: PageProps) {
                                   ) : (
                                     clsSubjects.map(sub => (
                                       <span key={sub.id} className="badge badge-outline" style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "4px 8px", fontSize: "12px", background: "#f8fafc" }}>
-                                        {sub.name}
+                                        {sub.name} {sub.streamId ? <span style={{ color: "var(--primary)", fontWeight: "bold" }}>({streams.find(s => s.id === sub.streamId)?.name || 'Stream'})</span> : ""}
                                         <button 
                                           onClick={() => handleDeleteSubject(sub.id, sub.name, c.name)}
                                           style={{ background: "transparent", border: "none", color: "var(--danger)", cursor: "pointer", padding: "0 2px", fontWeight: "bold", fontSize: "14px", display: "inline-flex", alignItems: "center" }}

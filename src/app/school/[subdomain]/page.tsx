@@ -5487,7 +5487,7 @@ export default function SchoolPortal({ params }: PageProps) {
                               <td><span className={`badge ${c.level === "SECONDARY" ? "badge-success" : "badge-primary"}`}>{c.level}</span></td>
                               <td>{clsStreams || <span style={{ color: "#94a3b8", fontSize: "12px" }}>None</span>}</td>
                               <td>
-                                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                                <div className="custom-scrollbar" style={{ display: "flex", flexWrap: "wrap", gap: "6px", maxHeight: "120px", overflowY: "auto", paddingRight: "4px" }}>
                                   {clsSubjects.length === 0 ? (
                                     <span style={{ color: "#94a3b8", fontSize: "12px" }}>None</span>
                                   ) : (

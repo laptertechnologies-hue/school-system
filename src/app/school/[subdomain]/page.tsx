@@ -456,6 +456,8 @@ export default function SchoolPortal({ params }: PageProps) {
   const [smsCredits, setSmsCredits] = useState<SmsCredit[]>([]);
   const [smsTotalCredits, setSmsTotalCredits] = useState(0);
   const [smsTargetClassId, setSmsTargetClassId] = useState("");
+  const [smsTargetStreamId, setSmsTargetStreamId] = useState("");
+  const [smsManualContacts, setSmsManualContacts] = useState("");
   const [smsPayerPhone, setSmsPayerPhone] = useState("");
   const [smsPaymentMode, setSmsPaymentMode] = useState<"mobile_money" | "card">("mobile_money");
   const [smsCardRedirectUrl, setSmsCardRedirectUrl] = useState("");
@@ -8923,22 +8925,63 @@ export default function SchoolPortal({ params }: PageProps) {
                 <div className="form-group">
                   <label className="form-label">📣 Recipient Audience</label>
                   <select className="input-field" value={smsGroup} onChange={(e) => setSmsGroup(e.target.value)}>
-                    <option value="CLASS_PARENTS">Parents of a Specific Class</option>
+                    <option value="CLASS_PARENTS">Parents of a Specific Class / Stream</option>
                     <option value="ALL_TEACHERS">All Teachers / Staff</option>
                     <option value="ALL">Everyone (All Parents + Staff)</option>
+                    <option value="MANUAL">Enter Contacts Manually</option>
                   </select>
                 </div>
 
                 {/* Class selector (only when CLASS_PARENTS) */}
                 {smsGroup === "CLASS_PARENTS" && (
-                  <div className="form-group">
-                    <label className="form-label">🏫 Select Class</label>
-                    <select className="input-field" value={smsTargetClassId} onChange={(e) => setSmsTargetClassId(e.target.value)}>
-                      {classes.map(c => {
-                        const classStudents = students.filter(s => s.classId === c.id && s.parentContact);
-                        return <option key={c.id} value={c.id}>{c.name} ({classStudents.length} contacts)</option>;
-                      })}
-                    </select>
+                  <div className="grid grid-cols-2 gap-2" style={{ marginBottom: "16px" }}>
+                    <div className="form-group">
+                      <label className="form-label">🏫 Select Class</label>
+                      <select 
+                        className="input-field" 
+                        value={smsTargetClassId} 
+                        onChange={(e) => {
+                          setSmsTargetClassId(e.target.value);
+                          setSmsTargetStreamId(""); // reset stream on class change
+                        }}
+                      >
+                        {classes.map(c => {
+                          const classStudents = students.filter(s => s.classId === c.id && s.parentContact);
+                          return <option key={c.id} value={c.id}>{c.name} ({classStudents.length} contacts)</option>;
+                        })}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">🌊 Select Stream</label>
+                      <select 
+                        className="input-field" 
+                        value={smsTargetStreamId} 
+                        onChange={(e) => setSmsTargetStreamId(e.target.value)}
+                      >
+                        <option value="">All Streams</option>
+                        {streams.filter(st => st.classId === smsTargetClassId).map(st => {
+                          const streamStudents = students.filter(s => s.classId === smsTargetClassId && s.streamId === st.id && s.parentContact);
+                          return <option key={st.id} value={st.id}>{st.name} ({streamStudents.length} contacts)</option>;
+                        })}
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {/* Manual contacts input */}
+                {smsGroup === "MANUAL" && (
+                  <div className="form-group" style={{ marginBottom: "16px" }}>
+                    <label className="form-label">📱 Enter Contacts Manually</label>
+                    <textarea
+                      className="input-field"
+                      style={{ minHeight: "80px", fontFamily: "var(--font-sans)", resize: "none" }}
+                      placeholder="e.g. 0771234567, 0701234567, +256782222222 (separate by commas, spaces, or newlines)"
+                      value={smsManualContacts}
+                      onChange={(e) => setSmsManualContacts(e.target.value)}
+                    />
+                    <div style={{ fontSize: "11px", color: "#64748b", marginTop: "4px" }}>
+                      Provide list of recipient phone numbers.
+                    </div>
                   </div>
                 )}
 
@@ -8983,9 +9026,17 @@ export default function SchoolPortal({ params }: PageProps) {
                 {(() => {
                   let recipients: string[] = [];
                   if (smsGroup === "CLASS_PARENTS") {
-                    recipients = students.filter(s => s.classId === smsTargetClassId && s.parentContact).map(s => s.parentContact!);
+                    recipients = students.filter(s => {
+                      const matchClass = s.classId === smsTargetClassId;
+                      const matchStream = !smsTargetStreamId || s.streamId === smsTargetStreamId;
+                      return matchClass && matchStream && s.parentContact;
+                    }).map(s => s.parentContact!);
                   } else if (smsGroup === "ALL_TEACHERS") {
                     recipients = users.filter(u => u.contact).map(u => u.contact!);
+                  } else if (smsGroup === "MANUAL") {
+                    recipients = smsManualContacts.split(/[\s,;\n]+/)
+                      .map(p => p.trim())
+                      .filter(p => p.length > 0);
                   } else {
                     const parentContacts = students.filter(s => s.parentContact).map(s => s.parentContact!);
                     const staffContacts = users.filter(u => u.contact).map(u => u.contact!);
@@ -9010,7 +9061,7 @@ export default function SchoolPortal({ params }: PageProps) {
                       </div>
                       {recipients.length === 0 && (
                         <div style={{ marginTop: "8px", color: "#ef4444", fontSize: "12px" }}>
-                          ⚠️ No contacts found for this audience. Make sure students/staff have phone numbers saved.
+                          ⚠️ No contacts found for this audience. Make sure phone numbers are provided.
                         </div>
                       )}
                     </div>
@@ -9088,10 +9139,19 @@ export default function SchoolPortal({ params }: PageProps) {
                     let targetClassName: string | undefined;
                     if (smsGroup === "CLASS_PARENTS") {
                       const cls = classes.find(c => c.id === smsTargetClassId);
-                      targetClassName = cls?.name;
-                      recipients = students.filter(s => s.classId === smsTargetClassId && s.parentContact).map(s => s.parentContact!);
+                      const strm = streams.find(st => st.id === smsTargetStreamId);
+                      targetClassName = cls ? (strm ? `${cls.name} (${strm.name})` : cls.name) : undefined;
+                      recipients = students.filter(s => {
+                        const matchClass = s.classId === smsTargetClassId;
+                        const matchStream = !smsTargetStreamId || s.streamId === smsTargetStreamId;
+                        return matchClass && matchStream && s.parentContact;
+                      }).map(s => s.parentContact!);
                     } else if (smsGroup === "ALL_TEACHERS") {
                       recipients = users.filter(u => u.contact).map(u => u.contact!);
+                    } else if (smsGroup === "MANUAL") {
+                      recipients = smsManualContacts.split(/[\s,;\n]+/)
+                        .map(p => p.trim())
+                        .filter(p => p.length > 0);
                     } else {
                       const parentContacts = students.filter(s => s.parentContact).map(s => s.parentContact!);
                       const staffContacts = users.filter(u => u.contact).map(u => u.contact!);
@@ -10124,7 +10184,10 @@ export default function SchoolPortal({ params }: PageProps) {
             <div style={{ display: "flex", flexDirection: "column", gap: "12px", background: "#f8fafc", padding: "16px", borderRadius: "8px", border: "1px solid var(--border)", fontSize: "14px" }}>
               <div><strong>Class:</strong> {classes.find(c => c.id === selectedViewStudent.classId)?.name || "N/A"}</div>
               <div><strong>Stream:</strong> {streams.find(s => s.id === selectedViewStudent.streamId)?.name || "N/A"}</div>
+              <div><strong>Registration No:</strong> {selectedViewStudent.registrationNumber || "Not Registered"}</div>
               <div><strong>LIN (Learner ID):</strong> {selectedViewStudent.lin || "Not Registered"}</div>
+              <div><strong>SchoolPay Code:</strong> {selectedViewStudent.studentPaymentCode || "N/A"}</div>
+              <div><strong>Parent Contact:</strong> {selectedViewStudent.parentContact || "N/A"}</div>
               <div>
                 <strong>Attendance Type:</strong> &nbsp;
                 <span className={`badge ${selectedViewStudent.type === "BOARDING" ? "badge-warning" : "badge-primary"}`}>

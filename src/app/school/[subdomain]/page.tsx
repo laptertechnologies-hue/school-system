@@ -681,22 +681,23 @@ export default function SchoolPortal({ params }: PageProps) {
           <thead>
             <tr style={{ background: headerBackground, textAlign: "center", fontWeight: "bold" }}>
               <th style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "left" }} rowSpan={2}>SUBJECT</th>
-              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "5px" }} colSpan={(u1Active ? 1 : 0) + (u2Active ? 1 : 0) + (etActive ? 1 : 0) + 5 + (hpgActive ? 1 : 0)}>FORMATIVE ASSESSMENT SCORES (AOI & PROJECT WORK)</th>
-              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "5px" }} rowSpan={2}>SUMM.<br />(80)</th>
-              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "5px" }} rowSpan={2}>OVERALL<br />(100%)</th>
-              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "5px" }} rowSpan={2}>GRADE</th>
-              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "5px" }} rowSpan={2}>INIT.</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "5px" }} colSpan={(u1Active ? 1 : 0) + (u2Active ? 1 : 0) + (etActive ? 1 : 0) + 7}>FORMATIVE ASSESSMENT SCORES (AOI & PROJECT WORK)</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "5px" }} rowSpan={2}>SUMMATIVE<br />EXAMINATION<br />OUT OF 80</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "5px" }} rowSpan={2}>OVERALL<br />SCORE<br />%</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "5px" }} rowSpan={2}>OVERALL<br />GRADE<br />SCORED</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "5px" }} rowSpan={2}>TEACHERS<br />INITIALS</th>
             </tr>
             <tr style={{ background: headerBackground, textAlign: "center", fontWeight: "bold" }}>
               {u1Active && <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "32px" }}>U1</th>}
               {u2Active && <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "32px" }}>U2</th>}
               {etActive && <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "32px" }}>U3</th>}
-              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "40px" }}>PTS</th>
-              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "40px" }}>AVR</th>
-              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "40px" }}>Out 10</th>
-              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "40px" }}>IDENT</th>
-              {hpgActive && <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "45px" }}>PROJECT</th>}
-              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "55px" }}>DESC</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "40px" }}>TOTAL PTS</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "40px" }}>AMR SCORE</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "40px" }}>TOTAL<br />Out of 10</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "40px" }}>SCORE<br />IDENTIFIER</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "55px" }}>DESCRIPTOR</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "45px" }}>PROJECT<br />OUT OF 10</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "45px" }}>TOTAL<br />OUT OF 20</th>
             </tr>
           </thead>
           <tbody>
@@ -728,6 +729,9 @@ export default function SchoolPortal({ params }: PageProps) {
                 else descVal = "Elementary";
               }
 
+              const totalOut20 = maxTotal > 0 && m ? ((totalCA / maxTotal) * 20).toFixed(1) : "-";
+              const projectOut10 = m?.hpg !== null && m?.hpg !== undefined ? m.hpg.toFixed(1) : "";
+
               const eoyVal = m?.eoy !== null && m?.eoy !== undefined ? m.eoy.toFixed(1) : "-";
               const totalVal = m ? m.score.toFixed(0) : "-";
               const gradeVal = m ? m.competencyGrade : "-";
@@ -751,37 +755,54 @@ export default function SchoolPortal({ params }: PageProps) {
                   <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{avgCA}</td>
                   <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{outOf10}</td>
                   <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{scoreIdentifier}</td>
-                  {hpgActive && <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{m?.hpg !== null && m?.hpg !== undefined ? m.hpg.toFixed(1) : "-"}</td>}
                   <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{descVal}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{projectOut10}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{totalOut20}</td>
                   <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{eoyVal}</td>
-                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center", fontWeight: "bold" }}>{m ? `${totalVal}%` : "-"}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center", fontWeight: "bold" }}>{m ? `${totalVal}` : "-"}</td>
                   <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center", fontWeight: "bold", color: "var(--primary)" }}>{gradeVal}</td>
                   <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center", fontWeight: "bold" }}>{teacherInitials || "-"}</td>
                 </tr>
               );
             })}
             {school?.reportShowSummaryRow !== false && rankInfo && (
-              <tr style={{ background: summaryBackground, fontWeight: "bold", fontSize: "9px" }}>
-                <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px" }}>OVERALL AVERAGE</td>
-                <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px", textAlign: "center" }} colSpan={rankColSpan}>
-                  CLASS RANK: {rankInfo.position} / {rankInfo.totalStudents}
-                </td>
-                <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px", textAlign: "center" }}>
-                  AVG PT: {avgPt}
-                </td>
-                <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px", textAlign: "center" }}>
-                  IDENT: {avgIdent}
-                </td>
-                <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px", textAlign: "center" }} colSpan={2}>
-                  DESC: {avgDesc}
-                </td>
-                <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px", textAlign: "center" }}>
-                  SUMM AVG: {summAvg}
-                </td>
-                <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px", textAlign: "center" }} colSpan={totScoreColSpan}>
-                  TOT SCORE: {rankInfo.studentTotal}
-                </td>
-              </tr>
+              <>
+                <tr style={{ background: summaryBackground, fontWeight: "bold", fontSize: "11px" }}>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "8px", textAlign: "left", verticalAlign: "middle" }} colSpan={(u1Active ? 1 : 0) + (u2Active ? 1 : 0) + (etActive ? 1 : 0) + 6} rowSpan={2}>
+                    OVERALL AVERAGE LEVEL OF ACHIEVEMENT
+                  </td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px", textAlign: "center" }}>
+                    <div style={{ fontSize: "9px", color: "#475569", textTransform: "uppercase", marginBottom: "2px" }}>CLASS RANKING</div>
+                    <div style={{ fontSize: "14px" }}>{rankInfo.position}</div>
+                  </td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px", textAlign: "center" }}>
+                    <div style={{ fontSize: "9px", color: "#475569", textTransform: "uppercase", marginBottom: "2px" }}>CLASS TOTAL</div>
+                    <div style={{ fontSize: "14px" }}>{rankInfo.totalStudents}</div>
+                  </td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px", textAlign: "center" }} rowSpan={2}>
+                    <div style={{ fontSize: "9px", color: "#475569", textTransform: "uppercase", marginBottom: "2px" }}>TOTAL SCORE</div>
+                    <div style={{ fontSize: "14px" }}>{rankInfo.studentTotal}</div>
+                  </td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px", textAlign: "center" }} rowSpan={2}>
+                    <div style={{ fontSize: "9px", color: "#475569", textTransform: "uppercase", marginBottom: "2px" }}>Av. Score</div>
+                    <div style={{ fontSize: "14px" }}>{avgPt}</div>
+                  </td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px", textAlign: "center" }} rowSpan={2}>
+                    <div style={{ fontSize: "9px", color: "#475569", textTransform: "uppercase", marginBottom: "2px" }}>Ident.</div>
+                    <div style={{ fontSize: "14px" }}>{avgIdent}</div>
+                  </td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px", textAlign: "center" }} rowSpan={2}>
+                    <div style={{ fontSize: "9px", color: "#475569", textTransform: "uppercase", marginBottom: "2px" }}>Descriptor</div>
+                    <div style={{ fontSize: "14px" }}>{avgDesc}</div>
+                  </td>
+                </tr>
+                <tr style={{ background: summaryBackground, fontWeight: "bold", fontSize: "11px" }}>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px", textAlign: "center" }} colSpan={2}>
+                    <div style={{ fontSize: "9px", color: "#475569", textTransform: "uppercase", marginBottom: "2px" }}>AVERAGE SCORE</div>
+                    <div style={{ fontSize: "14px" }}>{Math.round(parseFloat(rankInfo.classAverage))}</div>
+                  </td>
+                </tr>
+              </>
             )}
           </tbody>
         </table>
@@ -7314,69 +7335,88 @@ export default function SchoolPortal({ params }: PageProps) {
                       <div id="printable-report" className="card" style={{ background: classes.find(c => c.id === selectedReportStudent.classId)?.themeColor || "#ffffff", color: classes.find(c => c.id === selectedReportStudent.classId)?.themeTextColor || "#000000", borderColor: "#cbd5e1", padding: "40px", fontFamily: "Arial, sans-serif" }}>
                         
                         {/* School Heading */}
-                        <div className="report-header" style={{ textAlign: "center", borderBottom: school.reportBorderType === "solid" ? `1px solid ${classes.find(c => c.id === selectedReportStudent.classId)?.themeTextColor || "black"}` : school.reportBorderType === "none" ? "none" : `3px double ${classes.find(c => c.id === selectedReportStudent.classId)?.themeTextColor || "black"}`, paddingBottom: "14px", marginBottom: "20px" }}>
-                          {school.reportShowBadge && (
-                            <div style={{ display: "flex", justifyContent: "center", marginBottom: "10px" }}>
-                              {school.logoUrl ? (
-                                <img src={school.logoUrl} alt="Logo" style={{ width: `${school.reportLogoSize || 60}px`, height: `${school.reportLogoSize || 60}px`, objectFit: "contain" }} />
+                        <div className="report-header" style={{ display: "flex", justifyContent: "space-between", borderBottom: school.reportBorderType === "solid" ? `1px solid ${classes.find(c => c.id === selectedReportStudent.classId)?.themeTextColor || "black"}` : school.reportBorderType === "none" ? "none" : `3px double ${classes.find(c => c.id === selectedReportStudent.classId)?.themeTextColor || "black"}`, paddingBottom: "14px", marginBottom: "10px" }}>
+                          {/* Left: Logo */}
+                          <div style={{ width: "100px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            {school.reportShowBadge && (
+                              school.logoUrl ? (
+                                <img src={school.logoUrl} alt="Logo" style={{ width: `${school.reportLogoSize || 80}px`, height: `${school.reportLogoSize || 80}px`, objectFit: "contain" }} />
                               ) : (
-                                <GraduationCap size={Math.round((school.reportLogoSize || 60) * 0.8)} color="var(--primary)" />
-                              )}
-                            </div>
-                          )}
-                          <h2 style={{ fontSize: "24px", margin: 0, textTransform: "uppercase", color: school.reportHeaderColor || "#1e3a8a", fontWeight: 900 }}>{school.name}</h2>
-                          <div style={{ fontSize: "12px", color: "inherit", opacity: 0.8, margin: "4px 0", lineHeight: "1.4" }}>
-                            {school.reportWebsite && <span>Website: {school.reportWebsite} | </span>}
-                            {school.reportTikTok && <span>TikTok: {school.reportTikTok} | </span>}
-                            <span>P.O. Box {school.poBox || "Kampala, Uganda"}</span>
-                            <br />
-                            {school.reportLocation && <span>Located: {school.reportLocation} | </span>}
-                            <span>Email: {school.contactEmail} | Tel: {school.contactPhone}</span>
+                                <GraduationCap size={Math.round((school.reportLogoSize || 80) * 0.8)} color="var(--primary)" />
+                              )
+                            )}
                           </div>
-                          {school.reportMotto && (
-                            <p style={{ margin: "2px 0 0", fontSize: "11px", fontStyle: "italic", fontWeight: "bold", color: "inherit", opacity: 0.85 }}>
-                              Motto: "{school.reportMotto}"
-                            </p>
-                          )}
-                          <h3 style={{ fontSize: "16px", margin: "10px 0 0", textTransform: "uppercase", textDecoration: "underline" }}>
-                            {school.reportTitle || "OFFICIAL ACADEMIC REPORT CARD"}
-                          </h3>
+                          
+                          {/* Center: School Info */}
+                          <div style={{ flex: 1, textAlign: "center", padding: "0 10px" }}>
+                            <h2 style={{ fontSize: "22px", margin: 0, textTransform: "uppercase", color: school.reportHeaderColor || "#1e3a8a", fontWeight: 900, fontFamily: "Times New Roman, serif" }}>{school.name}</h2>
+                            <div style={{ fontSize: "11px", color: "inherit", margin: "4px 0", lineHeight: "1.4" }}>
+                              {school.reportTikTok && <span>TikTok:{school.reportTikTok} | </span>}
+                              <span>Postal: P.O BOX {school.poBox || "1922, JINJA"}</span>
+                              {school.reportWebsite && <span> | Website: {school.reportWebsite}</span>}
+                              <br />
+                              <span>LOCATED {school.reportLocation?.toUpperCase() || "MBIKKO, BUIKWE DISTRICT"}</span>
+                              <br />
+                              <span>Email: {school.contactEmail} &nbsp;&nbsp;&nbsp;&nbsp; Telephone: {school.contactPhone}</span>
+                            </div>
+                            <h3 style={{ fontSize: "14px", margin: "4px 0", textTransform: "uppercase", fontWeight: "bold" }}>
+                              {school.reportMotto || "WISDOM COMES FROM GOD"}
+                            </h3>
+                            <div style={{ display: "inline-block", background: "#f1f5f9", color: "#000", padding: "4px 16px", marginTop: "4px", fontSize: "14px", fontWeight: "bold", border: "1px solid #cbd5e1" }}>
+                              {school.reportTitle || `END OF TERM ${selectedReportTerm === "1" ? "I" : selectedReportTerm === "2" ? "II" : "III"} REPORT CARD`}
+                            </div>
+                          </div>
+
+                          {/* Right: Student Photo */}
+                          <div style={{ width: "100px", display: "flex", alignItems: "flex-end", justifyContent: "flex-end", flexShrink: 0 }}>
+                            {school.reportShowStudentPhoto !== false && (
+                              <div style={{ width: "80px", height: "90px", border: "1px solid #cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", background: "#f8fafc" }}>
+                                {selectedReportStudent.photo ? (
+                                  <img src={selectedReportStudent.photo} alt="Student" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                ) : (
+                                  <span style={{ fontSize: "9px", color: "#94a3b8", textAlign: "center" }}>No Photo</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
 
-                        {/* Student Meta details with Optional Student Photo */}
-                        <div className="student-meta-grid" style={{ display: "flex", justifyContent: "space-between", gap: "20px", marginBottom: "20px", borderBottom: "1px solid #94a3b8", paddingBottom: "12px" }}>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", fontSize: "13px", flex: 1 }}>
-                            <div><strong>Student Name:</strong> {selectedReportStudent.name}</div>
-                            {selectedReportStudent.gender && <div><strong>Sex:</strong> {selectedReportStudent.gender}</div>}
-                            <div><strong>Class:</strong> {classes.find(c => c.id === selectedReportStudent.classId)?.name}</div>
-                            {school.reportShowLIN !== false && selectedReportStudent.lin && (
-                              <div><strong>Learner ID (LIN):</strong> {selectedReportStudent.lin}</div>
-                            )}
-                            {school.reportShowPayCode !== false && selectedReportStudent.studentPaymentCode && (
-                              <div><strong>School Pay Code:</strong> {selectedReportStudent.studentPaymentCode}</div>
-                            )}
-                            <div><strong>Student Number:</strong> {selectedReportStudent.studentNumber}</div>
-                            <div><strong>Academic Term:</strong> Term {selectedReportTerm} (2026)</div>
-                            {school.reportShowResidency && (
-                              <div><strong>Residency Type:</strong> {selectedReportStudent.type}</div>
-                            )}
-                            {rankInfo && (
-                              <>
-                                <div><strong>Position Rank:</strong> {rankInfo.position} Out of {rankInfo.totalStudents}</div>
-                                <div><strong>Average Mark:</strong> {rankInfo.studentAverage}% (Class Avg: {rankInfo.classAverage}%)</div>
-                              </>
-                            )}
-                            <div><strong>Date Generated:</strong> {new Date().toLocaleDateString()}</div>
-                          </div>
-                          {school.reportShowStudentPhoto !== false && (
-                            <div style={{ width: "75px", height: "80px", border: "1px solid #cbd5e1", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", background: "#f8fafc", flexShrink: 0 }}>
-                              {selectedReportStudent.photo ? (
-                                <img src={selectedReportStudent.photo} alt="Student" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                              ) : (
-                                <span style={{ fontSize: "9px", color: "#94a3b8", textAlign: "center" }}>No Photo</span>
-                              )}
+                        {/* Student Meta details */}
+                        <div className="student-meta-inline" style={{ marginBottom: "15px", fontSize: "12px", lineHeight: "1.8", fontWeight: "bold" }}>
+                          {/* Row 1 */}
+                          <div style={{ display: "flex", gap: "10px", marginBottom: "8px", alignItems: "flex-end" }}>
+                            <div style={{ display: "flex", flex: 3, alignItems: "flex-end" }}>
+                              <span style={{ whiteSpace: "nowrap", marginRight: "6px", fontSize: "15px", fontFamily: "Times New Roman, serif" }}>Name:</span>
+                              <span style={{ flex: 1, borderBottom: "1px dotted #000", paddingBottom: "2px", textTransform: "uppercase", textAlign: "center" }}>{selectedReportStudent.name}</span>
                             </div>
-                          )}
+                            <div style={{ display: "flex", flex: 1, alignItems: "flex-end" }}>
+                              <span style={{ whiteSpace: "nowrap", marginRight: "6px", fontSize: "15px", fontFamily: "Times New Roman, serif" }}>Sex:</span>
+                              <span style={{ flex: 1, borderBottom: "1px dotted #000", paddingBottom: "2px", textAlign: "center" }}>{selectedReportStudent.gender === "MALE" ? "M" : selectedReportStudent.gender === "FEMALE" ? "F" : "-"}</span>
+                            </div>
+                            <div style={{ display: "flex", flex: 1.5, alignItems: "flex-end" }}>
+                              <span style={{ whiteSpace: "nowrap", marginRight: "6px", fontSize: "15px", fontFamily: "Times New Roman, serif" }}>Class:</span>
+                              <span style={{ flex: 1, borderBottom: "1px dotted #000", paddingBottom: "2px", textAlign: "center" }}>{classes.find(c => c.id === selectedReportStudent.classId)?.name}</span>
+                            </div>
+                          </div>
+                          {/* Row 2 */}
+                          <div style={{ display: "flex", gap: "10px", alignItems: "flex-end" }}>
+                            <div style={{ display: "flex", flex: 2.5, alignItems: "flex-end" }}>
+                              <span style={{ whiteSpace: "nowrap", marginRight: "6px", fontSize: "11px", fontWeight: "normal", fontStyle: "italic" }}>Learner ID No. (LIN):</span>
+                              <span style={{ flex: 1, borderBottom: "1px dotted #000", paddingBottom: "2px", textAlign: "center", color: "#475569" }}>{selectedReportStudent.lin || "____________________"}</span>
+                            </div>
+                            <div style={{ display: "flex", flex: 1.5, alignItems: "flex-end" }}>
+                              <span style={{ whiteSpace: "nowrap", marginRight: "6px", fontSize: "15px", fontFamily: "Times New Roman, serif" }}>Pay code:</span>
+                              <span style={{ flex: 1, borderBottom: "1px dotted #000", paddingBottom: "2px", textAlign: "center" }}>{selectedReportStudent.studentPaymentCode || "________"}</span>
+                            </div>
+                            <div style={{ display: "flex", flex: 1, alignItems: "flex-end" }}>
+                              <span style={{ whiteSpace: "nowrap", marginRight: "6px", fontSize: "15px", fontFamily: "Times New Roman, serif" }}>Term:</span>
+                              <span style={{ flex: 1, borderBottom: "1px dotted #000", paddingBottom: "2px", textAlign: "center" }}>{selectedReportTerm === "1" ? "TERMI" : selectedReportTerm === "2" ? "TERMII" : "TERMIII"}</span>
+                            </div>
+                            <div style={{ display: "flex", flex: 1, alignItems: "flex-end" }}>
+                              <span style={{ whiteSpace: "nowrap", marginRight: "6px", fontSize: "15px", fontFamily: "Times New Roman, serif" }}>Year:</span>
+                              <span style={{ flex: 1, borderBottom: "1px dotted #000", paddingBottom: "2px", textAlign: "center" }}>{new Date().getFullYear()}</span>
+                            </div>
+                          </div>
                         </div>
 
                         {/* Grades Table */}
@@ -7411,156 +7451,70 @@ export default function SchoolPortal({ params }: PageProps) {
                           </div>
                         )}
 
-                        {/* Grading Legend Card */}
-                        {school.reportShowRules && (
-                          <div className="legend-container" style={{ marginTop: "20px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "12px", fontSize: "11px", lineHeight: "1.4" }}>
-                            <strong style={{ fontSize: "12px", display: "block", marginBottom: "6px" }}>
-                              {classes.find(c => c.id === selectedReportStudent.classId)?.level === "SECONDARY" ? "CBC Grading Scale & Achievement Levels" : "PLE Grading Scale & Classifications"}:
-                            </strong>
-                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
-                              <thead>
-                                <tr style={{ textAlign: "left", color: "#475569", borderBottom: "1px solid #cbd5e1" }}>
-                                  <th style={{ padding: "4px" }}>Grade</th>
-                                  <th style={{ padding: "4px" }}>Mark Range</th>
-                                  <th style={{ padding: "4px" }}>Achievement Level</th>
-                                  <th style={{ padding: "4px" }}>Descriptor / Classification</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {(() => {
-                                  const level = classes.find(c => c.id === selectedReportStudent.classId)?.level || "SECONDARY";
-                                  const ranges = gradeRanges.filter(r => r.systemType === level).sort((a, b) => b.minMark - a.minMark);
-                                  if (ranges.length === 0) {
-                                    // Fallback defaults
-                                    const defaults = level === "SECONDARY" 
-                                      ? [
-                                          { grade: "A", range: "80% - 100%", level: "Exceptional", desc: "Highly proficient in subject skills" },
-                                          { grade: "B", range: "70% - 79%", level: "Outstanding", desc: "Consistently demonstrates subject skills" },
-                                          { grade: "C", range: "55% - 69%", level: "Satisfactory", desc: "Demonstrates basic subject skills" },
-                                          { grade: "D", range: "40% - 54%", level: "Basic", desc: "Beginning to develop subject skills" },
-                                          { grade: "E", range: "0% - 39%", level: "Elementary", desc: "Needs guidance to develop skills" }
-                                        ]
-                                      : [
-                                          { grade: "1", range: "90% - 100%", level: "Distinction", desc: "Outstanding performance" },
-                                          { grade: "2", range: "80% - 89%", level: "Distinction", desc: "Very good performance" },
-                                          { grade: "3", range: "70% - 79%", level: "Credit", desc: "Good performance" },
-                                          { grade: "4", range: "60% - 69%", level: "Credit", desc: "Satisfactory performance" },
-                                          { grade: "5", range: "50% - 59%", level: "Credit", desc: "Fair performance" },
-                                          { grade: "6", range: "40% - 49%", level: "Pass", desc: "Pass performance" },
-                                          { grade: "7", range: "35% - 39%", level: "Pass", desc: "Barely pass performance" },
-                                          { grade: "8", range: "30% - 34%", level: "Pass", desc: "Weak pass performance" },
-                                          { grade: "9", range: "0% - 29%", level: "Fail", desc: "Fail/Needs improvement" }
-                                        ];
-                                    return defaults.map((d, i) => (
-                                      <tr key={i} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                                        <td style={{ padding: "4px", fontWeight: "bold" }}>{d.grade}</td>
-                                        <td style={{ padding: "4px" }}>{d.range}</td>
-                                        <td style={{ padding: "4px" }}>{d.level}</td>
-                                        <td style={{ padding: "4px", color: "#64748b" }}>{d.desc}</td>
-                                      </tr>
-                                    ));
-                                  }
-                                  return ranges.map(r => (
-                                    <tr key={r.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                                      <td style={{ padding: "4px", fontWeight: "bold" }}>{r.grade}</td>
-                                      <td style={{ padding: "4px" }}>{r.minMark}% - {r.maxMark}%</td>
-                                      <td style={{ padding: "4px" }}>{r.achievementLevel}</td>
-                                      <td style={{ padding: "4px", color: "#64748b" }}>{r.descriptor}</td>
-                                    </tr>
-                                  ));
-                                })()}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-
                         {/* Class / Head Teacher Comments */}
                         {school.reportShowComments !== false && rankInfo && (
-                          <div className="comments-container" style={{ border: "1px solid #cbd5e1", borderRadius: "6px", padding: "12px", fontSize: "13px", marginTop: "15px", lineHeight: "1.6" }}>
-                            {(() => {
-                              const avg = parseFloat(rankInfo.studentAverage);
-                              let classTeacherComment = selectedReportStudent.classTeacherComment || "A fair performance. Focus more on your weaker subjects next term.";
-                              let headTeacherComment = selectedReportStudent.headTeacherComment || "You have potential. Push yourself harder next term.";
-                              
-                              if (!selectedReportStudent.classTeacherComment || !selectedReportStudent.headTeacherComment) {
-                                let defaultClassTeacherComment = "A fair performance. Focus more on your weaker subjects next term.";
-                                let defaultHeadTeacherComment = "You have potential. Push yourself harder next term.";
-                                if (avg >= 80) {
-                                  defaultClassTeacherComment = "Excellent academic performance! Keep up the outstanding work.";
-                                  defaultHeadTeacherComment = "An exceptional result. I am proud of your achievements.";
-                                } else if (avg >= 65) {
-                                  defaultClassTeacherComment = "Very good progress. With continued effort, you can achieve even higher grades.";
-                                  defaultHeadTeacherComment = "Good work. Maintain this standard.";
-                                } else if (avg < 50) {
-                                  defaultClassTeacherComment = "Below average. You need to put in more effort and seek academic support.";
-                                  defaultHeadTeacherComment = "Urgent improvement is required. Please double your efforts.";
-                                }
-
-                                if (!selectedReportStudent.classTeacherComment) classTeacherComment = defaultClassTeacherComment;
-                                if (!selectedReportStudent.headTeacherComment) headTeacherComment = defaultHeadTeacherComment;
-                              }
-                              
-                              return (
-                                <>
-                                  <div><strong>Class Teacher's Comment:</strong> <span style={{ fontStyle: "italic", textDecoration: "underline", color: "#1e3a8a" }}>{classTeacherComment}</span></div>
-                                  <div style={{ marginTop: "4px" }}><strong>Class Teacher's Name:</strong> {school.deputyHeadTeacher || "Mr. Okongo Wilson"} &nbsp;&nbsp;&nbsp;&nbsp; <strong>Signature:</strong> _________________</div>
-                                  <div style={{ marginTop: "8px" }}><strong>Head Teacher's Comment:</strong> <span style={{ fontStyle: "italic", textDecoration: "underline", color: "#059669" }}>{headTeacherComment}</span></div>
-                                </>
-                              );
-                            })()}
+                          <div className="comments-container" style={{ marginTop: "20px", fontSize: "14px", lineHeight: "2.2", fontFamily: "Times New Roman, serif" }}>
+                            <div style={{ display: "flex", alignItems: "flex-end", marginBottom: "8px" }}>
+                              <span style={{ fontWeight: "bold", whiteSpace: "nowrap", marginRight: "10px", fontSize: "15px" }}>Class teacher's Comment:</span>
+                              <div style={{ flex: 1, borderBottom: "1.5px dotted #000" }}></div>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "flex-end", marginBottom: "8px" }}>
+                              <span style={{ fontWeight: "bold", whiteSpace: "nowrap", marginRight: "10px", fontSize: "15px" }}>Signature:</span>
+                              <div style={{ flex: 1, borderBottom: "1.5px dotted #000" }}></div>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "flex-end", marginBottom: "8px" }}>
+                              <span style={{ fontWeight: "bold", whiteSpace: "nowrap", marginRight: "10px", fontSize: "15px" }}>Head Teacher's Comment:</span>
+                              <div style={{ flex: 1, borderBottom: "1.5px dotted #000" }}></div>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "flex-end", marginBottom: "8px" }}>
+                              <span style={{ fontWeight: "bold", whiteSpace: "nowrap", marginRight: "10px", fontSize: "15px" }}>Signature:</span>
+                              <div style={{ flex: 1, borderBottom: "1.5px dotted #000" }}></div>
+                            </div>
                           </div>
                         )}
 
-                        {/* Fees display */}
-                        {school.reportShowFees !== false && (
-                          <div className="fees-container" style={{ display: "flex", justifyContent: "space-between", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "8px 12px", marginTop: "10px", fontSize: "12px", fontWeight: "bold" }}>
-                            {(() => {
-                              const baseFee = selectedReportStudent.type === "DAY" ? (school.reportNextTermFeesDay || 150000) : (school.reportNextTermFeesBoarding || 350000);
-                              const stPayments = studentPayments.filter(p => p.studentId === selectedReportStudent.id && p.term === parseInt(selectedReportTerm));
-                              const latestPayment = stPayments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-                              const outstanding = latestPayment ? latestPayment.balance : 0;
-                              return (
-                                <>
-                                  <span>Next Term Fees: {baseFee.toLocaleString()} UGX</span>
-                                  <span>Outstanding Balance: {outstanding.toLocaleString()} UGX</span>
-                                  <span>Total Amount Needed: {(baseFee + outstanding).toLocaleString()} UGX</span>
-                                </>
-                              );
-                            })()}
-                          </div>
-                        )}
+                        {/* Footer (Fees, Dates, Stamp) */}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginTop: "15px", fontSize: "13px", fontFamily: "Times New Roman, serif" }}>
+                          
+                          <div style={{ display: "flex", flexDirection: "column", gap: "6px", flex: 1 }}>
+                            {school.reportShowFees !== false && (
+                              <div style={{ display: "flex", alignItems: "flex-end" }}>
+                                <span style={{ fontWeight: "bold", marginRight: "8px" }}>Next term's fees will be:</span>
+                                <div style={{ width: "150px", borderBottom: "1.5px dotted #000", textAlign: "center", fontStyle: "italic", fontWeight: "bold" }}>
+                                  {(() => {
+                                    const baseFee = selectedReportStudent.type === "DAY" ? (school.reportNextTermFeesDay || 150000) : (school.reportNextTermFeesBoarding || 350000);
+                                    return `${baseFee.toLocaleString()} UGX`;
+                                  })()}
+                                </div>
+                              </div>
+                            )}
 
-                        {/* Term Dates */}
-                        {school.reportShowTermDates !== false && (
-                          <div className="dates-container" style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#475569", marginTop: "8px", border: "1px dashed #cbd5e1", padding: "8px 4px" }}>
-                            {(() => {
-                              const getDates = (term: string) => {
-                                if (term === "1") return { start: school.term1Start, end: school.term1End };
-                                if (term === "2") return { start: school.term2Start, end: school.term2End };
-                                return { start: school.term3Start, end: school.term3End };
-                              };
-                              const dates = getDates(selectedReportTerm);
-                              const endFmt = dates.end ? new Date(dates.end).toLocaleDateString("en-US", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : "Thursday, April 30, 2026";
-                              const nextTermDates = getDates(String((parseInt(selectedReportTerm) % 3) + 1));
-                              const startFmt = nextTermDates.start ? new Date(nextTermDates.start).toLocaleDateString("en-US", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : "Sunday, May 24, 2026";
-                              return (
-                                <>
-                                  <span>This term has ended today: <strong>{endFmt}</strong></span>
-                                  <span>Next Term Begins on: <strong>{startFmt}</strong></span>
-                                </>
-                              );
-                            })()}
+                            {school.reportShowTermDates !== false && (
+                              <div style={{ display: "flex", alignItems: "flex-end", marginTop: "4px" }}>
+                                <span style={{ fontWeight: "bold", marginRight: "8px" }}>Next term begins on:</span>
+                                <div style={{ width: "200px", borderBottom: "1.5px dotted #000", textAlign: "center", fontStyle: "italic", fontWeight: "bold" }}>
+                                  {(() => {
+                                    const nextTermDates = (() => {
+                                      const next = String((parseInt(selectedReportTerm) % 3) + 1);
+                                      if (next === "1") return { start: school.term1Start, end: school.term1End };
+                                      if (next === "2") return { start: school.term2Start, end: school.term2End };
+                                      return { start: school.term3Start, end: school.term3End };
+                                    })();
+                                    return nextTermDates.start ? new Date(nextTermDates.start).toLocaleDateString("en-US", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : "Monday, May 25, 2026";
+                                  })()}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        )}
 
-                        {/* Signatures */}
-                        {school.reportShowSignatures && (
-                          <div className="signatures-container" style={{ display: "flex", justifyContent: "space-between", marginTop: "40px", fontSize: "12px" }}>
-                            <div style={{ borderTop: "1px solid black", width: "150px", textAlign: "center", paddingTop: "6px" }}>Class Teacher</div>
-                            <div style={{ borderTop: "1px solid black", width: "150px", textAlign: "center", paddingTop: "6px" }}>Head Teacher</div>
-                            <div style={{ borderTop: "1px solid black", width: "150px", textAlign: "center", paddingTop: "6px" }}>School Stamp</div>
-                          </div>
-                        )}
+                          {school.reportShowSignatures && (
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginRight: "20px" }}>
+                              <div style={{ width: "120px", height: "80px", border: "1px dashed #cbd5e1", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.5, marginBottom: "5px" }}>
+                                <span style={{ fontSize: "10px", color: "#64748b" }}>School Stamp</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
 
                       </div>
                     </div>

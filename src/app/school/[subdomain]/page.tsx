@@ -677,27 +677,27 @@ export default function SchoolPortal({ params }: PageProps) {
       const totScoreColSpan = rankSpan > 0 ? (4 + (hpgActive ? 1 : 0)) : (3 + (hpgActive ? 1 : 0));
 
       return (
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10px", marginBottom: "20px", border: outerBorder }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "8.5px", marginBottom: "20px", border: outerBorder }}>
           <thead>
             <tr style={{ background: headerBackground, textAlign: "center", fontWeight: "bold" }}>
-              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "left" }} rowSpan={2}>SUBJECT</th>
-              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "5px" }} colSpan={(u1Active ? 1 : 0) + (u2Active ? 1 : 0) + (etActive ? 1 : 0) + 7}>FORMATIVE ASSESSMENT SCORES (AOI & PROJECT WORK)</th>
-              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "5px" }} rowSpan={2}>SUMMATIVE<br />EXAMINATION<br />OUT OF 80</th>
-              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "5px" }} rowSpan={2}>OVERALL<br />SCORE<br />%</th>
-              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "5px" }} rowSpan={2}>OVERALL<br />GRADE<br />SCORED</th>
-              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "5px" }} rowSpan={2}>TEACHERS<br />INITIALS</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "left", width: "14%" }} rowSpan={2}>SUBJECT</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px" }} colSpan={(u1Active ? 1 : 0) + (u2Active ? 1 : 0) + (etActive ? 1 : 0) + 7}>FORMATIVE ASSESSMENT SCORES (AOI & PROJECT WORK)</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px" }} rowSpan={2}>SUMMATIVE<br />EXAMINATION<br />OUT OF 80</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px" }} rowSpan={2}>OVERALL<br />SCORE<br />%</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px" }} rowSpan={2}>OVERALL<br />GRADE<br />SCORED</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px" }} rowSpan={2}>TEACHERS<br />INITIALS</th>
             </tr>
             <tr style={{ background: headerBackground, textAlign: "center", fontWeight: "bold" }}>
-              {u1Active && <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "32px" }}>U1</th>}
-              {u2Active && <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "32px" }}>U2</th>}
-              {etActive && <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "32px" }}>U3</th>}
-              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "40px" }}>TOTAL PTS</th>
-              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "40px" }}>AMR SCORE</th>
-              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "40px" }}>TOTAL<br />Out of 10</th>
-              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "40px" }}>SCORE<br />IDENTIFIER</th>
-              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "55px" }}>DESCRIPTOR</th>
-              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "45px" }}>PROJECT<br />OUT OF 10</th>
-              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "45px" }}>TOTAL<br />OUT OF 20</th>
+              {u1Active && <th style={{ border: `1px solid ${tableBorderColor}`, padding: "2px" }}>U1</th>}
+              {u2Active && <th style={{ border: `1px solid ${tableBorderColor}`, padding: "2px" }}>U2</th>}
+              {etActive && <th style={{ border: `1px solid ${tableBorderColor}`, padding: "2px" }}>U3</th>}
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "2px" }}>TOTAL PTS</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "2px" }}>AMR SCORE</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "2px" }}>TOTAL<br />Out of 10</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "2px" }}>SCORE<br />IDENTIFIER</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "2px" }}>DESCRIPTOR</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "2px" }}>PROJECT<br />OUT OF 10</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "2px" }}>TOTAL<br />OUT OF 20</th>
             </tr>
           </thead>
           <tbody>
@@ -747,21 +747,21 @@ export default function SchoolPortal({ params }: PageProps) {
 
               return (
                 <tr key={sub.id}>
-                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", fontWeight: "bold" }}>{sub.name}</td>
-                  {u1Active && <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{m?.u1 !== null && m?.u1 !== undefined ? m.u1.toFixed(1) : "-"}</td>}
-                  {u2Active && <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{m?.u2 !== null && m?.u2 !== undefined ? m.u2.toFixed(1) : "-"}</td>}
-                  {etActive && <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{m?.u3 !== null && m?.u3 !== undefined ? m.u3.toFixed(1) : "-"}</td>}
-                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center", fontWeight: "600" }}>{m ? totalCA.toFixed(1) : "-"}</td>
-                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{avgCA}</td>
-                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{outOf10}</td>
-                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{scoreIdentifier}</td>
-                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{descVal}</td>
-                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{projectOut10}</td>
-                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{totalOut20}</td>
-                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{eoyVal}</td>
-                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center", fontWeight: "bold" }}>{m ? `${totalVal}` : "-"}</td>
-                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center", fontWeight: "bold", color: "var(--primary)" }}>{gradeVal}</td>
-                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center", fontWeight: "bold" }}>{teacherInitials || "-"}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", fontWeight: "bold" }}>{sub.name}</td>
+                  {u1Active && <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center" }}>{m?.u1 !== null && m?.u1 !== undefined ? m.u1.toFixed(1) : "-"}</td>}
+                  {u2Active && <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center" }}>{m?.u2 !== null && m?.u2 !== undefined ? m.u2.toFixed(1) : "-"}</td>}
+                  {etActive && <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center" }}>{m?.u3 !== null && m?.u3 !== undefined ? m.u3.toFixed(1) : "-"}</td>}
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center", fontWeight: "600" }}>{m ? totalCA.toFixed(1) : "-"}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center" }}>{avgCA}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center" }}>{outOf10}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center" }}>{scoreIdentifier}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center" }}>{descVal}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center" }}>{projectOut10}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center" }}>{totalOut20}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center" }}>{eoyVal}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center", fontWeight: "bold" }}>{m ? `${totalVal}` : "-"}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center", fontWeight: "bold", color: "var(--primary)" }}>{gradeVal}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center", fontWeight: "bold" }}>{teacherInitials || "-"}</td>
                 </tr>
               );
             })}
@@ -7454,22 +7454,53 @@ export default function SchoolPortal({ params }: PageProps) {
                         {/* Class / Head Teacher Comments */}
                         {school.reportShowComments !== false && rankInfo && (
                           <div className="comments-container" style={{ marginTop: "20px", fontSize: "14px", lineHeight: "2.2", fontFamily: "Times New Roman, serif" }}>
-                            <div style={{ display: "flex", alignItems: "flex-end", marginBottom: "8px" }}>
-                              <span style={{ fontWeight: "bold", whiteSpace: "nowrap", marginRight: "10px", fontSize: "15px" }}>Class teacher's Comment:</span>
-                              <div style={{ flex: 1, borderBottom: "1.5px dotted #000" }}></div>
-                            </div>
-                            <div style={{ display: "flex", alignItems: "flex-end", marginBottom: "8px" }}>
-                              <span style={{ fontWeight: "bold", whiteSpace: "nowrap", marginRight: "10px", fontSize: "15px" }}>Signature:</span>
-                              <div style={{ flex: 1, borderBottom: "1.5px dotted #000" }}></div>
-                            </div>
-                            <div style={{ display: "flex", alignItems: "flex-end", marginBottom: "8px" }}>
-                              <span style={{ fontWeight: "bold", whiteSpace: "nowrap", marginRight: "10px", fontSize: "15px" }}>Head Teacher's Comment:</span>
-                              <div style={{ flex: 1, borderBottom: "1.5px dotted #000" }}></div>
-                            </div>
-                            <div style={{ display: "flex", alignItems: "flex-end", marginBottom: "8px" }}>
-                              <span style={{ fontWeight: "bold", whiteSpace: "nowrap", marginRight: "10px", fontSize: "15px" }}>Signature:</span>
-                              <div style={{ flex: 1, borderBottom: "1.5px dotted #000" }}></div>
-                            </div>
+                            {(() => {
+                              const avg = parseFloat(rankInfo.studentAverage);
+                              let classTeacherComment = selectedReportStudent.classTeacherComment || "A fair performance. Focus more on your weaker subjects next term.";
+                              let headTeacherComment = selectedReportStudent.headTeacherComment || "You have potential. Push yourself harder next term.";
+                              
+                              if (!selectedReportStudent.classTeacherComment || !selectedReportStudent.headTeacherComment) {
+                                let defaultClassTeacherComment = "A fair performance. Focus more on your weaker subjects next term.";
+                                let defaultHeadTeacherComment = "You have potential. Push yourself harder next term.";
+                                if (avg >= 80) {
+                                  defaultClassTeacherComment = "Excellent academic performance! Keep up the outstanding work.";
+                                  defaultHeadTeacherComment = "An exceptional result. I am proud of your achievements.";
+                                } else if (avg >= 65) {
+                                  defaultClassTeacherComment = "Very good progress. With continued effort, you can achieve even higher grades.";
+                                  defaultHeadTeacherComment = "Good work. Maintain this standard.";
+                                } else if (avg < 50) {
+                                  defaultClassTeacherComment = "Below average. You need to put in more effort and seek academic support.";
+                                  defaultHeadTeacherComment = "Urgent improvement is required. Please double your efforts.";
+                                }
+                                if (!selectedReportStudent.classTeacherComment) classTeacherComment = defaultClassTeacherComment;
+                                if (!selectedReportStudent.headTeacherComment) headTeacherComment = defaultHeadTeacherComment;
+                              }
+                              
+                              return (
+                                <>
+                                  <div style={{ display: "flex", alignItems: "flex-end", marginBottom: "8px" }}>
+                                    <span style={{ fontWeight: "bold", whiteSpace: "nowrap", marginRight: "10px", fontSize: "15px" }}>Class teacher's Comment:</span>
+                                    <div style={{ flex: 1, borderBottom: "1.5px dotted #000", fontFamily: "cursive, 'Comic Sans MS', sans-serif", fontSize: "15px", color: "#1e3a8a", paddingBottom: "2px", minHeight: "24px" }}>
+                                      {classTeacherComment}
+                                    </div>
+                                  </div>
+                                  <div style={{ display: "flex", alignItems: "flex-end", marginBottom: "8px" }}>
+                                    <span style={{ fontWeight: "bold", whiteSpace: "nowrap", marginRight: "10px", fontSize: "15px" }}>Signature:</span>
+                                    <div style={{ flex: 1, borderBottom: "1.5px dotted #000" }}></div>
+                                  </div>
+                                  <div style={{ display: "flex", alignItems: "flex-end", marginBottom: "8px" }}>
+                                    <span style={{ fontWeight: "bold", whiteSpace: "nowrap", marginRight: "10px", fontSize: "15px" }}>Head Teacher's Comment:</span>
+                                    <div style={{ flex: 1, borderBottom: "1.5px dotted #000", fontFamily: "cursive, 'Comic Sans MS', sans-serif", fontSize: "15px", color: "#059669", paddingBottom: "2px", minHeight: "24px" }}>
+                                      {headTeacherComment}
+                                    </div>
+                                  </div>
+                                  <div style={{ display: "flex", alignItems: "flex-end", marginBottom: "8px" }}>
+                                    <span style={{ fontWeight: "bold", whiteSpace: "nowrap", marginRight: "10px", fontSize: "15px" }}>Signature:</span>
+                                    <div style={{ flex: 1, borderBottom: "1.5px dotted #000" }}></div>
+                                  </div>
+                                </>
+                              );
+                            })()}
                           </div>
                         )}
 

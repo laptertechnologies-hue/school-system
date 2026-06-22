@@ -4411,28 +4411,29 @@ export default function SchoolPortal({ params }: PageProps) {
 
               <div className="card">
                 <h3 style={{ marginBottom: "16px" }}>Curriculum Subjects List</h3>
-                <div className="table-container">
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th>Code</th>
-                        <th>Subject Name</th>
-                        <th>Class</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {subjects.map(sub => {
-                        const cl = classes.find(c => c.id === sub.classId);
-                        return (
-                          <tr key={sub.id}>
-                            <td><strong>{sub.code || "N/A"}</strong></td>
-                            <td>{sub.name}</td>
-                            <td>{cl?.name} ({cl?.level})</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                <div style={{ display: "flex", flexDirection: "column", gap: "16px", maxHeight: "300px", overflowY: "auto", paddingRight: "8px" }}>
+                  {classes.map((cl, index) => {
+                    const classSubjects = subjects.filter(s => s.classId === cl.id);
+                    if (classSubjects.length === 0) return null;
+                    return (
+                      <div key={cl.id} style={{ borderBottom: index === classes.length - 1 ? "none" : "1px solid var(--border)", paddingBottom: "12px" }}>
+                        <div style={{ fontSize: "13px", fontWeight: "bold", color: "#1e293b", marginBottom: "8px" }}>
+                          {cl.name} <span style={{ color: "#64748b", fontWeight: "normal" }}>({cl.level})</span>
+                        </div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                          {classSubjects.map(sub => (
+                            <span key={sub.id} className="badge badge-outline" style={{ background: "#f8fafc", fontSize: "11px", padding: "4px 8px", border: "1px solid #e2e8f0" }}>
+                              {sub.code ? <span style={{ color: "var(--primary)", fontWeight: "bold", marginRight: "4px" }}>{sub.code}</span> : null}
+                              {sub.name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {subjects.length === 0 && (
+                    <div style={{ color: "#64748b", fontSize: "13px", padding: "12px" }}>No curriculum subjects recorded yet.</div>
+                  )}
                 </div>
               </div>
             </div>

@@ -8,6 +8,8 @@ import {
   createSchool,
   updateSchoolStatus, 
   updateSchoolSubscription,
+  updateSchoolDetails,
+  resetSchoolAdminPassword,
   checkDatabaseConnection,
   authenticateUser
 } from "../../lib/services";
@@ -51,6 +53,13 @@ export default function SuperAdminDashboard() {
   // Subscription Edit Modal States
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedEditSchool, setSelectedEditSchool] = useState<School | null>(null);
+  
+  // General Details State
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editStudentRange, setEditStudentRange] = useState("");
+  
   const [editPackageType, setEditPackageType] = useState<"BASIC" | "PREMIUM">("BASIC");
   const [editStatus, setEditStatus] = useState<"PENDING" | "ACTIVE" | "INACTIVE">("PENDING");
   const [editExpiresAt, setEditExpiresAt] = useState("");
@@ -58,6 +67,7 @@ export default function SuperAdminDashboard() {
   // Filters State
   const [activeFilterTab, setActiveFilterTab] = useState<"ALL" | "ACTIVE_PAX" | "TRIALS" | "EXPIRED">("ALL");
   const [packageFilter, setPackageFilter] = useState<"ALL" | "BASIC" | "PREMIUM">("ALL");
+  const [transactionFilter, setTransactionFilter] = useState<"ALL" | "ACTIVE_PAX">("ALL");
 
   const loadData = async () => {
     setLoading(true);
@@ -128,12 +138,27 @@ export default function SuperAdminDashboard() {
 
   const handleOpenEditModal = (school: School) => {
     setSelectedEditSchool(school);
+    setEditName(school.name);
+    setEditEmail(school.contactEmail);
+    setEditPhone(school.contactPhone);
+    setEditStudentRange(school.studentRange || "");
     setEditPackageType(school.packageType);
     setEditStatus(school.status);
     setEditExpiresAt(
       school.expiresAt ? new Date(school.expiresAt).toISOString().split("T")[0] : ""
     );
     setShowEditModal(true);
+  };
+
+  const handleResetPassword = async () => {
+    if (!selectedEditSchool) return;
+    if (!confirm(`Reset the primary administrator password for ${selectedEditSchool.name} to "password"?`)) return;
+    try {
+      await resetSchoolAdminPassword(selectedEditSchool.id);
+      alert("Password successfully reset to 'password'");
+    } catch (err: any) {
+      alert("Failed to reset password: " + err.message);
+    }
   };
 
   const handleSaveSubscription = async (e: React.FormEvent) => {
@@ -146,6 +171,13 @@ export default function SuperAdminDashboard() {
         packageType: editPackageType,
         status: editStatus,
         expiresAt: expDate,
+      });
+
+      await updateSchoolDetails(selectedEditSchool.id, {
+        name: editName,
+        contactEmail: editEmail,
+        contactPhone: editPhone,
+        studentRange: editStudentRange,
       });
 
       setShowEditModal(false);
@@ -238,6 +270,17 @@ export default function SuperAdminDashboard() {
   ).length;
 
   const totalRevenue = payments.reduce((sum, p) => sum + (p.status === "COMPLETED" ? p.amount : 0), 0);
+
+  // Filter Payments
+  const filteredPayments = payments.filter((p) => {
+    if (transactionFilter === "ACTIVE_PAX") {
+      const sch = schools.find((s) => s.id === p.schoolId);
+      if (!sch) return false;
+      const isActivePaid = sch.status === "ACTIVE" && sch.expiresAt && new Date(sch.expiresAt).getTime() > Date.now();
+      if (!isActivePaid) return false;
+    }
+    return true;
+  });
 
   // Filter school list
   const filteredSchools = schools.filter((s) => {
@@ -597,9 +640,20 @@ export default function SuperAdminDashboard() {
 
               {/* Billing Logs */}
               <div className="card" style={{ marginTop: "24px", padding: "24px", backgroundColor: "#ffffff", borderColor: "#cbd5e1" }}>
-                <h3 style={{ fontSize: "18px", color: "#0f172a", marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px" }}>
-                  <FileText size={20} color="var(--primary)" /> Subscription Billing Logs
-                </h3>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "10px" }}>
+                  <h3 style={{ fontSize: "18px", color: "#0f172a", display: "flex", alignItems: "center", gap: "8px" }}>
+                    <FileText size={20} color="var(--primary)" /> Subscription Billing Logs
+                  </h3>
+                  <select
+                    value={transactionFilter}
+                    onChange={(e) => setTransactionFilter(e.target.value as any)}
+                    className="input-field"
+                    style={{ width: "200px", padding: "6px 10px", fontSize: "13px", background: "white", color: "#1e293b", borderColor: "#cbd5e1", marginBottom: 0 }}
+                  >
+                    <option value="ALL">All Transactions</option>
+                    <option value="ACTIVE_PAX">Paid Active Schools Only</option>
+                  </select>
+                </div>
                 <div className="table-container">
                   <table className="table">
                     <thead>
@@ -612,7 +666,7 @@ export default function SuperAdminDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {payments.map((p) => {
+                      {filteredPayments.map((p) => {
                         const sch = schools.find((s) => s.id === p.schoolId);
                         return (
                           <tr key={p.id}>
@@ -756,12 +810,67 @@ export default function SuperAdminDashboard() {
             </div>
 
             <form onSubmit={handleSaveSubscription}>
-              <div style={{ marginBottom: "16px", background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid #cbd5e1" }}>
-                <strong style={{ fontSize: "14px", color: "#0f172a" }}>{selectedEditSchool.name}</strong>
-                <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>
-                  Subdomain: {selectedEditSchool.subdomain}.portal.laptertech.store
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid #cbd5e1" }}>
+                <div>
+                  <strong style={{ fontSize: "14px", color: "#0f172a" }}>{selectedEditSchool.name}</strong>
+                  <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>
+                    Subdomain: {selectedEditSchool.subdomain}.portal.laptertech.store
+                  </div>
+                </div>
+                <button 
+                  type="button" 
+                  onClick={handleResetPassword}
+                  className="btn btn-outline" 
+                  style={{ padding: "6px 12px", fontSize: "11px", color: "#dc2626", borderColor: "#fca5a5", background: "#fef2f2" }}
+                >
+                  Reset Admin Password
+                </button>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div className="form-group">
+                  <label className="form-label">School Name</label>
+                  <input 
+                    type="text"
+                    className="input-field"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Student Range</label>
+                  <input 
+                    type="text"
+                    className="input-field"
+                    value={editStudentRange}
+                    onChange={(e) => setEditStudentRange(e.target.value)}
+                  />
                 </div>
               </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div className="form-group">
+                  <label className="form-label">Contact Email</label>
+                  <input 
+                    type="email"
+                    className="input-field"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Contact Phone</label>
+                  <input 
+                    type="text"
+                    className="input-field"
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <hr style={{ border: 0, borderTop: "1px solid #e2e8f0", margin: "16px 0" }} />
 
               <div className="form-group">
                 <label className="form-label">Package Plan</label>

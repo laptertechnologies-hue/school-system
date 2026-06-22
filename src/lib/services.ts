@@ -326,6 +326,60 @@ export async function updateSchoolSubscription(
   return serialize(school);
 }
 
+export async function updateSchoolDetails(
+  id: string,
+  data: {
+    name?: string;
+    contactEmail?: string;
+    contactPhone?: string;
+    studentRange?: string;
+  }
+): Promise<School> {
+  if (await hasDB()) {
+    const updated = await prisma.school.update({
+      where: { id },
+      data,
+    });
+    return serialize(updated as unknown as School);
+  }
+
+  const db = getLocalDB();
+  const schoolIndex = db.schools.findIndex((s: School) => s.id === id);
+  if (schoolIndex === -1) throw new Error("School not found");
+  
+  const school = db.schools[schoolIndex];
+  if (data.name !== undefined) school.name = data.name;
+  if (data.contactEmail !== undefined) school.contactEmail = data.contactEmail;
+  if (data.contactPhone !== undefined) school.contactPhone = data.contactPhone;
+  if (data.studentRange !== undefined) school.studentRange = data.studentRange;
+  
+  saveLocalDB(db);
+  return serialize(school);
+}
+
+export async function resetSchoolAdminPassword(schoolId: string): Promise<void> {
+  // Finds the first admin of the school and resets their password to 'password'
+  if (await hasDB()) {
+    const admin = await prisma.user.findFirst({
+      where: { schoolId, role: "ADMIN" },
+      orderBy: { createdAt: "asc" }
+    });
+    if (!admin) throw new Error("No admin found for this school");
+    
+    await prisma.user.update({
+      where: { id: admin.id },
+      data: { passwordHash: "password" }
+    });
+    return;
+  }
+
+  const db = getLocalDB();
+  const admin = db.users.find((u: any) => u.schoolId === schoolId && u.role === "ADMIN");
+  if (!admin) throw new Error("No admin found for this school");
+  admin.passwordHash = "password";
+  saveLocalDB(db);
+}
+
 export async function updateSchoolMetadata(
   id: string,
   metadata: {

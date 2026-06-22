@@ -9197,8 +9197,8 @@ export default function SchoolPortal({ params }: PageProps) {
                     }
 
                     const confirmMsg = smsPaymentMode === "mobile_money"
-                      ? `Confirm sending SMS to ${recipients.length} recipient(s)?\n\nTotal cost: ${totalCost.toLocaleString()} UGX\nA MoMo request of ${profitAmount.toLocaleString()} UGX will be sent to ${smsPayerPhone}.`
-                      : `Confirm sending SMS to ${recipients.length} recipient(s)?\n\nTotal cost: ${totalCost.toLocaleString()} UGX\nYou will be redirected to the Card payment gateway to complete the payment of ${profitAmount.toLocaleString()} UGX.`;
+                      ? `Confirm sending SMS to ${recipients.length} recipient(s)?\n\nTotal cost: ${totalCost.toLocaleString()} UGX\nA MoMo request of ${totalCost.toLocaleString()} UGX will be sent to ${smsPayerPhone}.`
+                      : `Confirm sending SMS to ${recipients.length} recipient(s)?\n\nTotal cost: ${totalCost.toLocaleString()} UGX\nYou will be redirected to the Card payment gateway to complete the payment of ${totalCost.toLocaleString()} UGX.`;
                     if (!confirm(confirmMsg)) return;
 
                     // Create log entry
@@ -9227,7 +9227,7 @@ export default function SchoolPortal({ params }: PageProps) {
                     // Step 1: MarzPay collection
                     setSmsSendStatus("collecting");
                     const collectRes = await initiateMarzpayCollection(
-                      profitAmount,
+                      totalCost,
                       smsPaymentMode,
                       smsPaymentMode === "mobile_money" ? smsPayerPhone : undefined,
                       `SMS Service Fee - ${school.name}`
@@ -9247,7 +9247,7 @@ export default function SchoolPortal({ params }: PageProps) {
                     if (smsPaymentMode === "card") {
                       const redirectUrl = collectRes.data?.redirect_url;
                       if (redirectUrl) {
-                        setSmsPayAmount(profitAmount);
+                        setSmsPayAmount(totalCost);
                         setSmsCardRedirectUrl(redirectUrl);
                         setShowSmsCardPayModal(true);
                       }

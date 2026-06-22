@@ -115,6 +115,7 @@ model Class {
   name         String    // e.g. "P1", "S4"
   level        String    // "PRIMARY", "SECONDARY"
   themeColor   String?   // Add theme color for class report cards
+  themeTextColor String? // Add custom text color for class report cards
   streams      Stream[]
   students     Student[]
   subjects     Subject[]

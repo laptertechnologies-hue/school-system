@@ -652,17 +652,17 @@ export async function createStream(classId: string, name: string): Promise<Strea
   return newStream;
 }
 
-export async function updateClass(id: string, name: string, level: "PRIMARY" | "SECONDARY", themeColor?: string | null): Promise<Class> {
+export async function updateClass(id: string, name: string, level: "PRIMARY" | "SECONDARY", themeColor?: string | null, themeTextColor?: string | null): Promise<Class> {
   if (await hasDB()) {
     return (await prisma.class.update({
       where: { id },
-      data: { name, level, themeColor },
+      data: { name, level, themeColor, themeTextColor },
     })) as Class;
   }
   const db = getLocalDB();
   const idx = db.classes.findIndex((c: Class) => c.id === id);
   if (idx !== -1) {
-    db.classes[idx] = { ...db.classes[idx], name, level, themeColor };
+    db.classes[idx] = { ...db.classes[idx], name, level, themeColor, themeTextColor };
     saveLocalDB(db);
     return db.classes[idx];
   }

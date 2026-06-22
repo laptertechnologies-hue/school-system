@@ -81,6 +81,7 @@ export interface Class {
   name: string;
   level: "PRIMARY" | "SECONDARY";
   themeColor?: string | null;
+  themeTextColor?: string | null;
 }
 
 export interface Stream {

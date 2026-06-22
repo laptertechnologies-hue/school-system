@@ -522,38 +522,61 @@ export default function SchoolPortal({ params }: PageProps) {
 
     if (chartData.length === 0) return null;
 
+    const targetClass = classes.find(c => c.id === student.classId);
+    const classTextColor = targetClass?.themeTextColor || "#000000";
+    const isDarkText = classTextColor === "#ffffff" || classTextColor.toLowerCase() === "#fff" || classTextColor.toLowerCase() === "#faf5ff" || classTextColor.toLowerCase() === "#f8fafc" || classTextColor.toLowerCase() === "#e2e8f0";
+
+    const gridColor = isDarkText ? "rgba(255, 255, 255, 0.1)" : "#e2e8f0";
+    const axisColor = isDarkText ? "rgba(255, 255, 255, 0.25)" : "#cbd5e1";
+    const labelColor = isDarkText ? "rgba(255, 255, 255, 0.6)" : "#64748b";
+    const scoreColor = isDarkText ? "#ffffff" : "#0f172a";
+
     return (
-      <div className="chart-container" style={{ border: "1px solid #cbd5e1", borderRadius: "6px", padding: "16px", background: "white", marginBottom: "20px", display: "block" }}>
-        <h4 style={{ textTransform: "uppercase", fontSize: "12px", marginBottom: "12px", textAlign: "center", color: "#334155" }}>Subject Performance Chart</h4>
-        <svg viewBox="0 0 600 160" style={{ width: "100%", height: "auto" }}>
-          {/* Gridlines */}
-          <line x1="40" y1="20" x2="580" y2="20" stroke="#e2e8f0" strokeWidth="0.5" />
-          <line x1="40" y1="50" x2="580" y2="50" stroke="#e2e8f0" strokeWidth="0.5" />
-          <line x1="40" y1="80" x2="580" y2="80" stroke="#e2e8f0" strokeWidth="0.5" />
-          <line x1="40" y1="110" x2="580" y2="110" stroke="#e2e8f0" strokeWidth="0.5" />
-          <line x1="40" y1="140" x2="580" y2="140" stroke="#cbd5e1" strokeWidth="1" />
+      <div className="chart-container" style={{ border: isDarkText ? "1px solid rgba(255,255,255,0.2)" : "1px solid #cbd5e1", borderRadius: "3px", padding: "6px", background: isDarkText ? "rgba(255,255,255,0.02)" : "white", marginBottom: "8px", display: "block" }}>
+        <div style={{ fontWeight: "bold", fontSize: "7px", marginBottom: "4px", textAlign: "center", color: labelColor, textTransform: "uppercase" }}>Subject Performance Chart</div>
+        <svg viewBox="0 0 300 80" style={{ width: "100%", height: "auto" }}>
+          {/* Y-axis gridlines */}
+          <line x1="20" y1="10" x2="295" y2="10" stroke={gridColor} strokeWidth="0.5" />
+          <line x1="20" y1="25" x2="295" y2="25" stroke={gridColor} strokeWidth="0.5" />
+          <line x1="20" y1="40" x2="295" y2="40" stroke={gridColor} strokeWidth="0.5" />
+          <line x1="20" y1="55" x2="295" y2="55" stroke={gridColor} strokeWidth="0.5" />
+          <line x1="20" y1="70" x2="295" y2="70" stroke={axisColor} strokeWidth="0.8" />
           
           {/* Tick labels */}
-          <text x="30" y="24" fontSize="9px" textAnchor="end" fill="#64748b">100%</text>
-          <text x="30" y="54" fontSize="9px" textAnchor="end" fill="#64748b">75%</text>
-          <text x="30" y="84" fontSize="9px" textAnchor="end" fill="#64748b">50%</text>
-          <text x="30" y="114" fontSize="9px" textAnchor="end" fill="#64748b">25%</text>
-          <text x="30" y="144" fontSize="9px" textAnchor="end" fill="#64748b">0%</text>
+          <text x="15" y="12" fontSize="5px" textAnchor="end" fill={labelColor}>100%</text>
+          <text x="15" y="27" fontSize="5px" textAnchor="end" fill={labelColor}>75%</text>
+          <text x="15" y="42" fontSize="5px" textAnchor="end" fill={labelColor}>50%</text>
+          <text x="15" y="57" fontSize="5px" textAnchor="end" fill={labelColor}>25%</text>
+          <text x="15" y="72" fontSize="5px" textAnchor="end" fill={labelColor}>0%</text>
 
           {/* Bars */}
           {chartData.map((d, i) => {
-            const barWidth = Math.min(30, 400 / chartData.length);
-            const spacing = 500 / chartData.length;
-            const x = 50 + i * spacing;
-            const height = (d.score / 100) * 120; // max height is 120px (from y=20 to y=140)
-            const y = 140 - height;
-            const color = d.score >= 80 ? "#059669" : d.score >= 50 ? (school?.reportHeaderColor || "#1e3a8a") : "#ef4444";
+            const spacing = 260 / chartData.length;
+            const barWidth = Math.min(20, spacing * 0.6);
+            const x = 30 + i * spacing + (spacing - barWidth) / 2;
+            const height = (d.score / 100) * 60; // Max height is 60px (from y=10 to y=70)
+            const y = 70 - height;
             
+            let color = school?.reportHeaderColor || "#1e3a8a";
+            if (d.score < 20) {
+              color = "#ef4444"; // Red
+            } else if (d.score < 60) {
+              color = "#f59e0b"; // Orange
+            }
+
             return (
               <g key={i}>
-                <rect x={x} y={y} width={barWidth} height={height} fill={color} rx="2" />
-                <text x={x + barWidth / 2} y={y - 6} fontSize="9px" textAnchor="middle" fontWeight="bold" fill="#0f172a">{d.score}%</text>
-                <text x={x + barWidth / 2} y="154" fontSize="9px" textAnchor="middle" fontWeight="600" fill="#475569">{d.subjectCode}</text>
+                <rect 
+                  x={x} 
+                  y={y} 
+                  width={barWidth} 
+                  height={height} 
+                  fill={color} 
+                  rx="1" 
+                  style={{ printColorAdjust: "exact", WebkitPrintColorAdjust: "exact" }} 
+                />
+                <text x={x + barWidth / 2} y={y - 3} fontSize="6px" textAnchor="middle" fontWeight="bold" fill={scoreColor}>{d.score}</text>
+                <text x={x + barWidth / 2} y="77" fontSize="5px" textAnchor="middle" fill={labelColor} fontWeight="600">{d.subjectCode}</text>
               </g>
             );
           })}
@@ -588,28 +611,80 @@ export default function SchoolPortal({ params }: PageProps) {
 
       const classStudentsIds = students.filter(st => st.classId === student.classId).map(st => st.id);
       const rankInfo = getStudentRankAndTotals(student.id, student.classId, eotExam.id);
+      const targetClass = classes.find(c => c.id === student.classId);
+      const classTextColor = targetClass?.themeTextColor || "#000000";
+
+      // Determine colors based on theme contrast
+      const isDarkText = classTextColor === "#ffffff" || classTextColor.toLowerCase() === "#fff" || classTextColor.toLowerCase() === "#faf5ff" || classTextColor.toLowerCase() === "#f8fafc" || classTextColor.toLowerCase() === "#e2e8f0";
+      const tableBorderColor = isDarkText ? "rgba(255, 255, 255, 0.2)" : "#cbd5e1";
+      const headerBackground = isDarkText ? "rgba(255, 255, 255, 0.1)" : "#f1f5f9";
+      const summaryBackground = isDarkText ? "rgba(255, 255, 255, 0.05)" : "#f8fafc";
+      const outerBorder = isDarkText ? "1px solid rgba(255,255,255,0.2)" : "1px solid #cbd5e1";
+
+      // Summary calculations
+      let totalPtSum = 0;
+      let ptCount = 0;
+      let summSum = 0;
+      let summCount = 0;
+
+      classSubjects.forEach(sub => {
+        const m = stMarks.find(mk => mk.subjectId === sub.id);
+        if (m) {
+          let totalCA = 0;
+          let maxTotal = 0;
+          if (u1Active) { maxTotal += u1Max; if (m.u1 !== null && m.u1 !== undefined) totalCA += m.u1; }
+          if (u2Active) { maxTotal += u2Max; if (m.u2 !== null && m.u2 !== undefined) totalCA += m.u2; }
+          if (etActive) { maxTotal += etMax; if (m.u3 !== null && m.u3 !== undefined) totalCA += m.u3; }
+          if (hpgActive) { maxTotal += hpgMax; if (m.hpg !== null && m.hpg !== undefined) totalCA += m.hpg; }
+
+          if (maxTotal > 0) {
+            totalPtSum += (totalCA / maxTotal) * 3;
+            ptCount++;
+          }
+          if (m.eoy !== null && m.eoy !== undefined) {
+            summSum += m.eoy;
+            summCount++;
+          }
+        }
+      });
+
+      const avgPt = ptCount > 0 ? (totalPtSum / ptCount).toFixed(1) : "-";
+      const avgIdent = ptCount > 0 ? Math.round(totalPtSum / ptCount) : "-";
+      let avgDesc = "-";
+      if (ptCount > 0) {
+        const roundedIdent = Math.round(totalPtSum / ptCount);
+        if (roundedIdent >= 3) avgDesc = "Outstanding";
+        else if (roundedIdent === 2) avgDesc = "Moderate";
+        else if (roundedIdent === 1) avgDesc = "Basic";
+        else avgDesc = "Elementary";
+      }
+      const summAvg = summCount > 0 ? `${Math.round(summSum / summCount)}%` : "-";
+
+      const rankSpan = (u1Active ? 1 : 0) + (u2Active ? 1 : 0) + (etActive ? 1 : 0);
+      const rankColSpan = rankSpan > 0 ? rankSpan : 1;
+      const totScoreColSpan = rankSpan > 0 ? (4 + (hpgActive ? 1 : 0)) : (3 + (hpgActive ? 1 : 0));
 
       return (
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10px", marginBottom: "20px" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10px", marginBottom: "20px", border: outerBorder }}>
           <thead>
-            <tr style={{ background: "#f1f5f9", textAlign: "center", fontWeight: "bold" }}>
-              <th style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "left" }} rowSpan={2}>SUBJECT</th>
-              <th style={{ border: "1px solid #94a3b8", padding: "5px" }} colSpan={(u1Active ? 1 : 0) + (u2Active ? 1 : 0) + (etActive ? 1 : 0) + 5}>FORMATIVE ASSESSMENT SCORES (AOI & PROJECT WORK)</th>
-              <th style={{ border: "1px solid #94a3b8", padding: "5px" }} rowSpan={2}>SUMM.<br />(/80)</th>
-              <th style={{ border: "1px solid #94a3b8", padding: "5px" }} rowSpan={2}>TOT<br />(100%)</th>
-              <th style={{ border: "1px solid #94a3b8", padding: "5px" }} rowSpan={2}>GRD</th>
-              <th style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "left" }} rowSpan={2}>ACHIEVEMENT LEVEL</th>
-              <th style={{ border: "1px solid #94a3b8", padding: "5px" }} rowSpan={2}>INITIAL</th>
+            <tr style={{ background: headerBackground, textAlign: "center", fontWeight: "bold" }}>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "left" }} rowSpan={2}>SUBJECT</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "5px" }} colSpan={(u1Active ? 1 : 0) + (u2Active ? 1 : 0) + (etActive ? 1 : 0) + 5 + (hpgActive ? 1 : 0)}>FORMATIVE ASSESSMENT SCORES (AOI & PROJECT WORK)</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "5px" }} rowSpan={2}>SUMM.<br />(80)</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "5px" }} rowSpan={2}>OVERALL<br />(100%)</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "5px" }} rowSpan={2}>GRADE</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "5px" }} rowSpan={2}>INIT.</th>
             </tr>
-            <tr style={{ background: "#f1f5f9", textAlign: "center", fontWeight: "bold" }}>
-              {u1Active && <th style={{ border: "1px solid #94a3b8", padding: "3px", width: "32px" }}>U1</th>}
-              {u2Active && <th style={{ border: "1px solid #94a3b8", padding: "3px", width: "32px" }}>U2</th>}
-              {etActive && <th style={{ border: "1px solid #94a3b8", padding: "3px", width: "32px" }}>E.T</th>}
-              <th style={{ border: "1px solid #94a3b8", padding: "3px", width: "40px" }}>TOTAL</th>
-              <th style={{ border: "1px solid #94a3b8", padding: "3px", width: "40px" }}>AVG(/3)</th>
-              <th style={{ border: "1px solid #94a3b8", padding: "3px", width: "40px" }}>Out 10</th>
-              <th style={{ border: "1px solid #94a3b8", padding: "3px", width: "40px" }}>IDENT</th>
-              {hpgActive && <th style={{ border: "1px solid #94a3b8", padding: "3px", width: "45px" }}>PROJECT</th>}
+            <tr style={{ background: headerBackground, textAlign: "center", fontWeight: "bold" }}>
+              {u1Active && <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "32px" }}>U1</th>}
+              {u2Active && <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "32px" }}>U2</th>}
+              {etActive && <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "32px" }}>U3</th>}
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "40px" }}>PTS</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "40px" }}>AVR</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "40px" }}>Out 10</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "40px" }}>IDENT</th>
+              {hpgActive && <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "45px" }}>PROJECT</th>}
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", width: "55px" }}>DESC</th>
             </tr>
           </thead>
           <tbody>
@@ -632,12 +707,18 @@ export default function SchoolPortal({ params }: PageProps) {
               const outOf10 = maxTotal > 0 && m ? ((totalCA / maxTotal) * 10).toFixed(1) : "-";
               const scoreIdentifier = maxTotal > 0 && m ? Math.round((totalCA / maxTotal) * 3).toFixed(1) : "-";
               
+              let descVal = "-";
+              if (maxTotal > 0 && m) {
+                const idVal = Math.round((totalCA / maxTotal) * 3);
+                if (idVal >= 3) descVal = "Outstanding";
+                else if (idVal === 2) descVal = "Moderate";
+                else if (idVal === 1) descVal = "Basic";
+                else descVal = "Elementary";
+              }
+
               const eoyVal = m?.eoy !== null && m?.eoy !== undefined ? m.eoy.toFixed(1) : "-";
               const totalVal = m ? m.score.toFixed(0) : "-";
               const gradeVal = m ? m.competencyGrade : "-";
-
-              const gradeObj = m ? computeGradeFromRanges(m.score, "SECONDARY", gradeRanges) : null;
-              const achievementVal = gradeObj ? gradeObj.level : "-";
 
               const assignment = teacherAssignments.find(ta => ta.classId === student.classId && ta.streamId === student.streamId && ta.subjectId === sub.id);
               let teacherInitials = "";
@@ -650,37 +731,43 @@ export default function SchoolPortal({ params }: PageProps) {
 
               return (
                 <tr key={sub.id}>
-                  <td style={{ border: "1px solid #94a3b8", padding: "5px", fontWeight: "bold" }}>{sub.name}</td>
-                  {u1Active && <td style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "center" }}>{m?.u1 !== null && m?.u1 !== undefined ? m.u1.toFixed(1) : "-"}</td>}
-                  {u2Active && <td style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "center" }}>{m?.u2 !== null && m?.u2 !== undefined ? m.u2.toFixed(1) : "-"}</td>}
-                  {etActive && <td style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "center" }}>{m?.u3 !== null && m?.u3 !== undefined ? m.u3.toFixed(1) : "-"}</td>}
-                  <td style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "center", fontWeight: "600" }}>{m ? totalCA.toFixed(1) : "-"}</td>
-                  <td style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "center" }}>{avgCA}</td>
-                  <td style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "center" }}>{outOf10}</td>
-                  <td style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "center" }}>{scoreIdentifier}</td>
-                  {hpgActive && <td style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "center" }}>{m?.hpg !== null && m?.hpg !== undefined ? m.hpg.toFixed(1) : "-"}</td>}
-                  <td style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "center" }}>{eoyVal}</td>
-                  <td style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "center", fontWeight: "bold" }}>{m ? `${totalVal}%` : "-"}</td>
-                  <td style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "center", fontWeight: "bold", color: "var(--primary)" }}>{gradeVal}</td>
-                  <td style={{ border: "1px solid #94a3b8", padding: "5px" }}>{achievementVal}</td>
-                  <td style={{ border: "1px solid #94a3b8", padding: "5px", textAlign: "center", fontWeight: "bold" }}>{teacherInitials || "-"}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", fontWeight: "bold" }}>{sub.name}</td>
+                  {u1Active && <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{m?.u1 !== null && m?.u1 !== undefined ? m.u1.toFixed(1) : "-"}</td>}
+                  {u2Active && <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{m?.u2 !== null && m?.u2 !== undefined ? m.u2.toFixed(1) : "-"}</td>}
+                  {etActive && <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{m?.u3 !== null && m?.u3 !== undefined ? m.u3.toFixed(1) : "-"}</td>}
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center", fontWeight: "600" }}>{m ? totalCA.toFixed(1) : "-"}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{avgCA}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{outOf10}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{scoreIdentifier}</td>
+                  {hpgActive && <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{m?.hpg !== null && m?.hpg !== undefined ? m.hpg.toFixed(1) : "-"}</td>}
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{descVal}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center" }}>{eoyVal}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center", fontWeight: "bold" }}>{m ? `${totalVal}%` : "-"}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center", fontWeight: "bold", color: "var(--primary)" }}>{gradeVal}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "5px", textAlign: "center", fontWeight: "bold" }}>{teacherInitials || "-"}</td>
                 </tr>
               );
             })}
             {school?.reportShowSummaryRow !== false && rankInfo && (
-              <tr style={{ background: "#f8fafc", fontWeight: "bold", fontSize: "10px" }}>
-                <td style={{ border: "1px solid #94a3b8", padding: "6px" }}>OVERALL AVERAGE</td>
-                <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center" }} colSpan={(u1Active ? 1 : 0) + (u2Active ? 1 : 0) + (etActive ? 1 : 0) + (hpgActive ? 1 : 0) + 4}>
+              <tr style={{ background: summaryBackground, fontWeight: "bold", fontSize: "9px" }}>
+                <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px" }}>OVERALL AVERAGE</td>
+                <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px", textAlign: "center" }} colSpan={rankColSpan}>
                   CLASS RANK: {rankInfo.position} / {rankInfo.totalStudents}
                 </td>
-                <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center" }}>
-                  AVG: {rankInfo.studentAverage}%
+                <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px", textAlign: "center" }}>
+                  AVG PT: {avgPt}
                 </td>
-                <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center" }} colSpan={2}>
-                  CLASS AVG: {rankInfo.classAverage}%
+                <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px", textAlign: "center" }}>
+                  IDENT: {avgIdent}
                 </td>
-                <td style={{ border: "1px solid #94a3b8", padding: "6px", textAlign: "center" }}>
-                  TOTAL: {rankInfo.studentTotal}
+                <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px", textAlign: "center" }} colSpan={2}>
+                  DESC: {avgDesc}
+                </td>
+                <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px", textAlign: "center" }}>
+                  SUMM AVG: {summAvg}
+                </td>
+                <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px", textAlign: "center" }} colSpan={totScoreColSpan}>
+                  TOT SCORE: {rankInfo.studentTotal}
                 </td>
               </tr>
             )}
@@ -6595,11 +6682,11 @@ export default function SchoolPortal({ params }: PageProps) {
                       onChange={async (e) => {
                         const classObj = classes.find(c => c.id === selectedReportClassId);
                         if (classObj) {
-                          await updateClass(classObj.id, classObj.name, classObj.level, e.target.value);
+                          await updateClass(classObj.id, classObj.name, classObj.level, e.target.value, classObj.themeTextColor || "#000000");
                           await loadSchoolData(school!.id);
                         }
                       }}
-                      title="Custom Color Picker"
+                      title="Custom Theme Color"
                     />
                     <select
                       className="input-field"
@@ -6608,7 +6695,7 @@ export default function SchoolPortal({ params }: PageProps) {
                       onChange={async (e) => {
                         const classObj = classes.find(c => c.id === selectedReportClassId);
                         if (classObj) {
-                          await updateClass(classObj.id, classObj.name, classObj.level, e.target.value);
+                          await updateClass(classObj.id, classObj.name, classObj.level, e.target.value, classObj.themeTextColor || "#000000");
                           await loadSchoolData(school!.id);
                         }
                       }}
@@ -6623,6 +6710,48 @@ export default function SchoolPortal({ params }: PageProps) {
                       <option value="#f8fafc">Pastel Slate (#f8fafc)</option>
                       <option value="#ffedd5">Pastel Orange (#ffedd5)</option>
                       <option value="#fee2e2">Pastel Red (#fee2e2)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span>Class Report Text Color</span>
+                  </label>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <input 
+                      type="color" 
+                      style={{ width: "40px", height: "36px", padding: "2px", border: "1px solid var(--border)", borderRadius: "4px", cursor: "pointer" }}
+                      value={classes.find(c => c.id === selectedReportClassId)?.themeTextColor || "#000000"}
+                      onChange={async (e) => {
+                        const classObj = classes.find(c => c.id === selectedReportClassId);
+                        if (classObj) {
+                          await updateClass(classObj.id, classObj.name, classObj.level, classObj.themeColor || "#ffffff", e.target.value);
+                          await loadSchoolData(school!.id);
+                        }
+                      }}
+                      title="Custom Text Color"
+                    />
+                    <select
+                      className="input-field"
+                      style={{ flex: 1, padding: "6px 12px" }}
+                      value={classes.find(c => c.id === selectedReportClassId)?.themeTextColor || "#000000"}
+                      onChange={async (e) => {
+                        const classObj = classes.find(c => c.id === selectedReportClassId);
+                        if (classObj) {
+                          await updateClass(classObj.id, classObj.name, classObj.level, classObj.themeColor || "#ffffff", e.target.value);
+                          await loadSchoolData(school!.id);
+                        }
+                      }}
+                    >
+                      <option value="#000000">Default (Black)</option>
+                      <option value="#1e293b">Dark Slate (#1e293b)</option>
+                      <option value="#0f172a">Deep Dark (#0f172a)</option>
+                      <option value="#1e3a8a">Navy Blue (#1e3a8a)</option>
+                      <option value="#065f46">Dark Green (#065f46)</option>
+                      <option value="#ffffff">White (#ffffff)</option>
+                      <option value="#f8fafc">Light Slate (#f8fafc)</option>
+                      <option value="#e2e8f0">Slate Gray (#e2e8f0)</option>
                     </select>
                   </div>
                 </div>
@@ -6701,10 +6830,10 @@ export default function SchoolPortal({ params }: PageProps) {
                         const rankInfo = eotExam ? getStudentRankAndTotals(st.id, st.classId, eotExam.id) : null;
                         return (
                           <React.Fragment key={st.id}>
-                            <div className="bulk-report-card" style={{ background: classes.find(c => c.id === selectedReportClassId)?.themeColor || "#ffffff", color: "black", borderColor: "#cbd5e1", padding: "40px", fontFamily: "Arial, sans-serif", marginBottom: "40px" }}>
+                            <div className="bulk-report-card" style={{ background: classes.find(c => c.id === selectedReportClassId)?.themeColor || "#ffffff", color: classes.find(c => c.id === selectedReportClassId)?.themeTextColor || "#000000", borderColor: "#cbd5e1", padding: "40px", fontFamily: "Arial, sans-serif", marginBottom: "40px" }}>
                               
                               {/* School Heading */}
-                              <div className="report-header" style={{ textAlign: "center", borderBottom: school.reportBorderType === "solid" ? "1px solid black" : school.reportBorderType === "none" ? "none" : "3px double black", paddingBottom: "14px", marginBottom: "20px" }}>
+                              <div className="report-header" style={{ textAlign: "center", borderBottom: school.reportBorderType === "solid" ? `1px solid ${classes.find(c => c.id === selectedReportClassId)?.themeTextColor || "black"}` : school.reportBorderType === "none" ? "none" : `3px double ${classes.find(c => c.id === selectedReportClassId)?.themeTextColor || "black"}`, paddingBottom: "14px", marginBottom: "20px" }}>
                                 {school.reportShowBadge && (
                                   <div style={{ display: "flex", justifyContent: "center", marginBottom: "10px" }}>
                                     {school.logoUrl ? (
@@ -6715,7 +6844,7 @@ export default function SchoolPortal({ params }: PageProps) {
                                   </div>
                                 )}
                                 <h2 style={{ fontSize: "24px", margin: 0, textTransform: "uppercase", color: school.reportHeaderColor || "#1e3a8a", fontWeight: 900 }}>{school.name}</h2>
-                                <div style={{ fontSize: "12px", color: "#334155", margin: "4px 0", lineHeight: "1.4" }}>
+                                <div style={{ fontSize: "12px", color: "inherit", opacity: 0.8, margin: "4px 0", lineHeight: "1.4" }}>
                                   {school.reportWebsite && <span>Website: {school.reportWebsite} | </span>}
                                   {school.reportTikTok && <span>TikTok: {school.reportTikTok} | </span>}
                                   <span>P.O. Box {school.poBox || "Kampala, Uganda"}</span>
@@ -6724,7 +6853,7 @@ export default function SchoolPortal({ params }: PageProps) {
                                   <span>Email: {school.contactEmail} | Tel: {school.contactPhone}</span>
                                 </div>
                                 {school.reportMotto && (
-                                  <p style={{ margin: "2px 0 0", fontSize: "11px", fontStyle: "italic", fontWeight: "bold", color: "#475569" }}>
+                                  <p style={{ margin: "2px 0 0", fontSize: "11px", fontStyle: "italic", fontWeight: "bold", color: "inherit", opacity: 0.85 }}>
                                     Motto: "{school.reportMotto}"
                                   </p>
                                 )}
@@ -7028,10 +7157,10 @@ export default function SchoolPortal({ params }: PageProps) {
                       </div>
 
                       {/* Report Card Template (Print Target) */}
-                      <div id="printable-report" className="card" style={{ background: classes.find(c => c.id === selectedReportStudent.classId)?.themeColor || "#ffffff", color: "black", borderColor: "#cbd5e1", padding: "40px", fontFamily: "Arial, sans-serif" }}>
+                      <div id="printable-report" className="card" style={{ background: classes.find(c => c.id === selectedReportStudent.classId)?.themeColor || "#ffffff", color: classes.find(c => c.id === selectedReportStudent.classId)?.themeTextColor || "#000000", borderColor: "#cbd5e1", padding: "40px", fontFamily: "Arial, sans-serif" }}>
                         
                         {/* School Heading */}
-                        <div className="report-header" style={{ textAlign: "center", borderBottom: school.reportBorderType === "solid" ? "1px solid black" : school.reportBorderType === "none" ? "none" : "3px double black", paddingBottom: "14px", marginBottom: "20px" }}>
+                        <div className="report-header" style={{ textAlign: "center", borderBottom: school.reportBorderType === "solid" ? `1px solid ${classes.find(c => c.id === selectedReportStudent.classId)?.themeTextColor || "black"}` : school.reportBorderType === "none" ? "none" : `3px double ${classes.find(c => c.id === selectedReportStudent.classId)?.themeTextColor || "black"}`, paddingBottom: "14px", marginBottom: "20px" }}>
                           {school.reportShowBadge && (
                             <div style={{ display: "flex", justifyContent: "center", marginBottom: "10px" }}>
                               {school.logoUrl ? (
@@ -7042,7 +7171,7 @@ export default function SchoolPortal({ params }: PageProps) {
                             </div>
                           )}
                           <h2 style={{ fontSize: "24px", margin: 0, textTransform: "uppercase", color: school.reportHeaderColor || "#1e3a8a", fontWeight: 900 }}>{school.name}</h2>
-                          <div style={{ fontSize: "12px", color: "#334155", margin: "4px 0", lineHeight: "1.4" }}>
+                          <div style={{ fontSize: "12px", color: "inherit", opacity: 0.8, margin: "4px 0", lineHeight: "1.4" }}>
                             {school.reportWebsite && <span>Website: {school.reportWebsite} | </span>}
                             {school.reportTikTok && <span>TikTok: {school.reportTikTok} | </span>}
                             <span>P.O. Box {school.poBox || "Kampala, Uganda"}</span>
@@ -7051,7 +7180,7 @@ export default function SchoolPortal({ params }: PageProps) {
                             <span>Email: {school.contactEmail} | Tel: {school.contactPhone}</span>
                           </div>
                           {school.reportMotto && (
-                            <p style={{ margin: "2px 0 0", fontSize: "11px", fontStyle: "italic", fontWeight: "bold", color: "#475569" }}>
+                            <p style={{ margin: "2px 0 0", fontSize: "11px", fontStyle: "italic", fontWeight: "bold", color: "inherit", opacity: 0.85 }}>
                               Motto: "{school.reportMotto}"
                             </p>
                           )}

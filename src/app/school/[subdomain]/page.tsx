@@ -457,7 +457,8 @@ export default function SchoolPortal({ params }: PageProps) {
   const [smsTotalCredits, setSmsTotalCredits] = useState(0);
   const [smsTargetClassId, setSmsTargetClassId] = useState("");
   const [smsPayerPhone, setSmsPayerPhone] = useState("");
-  const [smsPaymentMode, setSmsPaymentMode] = useState<"PER_SEND" | "USE_CREDITS">("PER_SEND");
+  const [smsPaymentMode, setSmsPaymentMode] = useState<"mobile_money" | "card">("mobile_money");
+  const [smsCardRedirectUrl, setSmsCardRedirectUrl] = useState("");
   const [smsSendStatus, setSmsSendStatus] = useState<"idle" | "collecting" | "sending" | "done" | "error">("idle");
   const [smsSendResult, setSmsSendResult] = useState<any>(null);
   const [smsMarzBalance, setSmsMarzBalance] = useState<number | null>(null);
@@ -9020,19 +9021,19 @@ export default function SchoolPortal({ params }: PageProps) {
                 <div className="form-group">
                   <label className="form-label">💳 Payment Method</label>
                   <div style={{ display: "flex", gap: "12px" }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", padding: "8px 14px", borderRadius: "8px", border: smsPaymentMode === "PER_SEND" ? "2px solid var(--primary)" : "1px solid #e2e8f0", background: smsPaymentMode === "PER_SEND" ? "#eff6ff" : "white", flex: 1, justifyContent: "center" }}>
-                      <input type="radio" name="smsPayMode" checked={smsPaymentMode === "PER_SEND"} onChange={() => setSmsPaymentMode("PER_SEND")} />
-                      <span style={{ fontSize: "13px", fontWeight: 500 }}>Pay Per Send</span>
+                    <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", padding: "8px 14px", borderRadius: "8px", border: smsPaymentMode === "mobile_money" ? "2px solid var(--primary)" : "1px solid #e2e8f0", background: smsPaymentMode === "mobile_money" ? "#eff6ff" : "white", flex: 1, justifyContent: "center" }}>
+                      <input type="radio" name="smsPayMode" checked={smsPaymentMode === "mobile_money"} onChange={() => setSmsPaymentMode("mobile_money")} />
+                      <span style={{ fontSize: "13px", fontWeight: 500 }}>Mobile Money (MoMo)</span>
                     </label>
-                    <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", padding: "8px 14px", borderRadius: "8px", border: smsPaymentMode === "USE_CREDITS" ? "2px solid var(--primary)" : "1px solid #e2e8f0", background: smsPaymentMode === "USE_CREDITS" ? "#eff6ff" : "white", flex: 1, justifyContent: "center" }}>
-                      <input type="radio" name="smsPayMode" checked={smsPaymentMode === "USE_CREDITS"} onChange={() => setSmsPaymentMode("USE_CREDITS")} />
-                      <span style={{ fontSize: "13px", fontWeight: 500 }}>Use Credits ({smsTotalCredits} left)</span>
+                    <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", padding: "8px 14px", borderRadius: "8px", border: smsPaymentMode === "card" ? "2px solid var(--primary)" : "1px solid #e2e8f0", background: smsPaymentMode === "card" ? "#eff6ff" : "white", flex: 1, justifyContent: "center" }}>
+                      <input type="radio" name="smsPayMode" checked={smsPaymentMode === "card"} onChange={() => setSmsPaymentMode("card")} />
+                      <span style={{ fontSize: "13px", fontWeight: 500 }}>Card Payment</span>
                     </label>
                   </div>
                 </div>
 
-                {/* Payer phone (only for PER_SEND) */}
-                {smsPaymentMode === "PER_SEND" && (
+                {/* Payer phone (only for mobile_money) */}
+                {smsPaymentMode === "mobile_money" && (
                   <div className="form-group">
                     <label className="form-label">📱 Your MTN/Airtel Number (for MoMo payment)</label>
                     <input
@@ -9049,7 +9050,13 @@ export default function SchoolPortal({ params }: PageProps) {
                 {/* Status display */}
                 {smsSendStatus === "collecting" && (
                   <div style={{ background: "#fef3c7", border: "1px solid #fcd34d", borderRadius: "8px", padding: "12px", marginBottom: "12px", fontSize: "13px" }}>
-                    ⏳ <strong>Waiting for payment...</strong> Please approve the MoMo prompt on your phone. Checking every 3 seconds...
+                    {smsPaymentMode === "mobile_money" ? (
+                      <span>⏳ <strong>Waiting for MoMo payment...</strong> Please approve the MoMo prompt on your phone. Checking every 3 seconds...</span>
+                    ) : (
+                      <span>
+                        💳 <strong>Waiting for card payment...</strong> A new tab should have opened for payment. If not, please <a href={smsCardRedirectUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline", color: "#1e3a8a", fontWeight: "600" }}>click here to pay</a>. Checking status every 3 seconds...
+                      </span>
+                    )}
                   </div>
                 )}
                 {smsSendStatus === "sending" && (
@@ -9098,14 +9105,14 @@ export default function SchoolPortal({ params }: PageProps) {
                     const profitAmount = Math.max(500, recipients.length * smsUnits * 10); // min 500 UGX
                     const smsCostAmount = recipients.length * smsUnits * 30;
 
-                    if (smsPaymentMode === "USE_CREDITS") {
-                      const needed = recipients.length * smsUnits;
-                      if (smsTotalCredits < needed) { alert(`Insufficient credits. You have ${smsTotalCredits} but need ${needed}. Please buy more credits.`); return; }
-                    } else {
+                    if (smsPaymentMode === "mobile_money") {
                       if (!smsPayerPhone.trim()) { alert("Please enter your mobile money number for payment."); return; }
                     }
 
-                    if (!confirm(`Confirm sending SMS to ${recipients.length} recipient(s)?\n\nTotal cost: ${totalCost.toLocaleString()} UGX\n${smsPaymentMode === "PER_SEND" ? `A MoMo request of ${profitAmount.toLocaleString()} UGX will be sent to ${smsPayerPhone}.` : `${recipients.length * smsUnits} credits will be deducted.`}`)) return;
+                    const confirmMsg = smsPaymentMode === "mobile_money"
+                      ? `Confirm sending SMS to ${recipients.length} recipient(s)?\n\nTotal cost: ${totalCost.toLocaleString()} UGX\nA MoMo request of ${profitAmount.toLocaleString()} UGX will be sent to ${smsPayerPhone}.`
+                      : `Confirm sending SMS to ${recipients.length} recipient(s)?\n\nTotal cost: ${totalCost.toLocaleString()} UGX\nYou will be redirected to the Card payment gateway to complete the payment of ${profitAmount.toLocaleString()} UGX.`;
+                    if (!confirm(confirmMsg)) return;
 
                     // Create log entry
                     const logData = {
@@ -9121,53 +9128,60 @@ export default function SchoolPortal({ params }: PageProps) {
                       totalCharged: totalCost,
                       profitCollected: profitAmount,
                       smsCost: smsCostAmount,
-                      payerPhone: smsPaymentMode === "PER_SEND" ? smsPayerPhone : null,
+                      payerPhone: smsPaymentMode === "mobile_money" ? smsPayerPhone : null,
                       marzPayRef: null,
                       status: "PENDING",
-                      creditUsed: smsPaymentMode === "USE_CREDITS",
+                      creditUsed: false,
                     };
 
                     let savedLog: any = null;
                     try { savedLog = await saveSmsLog(logData); } catch {}
 
-                    if (smsPaymentMode === "PER_SEND") {
-                      // Step 1: MarzPay collection
-                      setSmsSendStatus("collecting");
-                      const collectRes = await initiateMarzpayCollection(profitAmount, "mobile_money", smsPayerPhone, `SMS Service Fee - ${school.name}`);
-                      if (!collectRes || collectRes.status !== "success") {
-                        setSmsSendStatus("error");
-                        setSmsSendResult({ error: collectRes?.message || "MarzPay collection failed. Check phone number and try again." });
-                        if (savedLog) await updateSmsLog(savedLog.id, { status: "FAILED" }).catch(() => {});
-                        return;
-                      }
+                    // Step 1: MarzPay collection
+                    setSmsSendStatus("collecting");
+                    const collectRes = await initiateMarzpayCollection(
+                      profitAmount,
+                      smsPaymentMode,
+                      smsPaymentMode === "mobile_money" ? smsPayerPhone : undefined,
+                      `SMS Service Fee - ${school.name}`
+                    );
 
-                      const collectionUuid = collectRes.data?.transaction?.uuid;
-                      if (savedLog && collectionUuid) await updateSmsLog(savedLog.id, { marzPayRef: collectionUuid, status: "PENDING" }).catch(() => {});
-
-                      // Poll until completed
-                      let confirmed = false;
-                      for (let attempt = 0; attempt < 20; attempt++) {
-                        await new Promise(r => setTimeout(r, 3000));
-                        const statusRes = await checkMarzpayCollectionStatus(collectionUuid);
-                        const txStatus = statusRes?.data?.transaction?.status || statusRes?.status || "";
-                        if (txStatus === "completed") { confirmed = true; break; }
-                        if (txStatus === "failed") break;
-                      }
-
-                      if (!confirmed) {
-                        setSmsSendStatus("error");
-                        setSmsSendResult({ error: "Payment not confirmed. The USSD prompt may have expired or been declined. Please try again." });
-                        if (savedLog) await updateSmsLog(savedLog.id, { status: "FAILED" }).catch(() => {});
-                        return;
-                      }
-                      if (savedLog) await updateSmsLog(savedLog.id, { status: "PAYMENT_CONFIRMED" }).catch(() => {});
-                    } else {
-                      // Use credits — deduct them
-                      await deductSmsCredits(school.id, recipients.length * smsUnits);
-                      const updCredits = await getSmsCredits(school.id);
-                      setSmsCredits(updCredits);
-                      setSmsTotalCredits(updCredits.filter(c => c.status === "CONFIRMED").reduce((s, c) => s + (c.creditsPurchased - c.creditsUsed), 0));
+                    if (!collectRes || collectRes.status !== "success") {
+                      setSmsSendStatus("error");
+                      setSmsSendResult({ error: collectRes?.message || "Payment collection failed. Please check parameters and try again." });
+                      if (savedLog) await updateSmsLog(savedLog.id, { status: "FAILED" }).catch(() => {});
+                      return;
                     }
+
+                    const collectionUuid = collectRes.data?.transaction?.uuid;
+                    if (savedLog && collectionUuid) await updateSmsLog(savedLog.id, { marzPayRef: collectionUuid, status: "PENDING" }).catch(() => {});
+
+                    // If card, open redirect_url in a new window/tab and store fallback URL in state
+                    if (smsPaymentMode === "card") {
+                      const redirectUrl = collectRes.data?.redirect_url;
+                      if (redirectUrl) {
+                        setSmsCardRedirectUrl(redirectUrl);
+                        window.open(redirectUrl, "_blank");
+                      }
+                    }
+
+                    // Poll until completed
+                    let confirmed = false;
+                    for (let attempt = 0; attempt < 40; attempt++) {
+                      await new Promise(r => setTimeout(r, 3000));
+                      const statusRes = await checkMarzpayCollectionStatus(collectionUuid);
+                      const txStatus = statusRes?.data?.transaction?.status || statusRes?.status || "";
+                      if (txStatus === "completed") { confirmed = true; break; }
+                      if (txStatus === "failed") break;
+                    }
+
+                    if (!confirmed) {
+                      setSmsSendStatus("error");
+                      setSmsSendResult({ error: "Payment not confirmed. Please try again once payment is completed." });
+                      if (savedLog) await updateSmsLog(savedLog.id, { status: "FAILED" }).catch(() => {});
+                      return;
+                    }
+                    if (savedLog) await updateSmsLog(savedLog.id, { status: "PAYMENT_CONFIRMED" }).catch(() => {});
 
                     // Step 2: Send SMS
                     setSmsSendStatus("sending");
@@ -9192,16 +9206,16 @@ export default function SchoolPortal({ params }: PageProps) {
 
               {/* RIGHT: Stats + History */}
               <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-                {/* Balance card */}
+                {/* Pricing info card */}
                 <div className="card" style={{ background: "linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)", color: "white", border: "none", padding: "20px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
                     <div style={{ padding: "14px", borderRadius: "12px", background: "rgba(255,255,255,0.2)" }}>
-                      <MessageSquare size={28} />
+                      <CreditCard size={28} />
                     </div>
                     <div>
-                      <div style={{ fontSize: "11px", textTransform: "uppercase", opacity: 0.8 }}>Pre-purchased Credits</div>
-                      <div style={{ fontSize: "28px", fontWeight: 800 }}>{smsTotalCredits.toLocaleString()}</div>
-                      <div style={{ fontSize: "11px", opacity: 0.7 }}>Each credit = 1 SMS unit = 40 UGX</div>
+                      <div style={{ fontSize: "11px", textTransform: "uppercase", opacity: 0.8 }}>SMS Broadcast Rate</div>
+                      <div style={{ fontSize: "24px", fontWeight: 800 }}>40 UGX <span style={{ fontSize: "14px", fontWeight: 400, opacity: 0.8 }}>/ SMS unit</span></div>
+                      <div style={{ fontSize: "11px", opacity: 0.7 }}>1 unit = 160 characters. Min charge: 500 UGX.</div>
                     </div>
                   </div>
                 </div>

@@ -59,6 +59,8 @@ export const metadata: Metadata = {
   },
 };
 
+import { Toaster } from 'react-hot-toast';
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -69,7 +71,10 @@ export default function RootLayout({
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <Toaster position="top-center" toastOptions={{ duration: 4000 }} />
+      </body>
     </html>
   );
 }

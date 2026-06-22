@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, use } from "react";
+import { toast } from "react-hot-toast";
 import * as XLSX from "xlsx";
 import type { 
   School, User, Class, Stream, Student, Subject, ExamPaper, Mark, Payment, FeeStructure, StudentPayment, Expense, GradeRange, TeacherSubject, SchoolPayTransaction, SmsLog, SmsCredit
@@ -1332,7 +1333,7 @@ export default function SchoolPortal({ params }: PageProps) {
       setProfileTerm3End(updated.term3End ? new Date(updated.term3End).toISOString().split('T')[0] : "");
 
 
-      alert("School branding and leaders configured successfully!");
+      toast.success("School branding and leaders configured successfully!");
       setShowFirstTimeSetup(false);
       setSetupAdminEmail("");
       setSetupAdminPassword("");
@@ -1345,7 +1346,7 @@ export default function SchoolPortal({ params }: PageProps) {
     e.preventDefault();
     if (!school) return;
     if (!newAssignmentTeacherId || !newAssignmentClassId || !newAssignmentStreamId || !newAssignmentSubjectId) {
-      alert("Please fill all assignment fields.");
+      toast.error("Please fill all assignment fields.");
       return;
     }
     const duplicate = teacherAssignments.find(
@@ -1355,7 +1356,7 @@ export default function SchoolPortal({ params }: PageProps) {
             ts.subjectId === newAssignmentSubjectId
     );
     if (duplicate) {
-      alert("This teacher is already assigned to this class, stream, and subject!");
+      toast.error("This teacher is already assigned to this class, stream, and subject!");
       return;
     }
     try {
@@ -1365,10 +1366,10 @@ export default function SchoolPortal({ params }: PageProps) {
         streamId: newAssignmentStreamId,
         subjectId: newAssignmentSubjectId
       });
-      alert("Teacher assignment saved successfully!");
+      toast.success("Teacher assignment saved successfully!");
       await loadSchoolData(school.id);
     } catch (err: any) {
-      alert("Failed to create assignment: " + (err.message || err));
+      toast.error("Failed to create assignment: " + (err.message || err));
     }
   };
 
@@ -1378,11 +1379,11 @@ export default function SchoolPortal({ params }: PageProps) {
     try {
       const ok = await deleteTeacherSubject(id);
       if (ok) {
-        alert("Assignment deleted successfully.");
+        toast.success("Assignment deleted successfully.");
         await loadSchoolData(school.id);
       }
     } catch (err: any) {
-      alert("Failed to delete assignment: " + (err.message || err));
+      toast.error("Failed to delete assignment: " + (err.message || err));
     }
   };
 
@@ -1429,7 +1430,7 @@ export default function SchoolPortal({ params }: PageProps) {
       setProfileSuccessMsg("School profile and settings updated successfully!");
     } catch (err) {
       console.error(err);
-      alert("Failed to update school profile");
+      toast.error("Failed to update school profile");
     }
   };
 
@@ -1457,10 +1458,10 @@ export default function SchoolPortal({ params }: PageProps) {
       const updated = await saveGradeRanges(school.id, cleaned);
       setGradeRanges(updated);
       setEditingGradeRanges(updated);
-      alert("Custom grade ranges and achievement levels updated successfully!");
+      toast.success("Custom grade ranges and achievement levels updated successfully!");
     } catch (err: any) {
       console.error(err);
-      alert("Failed to save grade ranges: " + (err.message || err));
+      toast.error("Failed to save grade ranges: " + (err.message || err));
     }
   };
 
@@ -1472,10 +1473,10 @@ export default function SchoolPortal({ params }: PageProps) {
       await createClass(school.id, newClassName, newClassLevel);
       setNewClassName("");
       await loadSchoolData(school.id);
-      alert("Class created successfully!");
+      toast.success("Class created successfully!");
     } catch (err: any) {
       console.error("Error creating class:", err);
-      alert("Failed to create class: " + (err.message || err));
+      toast.error("Failed to create class: " + (err.message || err));
     }
   };
 
@@ -1487,10 +1488,10 @@ export default function SchoolPortal({ params }: PageProps) {
       await createStream(newStreamClassId, newStreamName);
       setNewStreamName("");
       await loadSchoolData(school.id);
-      alert("Stream created successfully!");
+      toast.success("Stream created successfully!");
     } catch (err: any) {
       console.error("Error creating stream:", err);
-      alert("Failed to create stream: " + (err.message || err));
+      toast.error("Failed to create stream: " + (err.message || err));
     }
   };
 
@@ -1510,7 +1511,7 @@ export default function SchoolPortal({ params }: PageProps) {
         contact: newTeacherContact || null,
       });
       if (!res.success) {
-        alert("Failed to create staff account: " + res.error);
+        toast.error("Failed to create staff account: " + res.error);
         return;
       }
       setNewTeacherName("");
@@ -1519,10 +1520,10 @@ export default function SchoolPortal({ params }: PageProps) {
       setNewTeacherPhoto("");
       setNewTeacherContact("");
       await loadSchoolData(school.id);
-      alert("Staff member user account created successfully!");
+      toast.success("Staff member user account created successfully!");
     } catch (err: any) {
       console.error("Error creating staff:", err);
-      alert("Failed to create staff account: " + (err.message || err));
+      toast.error("Failed to create staff account: " + (err.message || err));
     }
   };
 
@@ -1554,10 +1555,10 @@ export default function SchoolPortal({ params }: PageProps) {
       setNewStudentGender("MALE");
       setNewStudentParentContact("");
       await loadSchoolData(school.id);
-      alert("Student registered successfully!");
+      toast.success("Student registered successfully!");
     } catch (err: any) {
       console.error("Error registering student:", err);
-      alert("Failed to register student: " + (err.message || err));
+      toast.error("Failed to register student: " + (err.message || err));
     }
   };
 
@@ -1570,9 +1571,9 @@ export default function SchoolPortal({ params }: PageProps) {
       setShowEditClassModal(false);
       setSelectedEditClass(null);
       await loadSchoolData(school!.id);
-      alert("Class updated successfully!");
+      toast.success("Class updated successfully!");
     } catch (err: any) {
-      alert("Error updating class: " + (err.message || err));
+      toast.error("Error updating class: " + (err.message || err));
     }
   };
 
@@ -1583,9 +1584,9 @@ export default function SchoolPortal({ params }: PageProps) {
       try {
         await deleteClass(classId);
         await loadSchoolData(school!.id);
-        alert("Class and all associated records deleted successfully!");
+        toast.success("Class and all associated records deleted successfully!");
       } catch (err: any) {
-        alert("Error deleting class: " + (err.message || err));
+        toast.error("Error deleting class: " + (err.message || err));
       }
     }
   };
@@ -1595,16 +1596,16 @@ export default function SchoolPortal({ params }: PageProps) {
     if (!cls) return;
     const studentCount = students.filter(st => st.classId === classId).length;
     if (studentCount === 0) {
-      alert(`There are no students registered in class "${cls.name}" to delete.`);
+      toast.error(`There are no students registered in class "${cls.name}" to delete.`);
       return;
     }
     if (confirm(`⚠️ WARNING: Are you sure you want to permanently delete ALL ${studentCount} students in class "${cls.name}"? This will also delete all their marks, payments, and attendance records. This action CANNOT be undone.`)) {
       try {
         await deleteStudentsByClass(classId);
         await loadSchoolData(school!.id);
-        alert(`Successfully deleted all students of class "${cls.name}".`);
+        toast.success(`Successfully deleted all students of class "${cls.name}".`);
       } catch (err: any) {
-        alert("Error deleting class students: " + (err.message || err));
+        toast.error("Error deleting class students: " + (err.message || err));
       }
     }
   };
@@ -1617,7 +1618,7 @@ export default function SchoolPortal({ params }: PageProps) {
       setEditStreamRenames(prev => ({ ...prev, [streamId]: newName }));
       await loadSchoolData(school!.id);
     } catch (err: any) {
-      alert("Error renaming stream: " + (err.message || err));
+      toast.error("Error renaming stream: " + (err.message || err));
     }
   };
 
@@ -1627,9 +1628,9 @@ export default function SchoolPortal({ params }: PageProps) {
       await createStream(classId, name.trim());
       setEditStreamNewName("");
       await loadSchoolData(school!.id);
-      alert("Stream added successfully!");
+      toast.success("Stream added successfully!");
     } catch (err: any) {
-      alert("Error adding stream: " + (err.message || err));
+      toast.error("Error adding stream: " + (err.message || err));
     }
   };
 
@@ -1637,9 +1638,9 @@ export default function SchoolPortal({ params }: PageProps) {
     try {
       await deleteStream(streamId);
       await loadSchoolData(school!.id);
-      alert("Stream deleted successfully!");
+      toast.success("Stream deleted successfully!");
     } catch (err: any) {
-      alert(err.message || err);
+      toast.error(err.message || err);
     }
   };
 
@@ -1648,9 +1649,9 @@ export default function SchoolPortal({ params }: PageProps) {
       try {
         await deleteSubject(subjectId);
         await loadSchoolData(school!.id);
-        alert("Subject deleted successfully!");
+        toast.success("Subject deleted successfully!");
       } catch (err: any) {
-        alert("Error deleting subject: " + (err.message || err));
+        toast.error("Error deleting subject: " + (err.message || err));
       }
     }
   };
@@ -1706,13 +1707,13 @@ export default function SchoolPortal({ params }: PageProps) {
   const handleBulkStudentUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!school || !bulkStudentClassId || !bulkStudentStreamId || !studentExcelFile) {
-      alert("Please choose a class, stream, and select an Excel template file.");
+      toast.error("Please choose a class, stream, and select an Excel template file.");
       return;
     }
     try {
       const rows = await handleParseExcel(studentExcelFile);
       if (rows.length <= 1) {
-        alert("The uploaded Excel file has no student data rows.");
+        toast.error("The uploaded Excel file has no student data rows.");
         return;
       }
 
@@ -1774,9 +1775,9 @@ export default function SchoolPortal({ params }: PageProps) {
       setStudentExcelFile(null);
       setShowBulkStudentModal(false);
       await loadSchoolData(school.id);
-      alert(`Successfully imported ${successCount} students!`);
+      toast.success(`Successfully imported ${successCount} students!`);
     } catch (err: any) {
-      alert("Error importing students: " + (err.message || err));
+      toast.error("Error importing students: " + (err.message || err));
     } finally {
       setIsImportingStudents(false);
       setImportStudentProgress(0);
@@ -1788,13 +1789,13 @@ export default function SchoolPortal({ params }: PageProps) {
   const handleBulkStaffUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!school || !staffExcelFile) {
-      alert("Please select an Excel template file.");
+      toast.error("Please select an Excel template file.");
       return;
     }
     try {
       const rows = await handleParseExcel(staffExcelFile);
       if (rows.length <= 1) {
-        alert("The uploaded Excel file has no staff data rows.");
+        toast.error("The uploaded Excel file has no staff data rows.");
         return;
       }
 
@@ -1844,9 +1845,9 @@ export default function SchoolPortal({ params }: PageProps) {
       setStaffExcelFile(null);
       setShowBulkStaffModal(false);
       await loadSchoolData(school.id);
-      alert(`Successfully imported ${successCount} staff accounts!`);
+      toast.success(`Successfully imported ${successCount} staff accounts!`);
     } catch (err: any) {
-      alert("Error importing staff: " + (err.message || err));
+      toast.error("Error importing staff: " + (err.message || err));
     }
   };
 
@@ -1936,7 +1937,7 @@ export default function SchoolPortal({ params }: PageProps) {
   const handleApplyBulkPhotos = async () => {
     const validMatches = bulkPhotoMatches.filter(m => m.matchedStudentId);
     if (validMatches.length === 0) {
-      alert("No student matches to apply.");
+      toast.error("No student matches to apply.");
       return;
     }
     
@@ -1955,9 +1956,9 @@ export default function SchoolPortal({ params }: PageProps) {
       await loadSchoolData(school!.id);
       setShowBulkPhotoModal(false);
       setBulkPhotoMatches([]);
-      alert(`Successfully uploaded and aligned photos for ${successCount} students!`);
+      toast.success(`Successfully uploaded and aligned photos for ${successCount} students!`);
     } catch (err: any) {
-      alert("Error applying student photos: " + (err.message || err));
+      toast.error("Error applying student photos: " + (err.message || err));
     } finally {
       setIsApplyingPhotos(false);
     }
@@ -1967,7 +1968,8 @@ export default function SchoolPortal({ params }: PageProps) {
   const handleCreateSubject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSubjectName || !newSubjectClassId || !school) return;
-    try {
+    
+    const createOp = async () => {
       await createSubject({
         schoolId: school.id,
         classId: newSubjectClassId,
@@ -1979,27 +1981,27 @@ export default function SchoolPortal({ params }: PageProps) {
       setNewSubjectCode("");
       setNewSubjectStreamId("");
       await loadSchoolData(school.id);
-      alert("Subject created successfully!");
-    } catch (err: any) {
-      console.error("Error creating subject:", err);
-      alert("Failed to create subject: " + (err.message || err));
-    }
+      return "Subject created successfully!";
+    };
+
+    toast.promise(createOp(), {
+      loading: 'Processing command...',
+      success: (msg) => msg,
+      error: (err) => "Failed to create subject: " + (err.message || err),
+    });
   };
 
   const handleBulkCreateSubjects = async (e: React.FormEvent, targetClassId: string, targetStreamId: string, subjectString: string) => {
     e.preventDefault();
     if (!targetClassId || !subjectString.trim() || !school) return;
-    try {
-      const subjectNames = subjectString
-        .split(",")
-        .map(s => s.trim())
-        .filter(s => s.length > 0);
-      
-      if (subjectNames.length === 0) {
-        alert("Please enter at least one subject name.");
-        return;
-      }
+    
+    const subjectNames = subjectString.split(",").map(s => s.trim()).filter(s => s.length > 0);
+    if (subjectNames.length === 0) {
+      toast.error("Please enter at least one subject name.");
+      return;
+    }
 
+    const bulkOp = async () => {
       for (const name of subjectNames) {
         const code = name.slice(0, 3).toUpperCase();
         await createSubject({
@@ -2010,17 +2012,21 @@ export default function SchoolPortal({ params }: PageProps) {
           code,
         });
       }
-
       await loadSchoolData(school.id);
-      alert(`Successfully added ${subjectNames.length} subjects!`);
-    } catch (err: any) {
-      alert("Error adding subjects: " + (err.message || err));
-    }
+      return `Successfully added ${subjectNames.length} subjects!`;
+    };
+
+    toast.promise(bulkOp(), {
+      loading: 'Processing command...',
+      success: (msg) => msg,
+      error: (err) => "Error adding subjects: " + (err.message || err),
+    });
   };
 
   const handleAssignPoolSubjects = async (targetClassId: string) => {
     if (!targetClassId || subjectPoolSelectedSubjects.length === 0 || !school) return;
-    try {
+    
+    const assignOp = async () => {
       for (const name of subjectPoolSelectedSubjects) {
         const code = name.slice(0, 3).toUpperCase();
         await createSubject({
@@ -2030,13 +2036,16 @@ export default function SchoolPortal({ params }: PageProps) {
           code,
         });
       }
-
       setSubjectPoolSelectedSubjects([]);
       await loadSchoolData(school.id);
-      alert(`Successfully assigned ${subjectPoolSelectedSubjects.length} subjects from pool!`);
-    } catch (err: any) {
-      alert("Error assigning subjects: " + (err.message || err));
-    }
+      return `Successfully assigned ${subjectPoolSelectedSubjects.length} subjects from pool!`;
+    };
+
+    toast.promise(assignOp(), {
+      loading: 'Processing command...',
+      success: (msg) => msg,
+      error: (err) => "Error assigning subjects: " + (err.message || err),
+    });
   };
 
   // Create exam paper
@@ -2072,10 +2081,10 @@ export default function SchoolPortal({ params }: PageProps) {
       setNewExamCbEtMax(3);
       setNewExamCbHpgMax(3);
       await loadSchoolData(school.id);
-      alert("Exam Paper scheduled successfully!");
+      toast.success("Exam Paper scheduled successfully!");
     } catch (err: any) {
       console.error("Error creating exam:", err);
-      alert("Failed to schedule exam paper: " + (err.message || err));
+      toast.error("Failed to schedule exam paper: " + (err.message || err));
     }
   };
 
@@ -2102,10 +2111,10 @@ export default function SchoolPortal({ params }: PageProps) {
       setShowEditExamModal(false);
       setSelectedEditExam(null);
       await loadSchoolData(school.id);
-      alert("Exam Paper updated successfully!");
+      toast.success("Exam Paper updated successfully!");
     } catch (err: any) {
       console.error("Error updating exam:", err);
-      alert("Failed to update exam: " + (err.message || err));
+      toast.error("Failed to update exam: " + (err.message || err));
     }
   };
 
@@ -2117,9 +2126,9 @@ export default function SchoolPortal({ params }: PageProps) {
       try {
         await deleteExamPaper(examId);
         await loadSchoolData(school!.id);
-        alert("Exam Paper deleted successfully!");
+        toast.success("Exam Paper deleted successfully!");
       } catch (err: any) {
-        alert("Error deleting exam: " + (err.message || err));
+        toast.error("Error deleting exam: " + (err.message || err));
       }
     }
   };
@@ -2148,7 +2157,7 @@ export default function SchoolPortal({ params }: PageProps) {
   // Save marks for a class
   const handleDownloadMarksTemplate = () => {
     if (!selectedExamId || !selectedSubjectId || !selectedClassId || !selectedStreamId) {
-      alert("Please select exam, class, stream, and subject first.");
+      toast.error("Please select exam, class, stream, and subject first.");
       return;
     }
     const currentExam = exams.find(ex => ex.id === selectedExamId);
@@ -2156,7 +2165,7 @@ export default function SchoolPortal({ params }: PageProps) {
 
     const relevantStudents = students.filter(st => st.classId === selectedClassId && st.streamId === selectedStreamId);
     if (relevantStudents.length === 0) {
-      alert("No students found in the selected class and stream.");
+      toast.error("No students found in the selected class and stream.");
       return;
     }
 
@@ -2208,7 +2217,7 @@ export default function SchoolPortal({ params }: PageProps) {
 
   const handleBulkMarksUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!selectedExamId || !selectedSubjectId || !selectedClassId || !selectedStreamId) {
-      alert("Please select exam, class, stream, and subject first.");
+      toast.error("Please select exam, class, stream, and subject first.");
       if (e.target) e.target.value = '';
       return;
     }
@@ -2229,7 +2238,7 @@ export default function SchoolPortal({ params }: PageProps) {
         const data = XLSX.utils.sheet_to_json<any>(ws, { header: 1 });
 
         if (data.length < 2) {
-          alert("The Excel file is empty or missing data.");
+          toast.error("The Excel file is empty or missing data.");
           return;
         }
 
@@ -2281,9 +2290,9 @@ export default function SchoolPortal({ params }: PageProps) {
           successCount++;
         });
 
-        alert(`Successfully imported marks for ${successCount} students. Please review the grid and click "Save Grid Marks" to save.`);
+        toast.success(`Successfully imported marks for ${successCount} students. Please review the grid and click "Save Grid Marks" to save.`);
       } catch (err: any) {
-        alert("Error parsing Excel file: " + (err.message || err));
+        toast.error("Error parsing Excel file: " + (err.message || err));
       }
     };
     reader.readAsBinaryString(file);
@@ -2292,7 +2301,7 @@ export default function SchoolPortal({ params }: PageProps) {
 
   const handleSaveMarks = async () => {
     if (!selectedExamId || !selectedSubjectId || !currentUser) {
-      alert("Please select exam and subject first.");
+      toast.error("Please select exam and subject first.");
       return;
     }
 
@@ -2408,7 +2417,7 @@ export default function SchoolPortal({ params }: PageProps) {
           });
         }
       }
-      alert("Marks saved successfully!");
+      toast.success("Marks saved successfully!");
       await loadSchoolData(school!.id);
       setInputScores({});
       setInputU1({});
@@ -2419,7 +2428,7 @@ export default function SchoolPortal({ params }: PageProps) {
       setInputComments({});
     } catch (err) {
       console.error(err);
-      alert("Error saving marks");
+      toast.error("Error saving marks");
     }
   };
 
@@ -2438,7 +2447,7 @@ export default function SchoolPortal({ params }: PageProps) {
     setTuitionAmount("");
     setBoardingAmount("");
     await loadSchoolData(school.id);
-    alert("Fee structure saved!");
+    toast.success("Fee structure saved!");
   };
 
   // Record student fee payment (enhanced)
@@ -2483,7 +2492,7 @@ export default function SchoolPortal({ params }: PageProps) {
     setPayReceiptNum("");
     setPayBBF("0");
     await loadSchoolData(school.id);
-    alert(`Payment recorded! Receipt: ${receipt}`);
+    toast.success(`Payment recorded! Receipt: ${receipt}`);
   };
 
   // Manual SchoolPay Sync
@@ -2563,13 +2572,13 @@ export default function SchoolPortal({ params }: PageProps) {
       if (successCount > 0) {
         setStudentPayments(await getStudentPayments(school.id));
         setSchoolPayTransactions(await getSchoolPayTransactions(school.id));
-        alert(`Successfully bulk imported ${successCount} transaction(s)!`);
+        toast.success(`Successfully bulk imported ${successCount} transaction(s)!`);
       } else {
-        alert("No exact payment code matches found for bulk import. New students must be imported manually.");
+        toast.success("No exact payment code matches found for bulk import. New students must be imported manually.");
       }
     } catch (err) {
       console.error(err);
-      alert("Error during bulk import.");
+      toast.error("Error during bulk import.");
     } finally {
       setSpSyncing(false);
     }
@@ -2625,16 +2634,16 @@ export default function SchoolPortal({ params }: PageProps) {
         // 4. Refresh data
         setStudentPayments(await getStudentPayments(school.id));
         setSchoolPayTransactions(await getSchoolPayTransactions(school.id));
-        alert(`Successfully imported ${autoImportTx.studentName} and recorded their payment of ${autoImportTx.amount.toLocaleString()} UGX!`);
+        toast.success(`Successfully imported ${autoImportTx.studentName} and recorded their payment of ${autoImportTx.amount.toLocaleString()} UGX!`);
       } else {
-        alert("Student created, but there was an error matching the transaction.");
+        toast.error("Student created, but there was an error matching the transaction.");
       }
 
       setShowAutoImportModal(false);
       setAutoImportTx(null);
     } catch (err) {
       console.error(err);
-      alert("Failed to auto-import student.");
+      toast.error("Failed to auto-import student.");
     }
   };
 
@@ -2651,13 +2660,13 @@ export default function SchoolPortal({ params }: PageProps) {
     setExpAmount("");
     setExpDesc("");
     await loadSchoolData(school.id);
-    alert("Expense recorded!");
+    toast.success("Expense recorded!");
   };
 
   // Save daily student attendance registry
   const handleSaveAttendance = async () => {
     if (!attendanceClassId || !attendanceStreamId || !attendanceDate || !school) {
-      alert("Please select class, stream, and date.");
+      toast.error("Please select class, stream, and date.");
       return;
     }
 
@@ -2673,10 +2682,10 @@ export default function SchoolPortal({ params }: PageProps) {
           2026
         );
       }
-      alert("Attendance log saved successfully!");
+      toast.success("Attendance log saved successfully!");
       await loadAttendance(attendanceClassId, attendanceStreamId, attendanceDate);
     } catch (err) {
-      alert("Error saving attendance registry.");
+      toast.error("Error saving attendance registry.");
     }
   };
 
@@ -2685,7 +2694,7 @@ export default function SchoolPortal({ params }: PageProps) {
     e.preventDefault();
     if (!promoteFromClassId || !promoteToClassId || !school) return;
     if (promoteFromClassId === promoteToClassId) {
-      alert("Cannot promote students to the same class.");
+      toast.error("Cannot promote students to the same class.");
       return;
     }
 
@@ -2694,10 +2703,10 @@ export default function SchoolPortal({ params }: PageProps) {
 
     try {
       await promoteStudents(school.id, promoteFromClassId, promoteToClassId);
-      alert("Students promoted successfully!");
+      toast.success("Students promoted successfully!");
       await loadSchoolData(school.id);
     } catch (err) {
-      alert("Error processing student promotions.");
+      toast.error("Error processing student promotions.");
     }
   };
 
@@ -2722,9 +2731,9 @@ export default function SchoolPortal({ params }: PageProps) {
       );
       setPaySalaryAmount("");
       await loadSchoolData(school.id);
-      alert(`Processed wage payment of ${amountVal.toLocaleString()} UGX for ${teacher.name}!`);
+      toast.success(`Processed wage payment of ${amountVal.toLocaleString()} UGX for ${teacher.name}!`);
     } catch (err) {
-      alert("Error processing teacher salary payment.");
+      toast.error("Error processing teacher salary payment.");
     }
   };
 
@@ -2756,9 +2765,9 @@ export default function SchoolPortal({ params }: PageProps) {
         reportShowSummaryRow: designerShowSummaryRow
       });
       setSchool(updated);
-      alert("Academic report card template layout saved successfully!");
+      toast.success("Academic report card template layout saved successfully!");
     } catch (err: any) {
-      alert("Failed to save report template config: " + (err.message || err));
+      toast.error("Failed to save report template config: " + (err.message || err));
     }
   };
 
@@ -2799,12 +2808,12 @@ export default function SchoolPortal({ params }: PageProps) {
     
     const amountVal = parseFloat(momoAmount);
     if (isNaN(amountVal) || amountVal <= 0) {
-      alert("Invalid payment amount");
+      toast.error("Invalid payment amount");
       return;
     }
 
     if (momoProvider !== "CARD" && !momoPhone) {
-      alert("Please enter your mobile phone number.");
+      toast.error("Please enter your mobile phone number.");
       return;
     }
 
@@ -2828,7 +2837,7 @@ export default function SchoolPortal({ params }: PageProps) {
           if (res.redirect_url) {
             window.location.href = res.redirect_url;
           } else {
-            alert("Card redirect URL not provided by gateway.");
+            toast.error("Card redirect URL not provided by gateway.");
             setMomoStep(0);
           }
         } else {
@@ -2836,11 +2845,11 @@ export default function SchoolPortal({ params }: PageProps) {
           setMomoStep(2); // Waiting for Approval
         }
       } else {
-        alert(res?.message || "Failed to initiate payment collection from Marzpay.");
+        toast.error(res?.message || "Failed to initiate payment collection from Marzpay.");
         setMomoStep(0);
       }
     } catch (err: any) {
-      alert("Error contacting Marzpay gateway: " + (err.message || err));
+      toast.error("Error contacting Marzpay gateway: " + (err.message || err));
       setMomoStep(0);
     }
   };
@@ -2848,7 +2857,7 @@ export default function SchoolPortal({ params }: PageProps) {
   const checkPaymentStatus = async () => {
     if (!school) return;
     if (!momoTxUuid) {
-      alert("No transaction reference found.");
+      toast.error("No transaction reference found.");
       return;
     }
     setMomoStep(3); // Verifying
@@ -2885,19 +2894,19 @@ export default function SchoolPortal({ params }: PageProps) {
                 if (nextRes.redirect_url) {
                   window.location.href = nextRes.redirect_url;
                 } else {
-                  alert(`Card redirect URL not provided by gateway for Part ${nextIdx + 1}.`);
+                  toast.error(`Card redirect URL not provided by gateway for Part ${nextIdx + 1}.`);
                   setMomoStep(0);
                 }
               } else {
                 setMomoStep(2); // Waiting for Approval
-                alert(`Part ${nextIdx} payment succeeded! We are now sending a push prompt for Part ${nextIdx + 1} (${nextAmount.toLocaleString()} UGX) to your phone. Please approve it.`);
+                toast.error(`Part ${nextIdx} payment succeeded! We are now sending a push prompt for Part ${nextIdx + 1} (${nextAmount.toLocaleString()} UGX) to your phone. Please approve it.`);
               }
             } else {
-              alert(nextRes?.message || `Failed to initiate Part ${nextIdx + 1} of payment.`);
+              toast.error(nextRes?.message || `Failed to initiate Part ${nextIdx + 1} of payment.`);
               setMomoStep(0);
             }
           } catch (err: any) {
-            alert(`Error initiating Part ${nextIdx + 1} of payment: ` + (err.message || err));
+            toast.error(`Error initiating Part ${nextIdx + 1} of payment: ` + (err.message || err));
             setMomoStep(0);
           }
         } else {
@@ -2940,20 +2949,20 @@ export default function SchoolPortal({ params }: PageProps) {
             setMomoStep(4); // Success!
             await loadSchoolData(school.id);
           } catch (err: any) {
-            alert("Error updating transaction records: " + (err.message || err));
+            toast.error("Error updating transaction records: " + (err.message || err));
             setMomoStep(2);
           }
         }
       } else if (res && res.status === "failed") {
-        alert("Payment failed or was declined by user.");
+        toast.error("Payment failed or was declined by user.");
         setMomoStep(0);
       } else {
         // Still pending
-        alert("Payment is still pending. Please approve the USSD prompt on your phone and try again.");
+        toast.error("Payment is still pending. Please approve the USSD prompt on your phone and try again.");
         setMomoStep(2);
       }
     } catch (err: any) {
-      alert("Error checking transaction status: " + (err.message || err));
+      toast.error("Error checking transaction status: " + (err.message || err));
       setMomoStep(2);
     }
   };
@@ -3489,7 +3498,7 @@ export default function SchoolPortal({ params }: PageProps) {
                         const file = e.target.files?.[0];
                         if (file) {
                           if (file.size > 1024 * 1024) {
-                            alert("Logo image should be less than 1MB to store directly in the database.");
+                            toast.error("Logo image should be less than 1MB to store directly in the database.");
                             return;
                           }
                           const reader = new FileReader();
@@ -4106,7 +4115,7 @@ export default function SchoolPortal({ params }: PageProps) {
                       setProfileDetailsSuccess("Personal details updated successfully!");
                       setTimeout(() => setProfileDetailsSuccess(""), 3000);
                     } catch (err) {
-                      alert("Failed to update profile details.");
+                      toast.error("Failed to update profile details.");
                     }
                   }}>
                     {profileDetailsSuccess && (
@@ -4136,7 +4145,7 @@ export default function SchoolPortal({ params }: PageProps) {
                           const file = e.target.files?.[0];
                           if (file) {
                             if (file.size > 1024 * 1024) {
-                              alert("Logo image should be less than 1MB to store directly.");
+                              toast.error("Logo image should be less than 1MB to store directly.");
                               return;
                             }
                             const reader = new FileReader();
@@ -4552,7 +4561,7 @@ export default function SchoolPortal({ params }: PageProps) {
                           const file = e.target.files?.[0];
                           if (file) {
                             if (file.size > 1024 * 1024) {
-                              alert("Logo image should be less than 1MB to store directly in the database.");
+                              toast.error("Logo image should be less than 1MB to store directly in the database.");
                               return;
                             }
                             const reader = new FileReader();
@@ -5741,7 +5750,7 @@ export default function SchoolPortal({ params }: PageProps) {
                           const file = e.target.files?.[0];
                           if (file) {
                             if (file.size > 1024 * 1024) {
-                              alert("Photo size should be less than 1MB to store directly in the database.");
+                              toast.error("Photo size should be less than 1MB to store directly in the database.");
                               return;
                             }
                             const reader = new FileReader();
@@ -6086,7 +6095,7 @@ export default function SchoolPortal({ params }: PageProps) {
                           const file = e.target.files?.[0];
                           if (file) {
                             if (file.size > 1024 * 1024) {
-                              alert("Photo size should be less than 1MB to store directly in the database.");
+                              toast.error("Photo size should be less than 1MB to store directly in the database.");
                               return;
                             }
                             const reader = new FileReader();
@@ -6181,7 +6190,7 @@ export default function SchoolPortal({ params }: PageProps) {
                                   <button 
                                     onClick={async () => {
                                       if (u.role === "ADMIN") {
-                                        alert("Super Administrator accounts cannot be deleted directly.");
+                                        toast.success("Super Administrator accounts cannot be deleted directly.");
                                         return;
                                       }
                                       if (confirm(`Are you sure you want to delete staff account "${u.name}"?`)) {
@@ -7399,9 +7408,9 @@ export default function SchoolPortal({ params }: PageProps) {
                                 });
                                 await loadSchoolData(school!.id);
                                 setSelectedReportStudent(prev => prev ? { ...prev, classTeacherComment: tempClassTeacherComment, headTeacherComment: tempHeadTeacherComment } : null);
-                                alert("Comments saved successfully!");
+                                toast.success("Comments saved successfully!");
                               } catch (err: any) {
-                                alert("Failed to save comments: " + (err.message || err));
+                                toast.error("Failed to save comments: " + (err.message || err));
                               }
                             }}
                             className="btn btn-primary"
@@ -8493,7 +8502,7 @@ export default function SchoolPortal({ params }: PageProps) {
                                       // Refresh
                                       const spay = await getStudentPayments(school.id);
                                       setStudentPayments(spay);
-                                      alert(`Matched to ${stud.name} and recorded!`);
+                                      toast.success(`Matched to ${stud.name} and recorded!`);
                                     }}
                                   >
                                     <option value="">Match to student...</option>
@@ -9194,7 +9203,7 @@ export default function SchoolPortal({ params }: PageProps) {
                   style={{ width: "100%", padding: "12px", marginTop: "8px", fontSize: "15px", fontWeight: 700, opacity: smsSendStatus === "collecting" || smsSendStatus === "sending" ? 0.6 : 1 }}
                   disabled={smsSendStatus === "collecting" || smsSendStatus === "sending"}
                   onClick={async () => {
-                    if (!school || !smsMessage.trim()) { alert("Please compose a message first."); return; }
+                    if (!school || !smsMessage.trim()) { toast.error("Please compose a message first."); return; }
 
                     // Compute recipients
                     let recipients: string[] = [];
@@ -9220,7 +9229,7 @@ export default function SchoolPortal({ params }: PageProps) {
                       recipients = [...new Set([...parentContacts, ...staffContacts])];
                     }
 
-                    if (recipients.length === 0) { alert("No contacts found for the selected audience. Please add phone numbers to students or staff."); return; }
+                    if (recipients.length === 0) { toast.error("No contacts found for the selected audience. Please add phone numbers to students or staff."); return; }
 
                     const smsUnits = smsMessage.length <= 160 ? 1 : 2;
                     const totalCost = recipients.length * smsUnits * 40;
@@ -9228,7 +9237,7 @@ export default function SchoolPortal({ params }: PageProps) {
                     const smsCostAmount = recipients.length * smsUnits * 30;
 
                     if (smsPaymentMode === "mobile_money") {
-                      if (!smsPayerPhone.trim()) { alert("Please enter your mobile money number for payment."); return; }
+                      if (!smsPayerPhone.trim()) { toast.error("Please enter your mobile money number for payment."); return; }
                     }
 
                     const confirmMsg = smsPaymentMode === "mobile_money"
@@ -9442,7 +9451,7 @@ export default function SchoolPortal({ params }: PageProps) {
                       className="btn btn-primary" style={{ flex: 1 }}
                       disabled={buyCreditsStatus === "collecting"}
                       onClick={async () => {
-                        if (!school || !buyCreditsPhone.trim() || buyCreditsAmount < 1) { alert("Please fill all fields."); return; }
+                        if (!school || !buyCreditsPhone.trim() || buyCreditsAmount < 1) { toast.error("Please fill all fields."); return; }
                         const amount = Math.max(500, buyCreditsAmount * 40);
                         setBuyCreditsStatus("collecting");
                         const collectRes = await initiateMarzpayCollection(amount, "mobile_money", buyCreditsPhone, `SMS Credit Purchase - ${school.name}`);
@@ -10295,7 +10304,7 @@ export default function SchoolPortal({ params }: PageProps) {
               });
               setShowEditStudentModal(false);
               await loadSchoolData(school!.id);
-              alert("Student details updated successfully!");
+              toast.success("Student details updated successfully!");
             }}>
               <div className="form-group">
                 <label className="form-label">Student Full Name</label>
@@ -10418,7 +10427,7 @@ export default function SchoolPortal({ params }: PageProps) {
                     const file = e.target.files?.[0];
                     if (file) {
                       if (file.size > 1024 * 1024) {
-                        alert("Photo size should be less than 1MB.");
+                        toast.error("Photo size should be less than 1MB.");
                         return;
                       }
                       const reader = new FileReader();
@@ -10845,7 +10854,7 @@ export default function SchoolPortal({ params }: PageProps) {
               });
               setShowEditStaffModal(false);
               await loadSchoolData(school!.id);
-              alert("Staff account details updated successfully!");
+              toast.success("Staff account details updated successfully!");
             }}>
               <div className="form-group">
                 <label className="form-label">Staff Name</label>
@@ -10907,7 +10916,7 @@ export default function SchoolPortal({ params }: PageProps) {
                     const file = e.target.files?.[0];
                     if (file) {
                       if (file.size > 1024 * 1024) {
-                        alert("Photo size should be less than 1MB.");
+                        toast.error("Photo size should be less than 1MB.");
                         return;
                       }
                       const reader = new FileReader();
@@ -10938,16 +10947,16 @@ export default function SchoolPortal({ params }: PageProps) {
                     type="button" 
                     onClick={async () => {
                       if (!adminResetPasswordVal || adminResetPasswordVal.length < 4) {
-                        alert("Please enter a password with at least 4 characters.");
+                        toast.error("Please enter a password with at least 4 characters.");
                         return;
                       }
                       const success = await resetUserPassword(school!.id, selectedEditStaff.email, adminResetPasswordVal);
                       if (success) {
                         await updateUser(selectedEditStaff.id, { mustChangePassword: true });
-                        alert(`Password for ${selectedEditStaff.name} reset successfully! User will be forced to change it on their next login.`);
+                        toast.success(`Password for ${selectedEditStaff.name} reset successfully! User will be forced to change it on their next login.`);
                         setAdminResetPasswordVal("");
                       } else {
-                        alert("Failed to reset password.");
+                        toast.error("Failed to reset password.");
                       }
                     }}
                     className="btn btn-outline"

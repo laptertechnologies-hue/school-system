@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { toast } from "react-hot-toast";
 import { 
   getSchools, 
   getPayments, 
@@ -128,12 +129,14 @@ export default function SuperAdminDashboard() {
 
   const handleToggleStatus = async (schoolId: string, currentStatus: string) => {
     const nextStatus = currentStatus === "ACTIVE" ? "INACTIVE" : "ACTIVE";
-    try {
-      await updateSchoolStatus(schoolId, nextStatus);
-      await loadData(); // Reload
-    } catch (err) {
-      alert("Failed to update status");
-    }
+    toast.promise(
+      updateSchoolStatus(schoolId, nextStatus).then(() => loadData()),
+      {
+        loading: 'Updating status...',
+        success: 'Status updated',
+        error: 'Failed to update status',
+      }
+    );
   };
 
   const handleOpenEditModal = (school: School) => {
@@ -153,42 +156,46 @@ export default function SuperAdminDashboard() {
   const handleResetPassword = async () => {
     if (!selectedEditSchool) return;
     if (!confirm(`Reset the primary administrator password for ${selectedEditSchool.name} to "password"?`)) return;
-    try {
-      await resetSchoolAdminPassword(selectedEditSchool.id);
-      alert("Password successfully reset to 'password'");
-    } catch (err: any) {
-      alert("Failed to reset password: " + err.message);
-    }
+    toast.promise(
+      resetSchoolAdminPassword(selectedEditSchool.id),
+      {
+        loading: 'Resetting password...',
+        success: 'Password successfully reset to "password"',
+        error: (err) => `Failed to reset password: ${err.message}`,
+      }
+    );
   };
 
   const handleSaveSubscription = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedEditSchool) return;
 
-    try {
+    const saveOp = async () => {
       const expDate = editExpiresAt ? new Date(editExpiresAt) : null;
       await updateSchoolSubscription(selectedEditSchool.id, {
         packageType: editPackageType,
         status: editStatus,
         expiresAt: expDate,
       });
-
       await updateSchoolDetails(selectedEditSchool.id, {
         name: editName,
         contactEmail: editEmail,
         contactPhone: editPhone,
         studentRange: editStudentRange,
       });
-
       setShowEditModal(false);
       await loadData();
-    } catch (err: any) {
-      alert("Failed to save subscription: " + (err.message || err));
-    }
+    };
+
+    toast.promise(saveOp(), {
+      loading: 'Saving subscription...',
+      success: 'Subscription saved successfully!',
+      error: (err) => `Failed to save: ${err.message || err}`,
+    });
   };
 
   const handleSimulateTrial = async () => {
-    try {
+    const trialOp = async () => {
       const randomSub = "trial" + Math.floor(Math.random() * 9000 + 1000);
       const randomName = "Sandbox Academy " + Math.floor(Math.random() * 100 + 1);
       
@@ -213,10 +220,14 @@ export default function SuperAdminDashboard() {
       });
 
       await loadData();
-      alert(`Provisioned sandbox school "${randomName}" with subdomain "${randomSub}" under pending trial status.`);
-    } catch (err: any) {
-      alert("Failed to simulate trial: " + (err.message || err));
-    }
+      return `Provisioned sandbox school "${randomName}" with subdomain "${randomSub}" under pending trial status.`;
+    };
+
+    toast.promise(trialOp(), {
+      loading: 'Provisioning sandbox school...',
+      success: (msg) => msg,
+      error: (err) => `Failed to simulate trial: ${err.message || err}`,
+    });
   };
 
   const handleAddPayment = async (e: React.FormEvent) => {

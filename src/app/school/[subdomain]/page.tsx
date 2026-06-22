@@ -461,6 +461,8 @@ export default function SchoolPortal({ params }: PageProps) {
   const [smsPayerPhone, setSmsPayerPhone] = useState("");
   const [smsPaymentMode, setSmsPaymentMode] = useState<"mobile_money" | "card">("mobile_money");
   const [smsCardRedirectUrl, setSmsCardRedirectUrl] = useState("");
+  const [showSmsCardPayModal, setShowSmsCardPayModal] = useState(false);
+  const [smsPayAmount, setSmsPayAmount] = useState(0);
   const [smsSendStatus, setSmsSendStatus] = useState<"idle" | "collecting" | "sending" | "done" | "error">("idle");
   const [smsSendResult, setSmsSendResult] = useState<any>(null);
   const [smsMarzBalance, setSmsMarzBalance] = useState<number | null>(null);
@@ -9216,12 +9218,13 @@ export default function SchoolPortal({ params }: PageProps) {
                     const collectionUuid = collectRes.data?.transaction?.uuid;
                     if (savedLog && collectionUuid) await updateSmsLog(savedLog.id, { marzPayRef: collectionUuid, status: "PENDING" }).catch(() => {});
 
-                    // If card, open redirect_url in a new window/tab and store fallback URL in state
+                    // If card, show card details redirect modal
                     if (smsPaymentMode === "card") {
                       const redirectUrl = collectRes.data?.redirect_url;
                       if (redirectUrl) {
+                        setSmsPayAmount(profitAmount);
                         setSmsCardRedirectUrl(redirectUrl);
-                        window.open(redirectUrl, "_blank");
+                        setShowSmsCardPayModal(true);
                       }
                     }
 
@@ -9239,9 +9242,11 @@ export default function SchoolPortal({ params }: PageProps) {
                       setSmsSendStatus("error");
                       setSmsSendResult({ error: "Payment not confirmed. Please try again once payment is completed." });
                       if (savedLog) await updateSmsLog(savedLog.id, { status: "FAILED" }).catch(() => {});
+                      setShowSmsCardPayModal(false);
                       return;
                     }
                     if (savedLog) await updateSmsLog(savedLog.id, { status: "PAYMENT_CONFIRMED" }).catch(() => {});
+                    setShowSmsCardPayModal(false);
 
                     // Step 2: Send SMS
                     setSmsSendStatus("sending");
@@ -10905,6 +10910,62 @@ export default function SchoolPortal({ params }: PageProps) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* SMS Card Payment Checkout Modal */}
+      {showSmsCardPayModal && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1050, padding: "20px" }}>
+          <div className="card" style={{ width: "100%", maxWidth: "460px", background: "white", padding: "30px", boxShadow: "var(--shadow-lg)", textAlign: "center" }}>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: "16px" }}>
+              <div style={{ padding: "16px", borderRadius: "50%", background: "#eff6ff", color: "var(--primary)" }}>
+                <CreditCard size={36} />
+              </div>
+            </div>
+            <h3 style={{ marginBottom: "10px", color: "#0f172a", fontWeight: 700 }}>💳 Complete Card Payment</h3>
+            <p style={{ color: "#64748b", fontSize: "14px", lineHeight: "1.5", marginBottom: "20px" }}>
+              To finalize sending your SMS broadcast, you will be redirected to the secure card checkout page where you can safely enter your card details (Card Number, Expiry Date, and CVV).
+            </p>
+            
+            <div style={{ background: "#f8fafc", border: "1px solid var(--border)", borderRadius: "8px", padding: "16px", marginBottom: "24px", textAlign: "left" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", fontSize: "13px" }}>
+                <span style={{ color: "#64748b" }}>Payment Service:</span>
+                <strong style={{ color: "#0f172a" }}>SMS Broadcast Fee</strong>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "14px" }}>
+                <span style={{ color: "#64748b", fontWeight: 600 }}>Amount Due:</span>
+                <strong style={{ color: "#0f172a", fontSize: "16px", fontWeight: 800 }}>
+                  {smsPayAmount.toLocaleString()} UGX
+                </strong>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <a 
+                href={smsCardRedirectUrl} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="btn btn-primary" 
+                style={{ display: "block", textDecoration: "none", color: "white", padding: "12px", borderRadius: "8px", fontWeight: "bold" }}
+              >
+                💳 Enter Card Details & Pay
+              </a>
+              <div style={{ fontSize: "12px", color: "#64748b", margin: "10px 0" }}>
+                ⏳ <strong>Waiting for card payment...</strong> Once you complete the payment on the checkout page, the broadcast will automatically dispatch.
+              </div>
+              <button 
+                type="button"
+                onClick={() => {
+                  setShowSmsCardPayModal(false);
+                  setSmsSendStatus("idle");
+                }} 
+                className="btn btn-outline" 
+                style={{ width: "100%" }}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

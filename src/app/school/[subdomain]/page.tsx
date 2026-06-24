@@ -3330,7 +3330,7 @@ export default function SchoolPortal({ params }: PageProps) {
                       setShowForgotPassword(true);
                       setResetStep(0);
                     }}
-                    style={{ background: "transparent", border: "none", color: "var(--primary)", fontSize: "12px", cursor: "pointer", padding: 0 }}
+                    style={{ background: "transparent", border: "none", color: "white", fontSize: "12px", cursor: "pointer", padding: 0 }}
                   >
                     Forgot Password?
                   </button>
@@ -3406,7 +3406,7 @@ export default function SchoolPortal({ params }: PageProps) {
                 }
               }}
               style={{ fontSize: "13px", color: "#9ca3af", textDecoration: "underline", cursor: "pointer" }}>
-              â€” Back to SchoolPro Main Website
+              ← Back to SchoolPro Main Website
             </a>
           </div>
 

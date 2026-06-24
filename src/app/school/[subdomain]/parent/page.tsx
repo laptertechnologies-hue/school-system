@@ -228,6 +228,9 @@ export default function ParentPortal({ params }: { params: Promise<{ subdomain: 
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9" }}>
         <div style={{ width: "100%", maxWidth: "400px", padding: "40px", background: "white", borderRadius: "12px", boxShadow: "0 10px 25px rgba(0,0,0,0.05)" }} className="animate-fade-in">
           <div style={{ textAlign: "center", marginBottom: "30px" }}>
+            {school.logoUrl && (
+              <img src={school.logoUrl} alt={`${school.name} Logo`} style={{ maxWidth: "80px", maxHeight: "80px", borderRadius: "10px", objectFit: "contain", background: "white", padding: "4px", marginBottom: "16px", display: "inline-block" }} />
+            )}
             <h1 style={{ fontSize: "24px", color: school.themeColor || "var(--primary)", fontWeight: "bold" }}>{school.name}</h1>
             <p style={{ color: "#64748b", marginTop: "8px" }}>Parent Portal Login</p>
           </div>

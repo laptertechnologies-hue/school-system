@@ -3375,7 +3375,13 @@ export default function SchoolPortal({ params }: PageProps) {
                 <p style={{ color: "#9ca3af", fontSize: "14px", marginBottom: "12px" }}>Are you a parent or guardian?</p>
                 <button 
                   type="button" 
-                  onClick={() => window.location.href = `/school/${school?.subdomain || subdomain}/parent`}
+                  onClick={() => {
+                    if (window.location.host.includes("localhost") || window.location.host.includes("vercel.app")) {
+                      window.location.href = `/school/${school?.subdomain || subdomain}/parent`;
+                    } else {
+                      window.location.href = "/parent";
+                    }
+                  }}
                   className="btn btn-outline" 
                   style={{ width: "100%", padding: "10px", borderColor: "var(--primary)", color: "white" }}
                 >

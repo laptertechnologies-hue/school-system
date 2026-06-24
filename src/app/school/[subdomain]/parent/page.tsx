@@ -500,7 +500,7 @@ export default function ParentPortal({ params }: { params: Promise<{ subdomain: 
                     <tr>
                       <th>Subject</th>
                       {examPapers.filter(p => p.term === selectedTerm && p.year === selectedYear).map(p => (
-                        <th key={p.id}>{p.name} ({p.totalScore})</th>
+                        <th key={p.id}>{p.name} ({p.maxMarks})</th>
                       ))}
                       <th>Total</th>
                       <th>Grade</th>

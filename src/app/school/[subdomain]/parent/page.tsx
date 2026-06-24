@@ -3,9 +3,10 @@ import React, { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import { 
   authenticateParent, updateParentPassword, initiateMarzpayCollection, checkMarzpayCollectionStatus,
-  getSchoolBySubdomain, getParentContactByPaycode
+  getSchoolBySubdomain, getParentContactByPaycode,
+  getClasses, getStreams, getSubjects, getExamPapers, getMarks, getFeeStructures, getStudentPayments, getGradeRanges
 } from "@/lib/services";
-import { School, Student, Election, HolidayWork } from "@/lib/types";
+import { School, Student, Election, HolidayWork, Class, Stream, Subject, ExamPaper, Mark, FeeStructure, StudentPayment, GradeRange } from "@/lib/types";
 import { Lock, User as UserIcon, LogOut, CheckCircle, RefreshCcw, Home, FileText, Vote, GraduationCap, X, ChevronRight } from "lucide-react";
 
 // For securely generating hashes
@@ -46,11 +47,35 @@ export default function ParentPortal({ params }: { params: Promise<{ subdomain: 
   // Dashboard State
   const [activeTab, setActiveTab] = useState("overview");
 
+  // Data State
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [streams, setStreams] = useState<Stream[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [examPapers, setExamPapers] = useState<ExamPaper[]>([]);
+  const [marks, setMarks] = useState<Mark[]>([]);
+  const [feeStructures, setFeeStructures] = useState<FeeStructure[]>([]);
+  const [studentPayments, setStudentPayments] = useState<StudentPayment[]>([]);
+  const [gradeRanges, setGradeRanges] = useState<GradeRange[]>([]);
+  
+  const [selectedTerm, setSelectedTerm] = useState<string>("Term 1");
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+
   useEffect(() => {
     const init = async () => {
       const s = await getSchoolBySubdomain(subdomain);
       setSchool(s || null);
       
+      if (s) {
+        setClasses(await getClasses(s.id));
+        setStreams(await getStreams(s.id));
+        setSubjects(await getSubjects(s.id));
+        setExamPapers(await getExamPapers(s.id));
+        setMarks(await getMarks(s.id));
+        setFeeStructures(await getFeeStructures(s.id));
+        setStudentPayments(await getStudentPayments(s.id));
+        setGradeRanges(await getGradeRanges(s.id));
+      }
+
       const stored = localStorage.getItem("parentStudentSession");
       if (stored) {
         try {
@@ -397,22 +422,118 @@ export default function ParentPortal({ params }: { params: Promise<{ subdomain: 
           </div>
 
           {activeTab === "overview" && (
-            <div className="animate-fade-in" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
-              <div className="card">
-                <h3>Financial Overview</h3>
-                <p style={{ color: "#64748b", marginTop: "10px" }}>Coming soon: Real-time balance and transaction history integration via SchoolPay.</p>
+            <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              <div className="card" style={{ display: "flex", gap: "20px", alignItems: "center" }}>
+                {school.logoUrl && <img src={school.logoUrl} alt="Logo" style={{ width: "80px", height: "80px", objectFit: "contain", borderRadius: "10px", padding: "4px", background: "white", border: "1px solid var(--border)" }} />}
+                <div>
+                  <h3 style={{ fontSize: "20px", color: school.themeColor || "var(--primary)" }}>{currentStudent.name}</h3>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginTop: "10px", fontSize: "14px", color: "#475569" }}>
+                    <div><strong>Admission No:</strong> {currentStudent.studentNumber}</div>
+                    <div><strong>Gender:</strong> {currentStudent.gender}</div>
+                    <div><strong>Class:</strong> {classes.find(c => c.id === currentStudent.classId)?.name || "Unknown"} {streams.find(st => st.id === currentStudent.streamId)?.name || ""}</div>
+                    <div><strong>Boarding:</strong> {currentStudent.type === "BOARDING" ? "Boarding Student" : "Day Scholar"}</div>
+                  </div>
+                </div>
               </div>
               <div className="card">
-                <h3>Recent Attendance</h3>
-                <p style={{ color: "#64748b", marginTop: "10px" }}>Coming soon: View your child's daily attendance records.</p>
+                <h3>Financial Overview</h3>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "15px", marginTop: "15px" }}>
+                  <div style={{ padding: "15px", background: "#f8fafc", borderRadius: "8px", border: "1px solid var(--border)" }}>
+                    <div style={{ fontSize: "12px", color: "#64748b", textTransform: "uppercase" }}>Expected Fees</div>
+                    <div style={{ fontSize: "20px", fontWeight: "bold", color: "#0f172a" }}>
+                      {(() => {
+                        const fs = feeStructures.find(f => f.classId === currentStudent.classId);
+                        const expected = fs ? (currentStudent.type === "BOARDING" ? fs.boardingAmount : fs.dayAmount) : 0;
+                        return `${expected.toLocaleString()} UGX`;
+                      })()}
+                    </div>
+                  </div>
+                  <div style={{ padding: "15px", background: "#f0fdf4", borderRadius: "8px", border: "1px solid #bbf7d0" }}>
+                    <div style={{ fontSize: "12px", color: "#166534", textTransform: "uppercase" }}>Total Paid</div>
+                    <div style={{ fontSize: "20px", fontWeight: "bold", color: "#15803d" }}>
+                      {(() => {
+                        const totalPaid = studentPayments.filter(p => p.studentId === currentStudent.id).reduce((sum, p) => sum + p.amount, 0);
+                        return `${totalPaid.toLocaleString()} UGX`;
+                      })()}
+                    </div>
+                  </div>
+                  <div style={{ padding: "15px", background: "#fef2f2", borderRadius: "8px", border: "1px solid #fecaca" }}>
+                    <div style={{ fontSize: "12px", color: "#991b1b", textTransform: "uppercase" }}>Outstanding Balance</div>
+                    <div style={{ fontSize: "20px", fontWeight: "bold", color: "#b91c1c" }}>
+                      {(() => {
+                        const fs = feeStructures.find(f => f.classId === currentStudent.classId);
+                        const expected = fs ? (currentStudent.type === "BOARDING" ? fs.boardingAmount : fs.dayAmount) : 0;
+                        const totalPaid = studentPayments.filter(p => p.studentId === currentStudent.id).reduce((sum, p) => sum + p.amount, 0);
+                        const bal = expected - totalPaid;
+                        return bal > 0 ? `${bal.toLocaleString()} UGX` : "Cleared";
+                      })()}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
           {activeTab === "academics" && (
             <div className="card animate-fade-in">
-              <h3>Academic Reports</h3>
-              <p style={{ color: "#64748b", marginTop: "10px" }}>Select a term to view or download the digital report card.</p>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+                <h3>Academic Reports</h3>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <select className="input-field" value={selectedTerm} onChange={e => setSelectedTerm(e.target.value)} style={{ padding: "6px 12px", height: "auto" }}>
+                    <option>Term 1</option>
+                    <option>Term 2</option>
+                    <option>Term 3</option>
+                  </select>
+                  <select className="input-field" value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} style={{ padding: "6px 12px", height: "auto" }}>
+                    {[new Date().getFullYear(), new Date().getFullYear()-1].map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                </div>
+              </div>
+              
+              <div style={{ overflowX: "auto" }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Subject</th>
+                      {examPapers.filter(p => p.term === selectedTerm && p.year === selectedYear).map(p => (
+                        <th key={p.id}>{p.name} ({p.totalScore})</th>
+                      ))}
+                      <th>Total</th>
+                      <th>Grade</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {subjects.map(sub => {
+                      const papers = examPapers.filter(p => p.term === selectedTerm && p.year === selectedYear);
+                      if (papers.length === 0) return null;
+                      
+                      let total = 0;
+                      let hasMarks = false;
+                      const rowMarks = papers.map(p => {
+                        const m = marks.find(x => x.studentId === currentStudent.id && x.examPaperId === p.id && x.subjectId === sub.id);
+                        if (m) { total += m.score; hasMarks = true; }
+                        return m ? m.score : "-";
+                      });
+                      
+                      if (!hasMarks) return null;
+
+                      let grade = "";
+                      const percentage = total; 
+                      const range = gradeRanges.find(r => percentage >= r.minScore && percentage <= r.maxScore);
+                      if (range) { grade = range.grade; }
+
+                      return (
+                        <tr key={sub.id}>
+                          <td><strong>{sub.name}</strong></td>
+                          {rowMarks.map((m, i) => <td key={i}>{m}</td>)}
+                          <td><strong>{total}</strong></td>
+                          <td><span className="badge" style={{ background: "#e2e8f0", color: "#0f172a" }}>{grade || "N/A"}</span></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 

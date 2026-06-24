@@ -16,7 +16,9 @@ async function sha256(message: string) {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-export default function ParentPortal({ params }: { params: { subdomain: string } }) {
+export default function ParentPortal({ params }: { params: Promise<{ subdomain: string }> }) {
+  const resolvedParams = React.use(params);
+  const subdomain = resolvedParams.subdomain;
   const [school, setSchool] = useState<School | null>(null);
   const [currentStudent, setCurrentStudent] = useState<Student | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -45,7 +47,7 @@ export default function ParentPortal({ params }: { params: { subdomain: string }
 
   useEffect(() => {
     const init = async () => {
-      const s = await getSchoolBySubdomain(params.subdomain);
+      const s = await getSchoolBySubdomain(subdomain);
       setSchool(s || null);
       
       const stored = localStorage.getItem("parentStudentSession");

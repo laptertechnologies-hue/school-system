@@ -3377,7 +3377,7 @@ export default function SchoolPortal({ params }: PageProps) {
                   type="button" 
                   onClick={() => window.location.href = `/school/${school?.subdomain || subdomain}/parent`}
                   className="btn btn-outline" 
-                  style={{ width: "100%", padding: "10px", borderColor: "var(--primary)", color: "var(--primary)" }}
+                  style={{ width: "100%", padding: "10px", borderColor: "var(--primary)", color: "white" }}
                 >
                   <UserIcon size={16} style={{ marginRight: "8px", display: "inline" }} />
                   Access Parent Portal

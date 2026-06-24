@@ -3375,7 +3375,7 @@ export default function SchoolPortal({ params }: PageProps) {
                 <p style={{ color: "#9ca3af", fontSize: "14px", marginBottom: "12px" }}>Are you a parent or guardian?</p>
                 <button 
                   type="button" 
-                  onClick={() => window.location.href = `/school/${school?.subdomain || params.subdomain}/parent`}
+                  onClick={() => window.location.href = `/school/${school?.subdomain || subdomain}/parent`}
                   className="btn btn-outline" 
                   style={{ width: "100%", padding: "10px", borderColor: "var(--primary)", color: "var(--primary)" }}
                 >

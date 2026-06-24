@@ -21,7 +21,7 @@ import {
   getTotalAvailableSmsCredits, deductSmsCredits, getMarzSmsBalance, sendRealSms
 } from "../../../lib/services";
 
-import { Database, CreditCard, Building2, CheckCircle, MessageSquare, Sliders, User as UserIcon, Calendar, Eye, EyeOff, Vote, FileText } from "lucide-react";
+import { Database, CreditCard, Building2, CheckCircle, MessageSquare, Sliders, User as UserIcon, Calendar, Eye, EyeOff, Vote } from "lucide-react";
 import { 
   GraduationCap, 
   Users, 

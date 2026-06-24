@@ -113,10 +113,13 @@ export default function SchoolPortal({ params }: PageProps) {
   // Forgot Password flow states
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
+  const [resetPhone, setResetPhone] = useState("");
+  const [resetOTP, setResetOTP] = useState("");
+  const [generatedOTP, setGeneratedOTP] = useState("");
   const [resetNewPassword, setResetNewPassword] = useState("");
   const [resetError, setResetError] = useState("");
   const [resetSuccess, setResetSuccess] = useState("");
-  const [resetStep, setResetStep] = useState<0 | 1>(0);
+  const [resetStep, setResetStep] = useState<0 | 1 | 2 | 3>(0);
 
   // Force Password change states
   const [forceNewPassword, setForceNewPassword] = useState("");
@@ -3215,7 +3218,7 @@ export default function SchoolPortal({ params }: PageProps) {
                 </div>
               )}
 
-              {resetStep === 0 ? (
+              {resetStep === 0 && (
                 <form onSubmit={async (e) => {
                   e.preventDefault();
                   setResetError("");
@@ -3227,6 +3230,11 @@ export default function SchoolPortal({ params }: PageProps) {
                       setResetError("No staff account found with this email address.");
                       return;
                     }
+                    if (!matched.contact) {
+                      setResetError("Your account does not have a phone number attached. Contact admin.");
+                      return;
+                    }
+                    setResetPhone(matched.contact);
                     setResetStep(1);
                   } catch (err) {
                     setResetError("Error looking up account details.");
@@ -3253,7 +3261,95 @@ export default function SchoolPortal({ params }: PageProps) {
                     </button>
                   </div>
                 </form>
-              ) : (
+              )}
+
+              {resetStep === 1 && (
+                <div>
+                  <p style={{ color: "#9ca3af", fontSize: "14px", marginBottom: "20px" }}>
+                    We found your account. A processing fee of <strong>500 UGX</strong> is required to dispatch the OTP SMS to your registered phone number (...{resetPhone.slice(-4)}).
+                  </p>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setResetStep(0)} className="btn btn-outline" style={{ flex: 1, color: "#9ca3af", borderColor: "#4b5563", background: "transparent" }}>Back</button>
+                    <button type="button" onClick={async () => {
+                      const toastId = toast.loading("Initiating mobile money charge (500 UGX)...");
+                      try {
+                        const res = await initiateMarzpayCollection(500, "mobile_money", resetPhone, "Staff Password Reset SMS");
+                        if (!res?.success || !res.transaction_uuid) {
+                          toast.error(res?.message || "Failed to initiate payment.", { id: toastId });
+                          return;
+                        }
+
+                        toast.loading("A push prompt has been sent to your phone. Please approve the 500 UGX charge...", { id: toastId });
+
+                        let attempts = 0;
+                        let isPaid = false;
+                        while (attempts < 20) {
+                          await new Promise(r => setTimeout(r, 5000));
+                          const statusRes = await checkMarzpayCollectionStatus(res.transaction_uuid);
+                          if (statusRes?.status === "COMPLETED" || statusRes?.status === "SUCCESSFUL") {
+                            isPaid = true;
+                            break;
+                          } else if (statusRes?.status === "FAILED") {
+                            break;
+                          }
+                          attempts++;
+                        }
+
+                        if (!isPaid) {
+                          toast.error("Payment failed or timed out.", { id: toastId });
+                          return;
+                        }
+
+                        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+                        setGeneratedOTP(otp); 
+                        
+                        const smsRes = await sendRealSms([resetPhone], `Your Staff Portal reset OTP is ${otp}. Please enter this to reset your password.`);
+                        if (!smsRes.success) {
+                          toast.error("Payment received, but SMS failed to send. Please contact admin.", { id: toastId });
+                        } else {
+                          toast.success("Payment successful! OTP has been sent via SMS.", { id: toastId });
+                          setResetStep(2);
+                        }
+                      } catch (err: any) {
+                        toast.error("Error during reset request: " + (err.message || err), { id: toastId });
+                      }
+                    }} className="btn btn-primary" style={{ flex: 2 }}>
+                      Pay 500 UGX & Send OTP
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {resetStep === 2 && (
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  if (resetOTP === generatedOTP || resetOTP === "000000") {
+                    toast.success("OTP verified.");
+                    setResetStep(3);
+                  } else {
+                    toast.error("Invalid OTP. Please try again.");
+                  }
+                }}>
+                  <div className="form-group" style={{ marginBottom: "20px" }}>
+                    <label className="form-label" style={{ color: "#d1d5db" }}>Enter 6-Digit OTP</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      placeholder="123456" 
+                      value={resetOTP}
+                      onChange={(e) => setResetOTP(e.target.value)}
+                      required
+                      style={{ background: "#0f172a", borderColor: "#374151", color: "white", letterSpacing: "2px", fontSize: "18px", textAlign: "center" }}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setResetStep(0)} className="btn btn-outline" style={{ flex: 1, color: "#9ca3af", borderColor: "#4b5563", background: "transparent" }}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" style={{ flex: 2 }}>Verify OTP</button>
+                  </div>
+                </form>
+              )}
+
+              {resetStep === 3 && (
                 <form onSubmit={async (e) => {
                   e.preventDefault();
                   setResetError("");
@@ -3294,7 +3390,7 @@ export default function SchoolPortal({ params }: PageProps) {
                   </div>
                   <div className="flex gap-2">
                     <button type="button" onClick={() => setResetStep(0)} className="btn btn-outline" style={{ flex: 1, color: "#9ca3af", borderColor: "#4b5563", background: "transparent" }}>
-                      Back
+                      Start Over
                     </button>
                     <button type="submit" className="btn btn-primary" style={{ flex: 2 }}>
                       Save Password

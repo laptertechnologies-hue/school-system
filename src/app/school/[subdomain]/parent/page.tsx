@@ -4,7 +4,7 @@ import { toast } from "react-hot-toast";
 import { 
   authenticateParent, updateParentPassword, initiateMarzpayCollection, checkMarzpayCollectionStatus,
   getSchoolBySubdomain, getParentContactByPaycode,
-  getClasses, getStreams, getSubjects, getExamPapers, getMarks, getFeeStructures, getStudentPayments, getGradeRanges
+  getClasses, getStreams, getSubjects, getExamPapers, getMarks, getFeeStructures, getStudentPayments, getGradeRanges, sendRealSms
 } from "@/lib/services";
 import { School, Student, Election, HolidayWork, Class, Stream, Subject, ExamPaper, Mark, FeeStructure, StudentPayment, GradeRange } from "@/lib/types";
 import { Lock, User as UserIcon, LogOut, CheckCircle, RefreshCcw, Home, FileText, Vote, GraduationCap, X, ChevronRight } from "lucide-react";
@@ -196,10 +196,14 @@ export default function ParentPortal({ params }: { params: Promise<{ subdomain: 
 
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
       setGeneratedOTP(otp); 
-      console.log("Mock SMS Sent to " + resetPhone + ": Your OTP is " + otp);
       
-      toast.success("Payment successful! OTP has been sent via SMS.", { id: toastId });
-      setResetStep(3);
+      const smsRes = await sendRealSms([resetPhone], `Your Parent Portal reset OTP is ${otp}. Please enter this to reset your password.`);
+      if (!smsRes.success) {
+        toast.error("Payment received, but SMS failed to send. Please contact admin.", { id: toastId });
+      } else {
+        toast.success("Payment successful! OTP has been sent via SMS.", { id: toastId });
+        setResetStep(3);
+      }
 
     } catch (err: any) {
       toast.error("Error during reset request: " + (err.message || err), { id: toastId });
@@ -443,7 +447,7 @@ export default function ParentPortal({ params }: { params: Promise<{ subdomain: 
                     <div style={{ fontSize: "20px", fontWeight: "bold", color: "#0f172a" }}>
                       {(() => {
                         const fs = feeStructures.find(f => f.classId === currentStudent.classId);
-                        const expected = fs ? (currentStudent.type === "BOARDING" ? fs.boardingAmount : fs.dayAmount) : 0;
+                        const expected = fs ? (currentStudent.type === "BOARDING" ? fs.tuitionAmount + fs.boardingAmount : fs.tuitionAmount) : 0;
                         return `${expected.toLocaleString()} UGX`;
                       })()}
                     </div>
@@ -452,7 +456,7 @@ export default function ParentPortal({ params }: { params: Promise<{ subdomain: 
                     <div style={{ fontSize: "12px", color: "#166534", textTransform: "uppercase" }}>Total Paid</div>
                     <div style={{ fontSize: "20px", fontWeight: "bold", color: "#15803d" }}>
                       {(() => {
-                        const totalPaid = studentPayments.filter(p => p.studentId === currentStudent.id).reduce((sum, p) => sum + p.amount, 0);
+                        const totalPaid = studentPayments.filter(p => p.studentId === currentStudent.id).reduce((sum, p) => sum + p.amountPaid, 0);
                         return `${totalPaid.toLocaleString()} UGX`;
                       })()}
                     </div>
@@ -462,8 +466,8 @@ export default function ParentPortal({ params }: { params: Promise<{ subdomain: 
                     <div style={{ fontSize: "20px", fontWeight: "bold", color: "#b91c1c" }}>
                       {(() => {
                         const fs = feeStructures.find(f => f.classId === currentStudent.classId);
-                        const expected = fs ? (currentStudent.type === "BOARDING" ? fs.boardingAmount : fs.dayAmount) : 0;
-                        const totalPaid = studentPayments.filter(p => p.studentId === currentStudent.id).reduce((sum, p) => sum + p.amount, 0);
+                        const expected = fs ? (currentStudent.type === "BOARDING" ? fs.tuitionAmount + fs.boardingAmount : fs.tuitionAmount) : 0;
+                        const totalPaid = studentPayments.filter(p => p.studentId === currentStudent.id).reduce((sum, p) => sum + p.amountPaid, 0);
                         const bal = expected - totalPaid;
                         return bal > 0 ? `${bal.toLocaleString()} UGX` : "Cleared";
                       })()}

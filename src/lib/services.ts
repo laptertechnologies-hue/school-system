@@ -504,6 +504,62 @@ export async function authenticateUser(email: string, passwordHash: string, subd
   return serialize(user || null);
 }
 
+export async function authenticateParent(subdomain: string, paymentCode: string, passwordHash: string): Promise<Student | null> {
+  const sanitizedCode = paymentCode.trim();
+  if (await hasDB()) {
+    const school = await prisma.school.findUnique({ where: { subdomain } });
+    if (!school) return null;
+
+    const student = await prisma.student.findFirst({
+      where: { schoolId: school.id, studentPaymentCode: sanitizedCode }
+    });
+
+    if (!student) return null;
+
+    // The default temporary password is "password" (SHA-256: 5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8)
+    const currentHash = student.parentPasswordHash || "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8";
+    
+    if (currentHash === passwordHash) {
+      return serialize(student) as Student;
+    }
+    return null;
+  }
+  
+  // Local DB fallback
+  const db = getLocalDB();
+  const school = db.schools.find((s: School) => s.subdomain === subdomain);
+  if (!school) return null;
+  
+  const student = db.students.find((s: Student) => s.schoolId === school.id && s.studentPaymentCode === sanitizedCode);
+  if (!student) return null;
+
+  const currentHash = student.parentPasswordHash || "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8";
+  if (currentHash === passwordHash) {
+    return serialize(student) as Student;
+  }
+  return null;
+}
+
+export async function updateParentPassword(studentId: string, newPasswordHash: string): Promise<boolean> {
+  if (await hasDB()) {
+    await prisma.student.update({
+      where: { id: studentId },
+      data: { parentPasswordHash: newPasswordHash, parentMustChangePassword: false }
+    });
+    return true;
+  }
+  
+  const db = getLocalDB();
+  const student = db.students.find((s: Student) => s.id === studentId);
+  if (student) {
+    student.parentPasswordHash = newPasswordHash;
+    student.parentMustChangePassword = false;
+    saveLocalDB(db);
+    return true;
+  }
+  return false;
+}
+
 export async function getUsers(schoolId: string): Promise<User[]> {
   if (await hasDB()) {
     return serialize((await prisma.user.findMany({ where: { schoolId } })) as User[]);
@@ -1733,5 +1789,44 @@ export async function runDiagnostics() {
       prismaStatus: "diagnostics failed to execute",
       dnsTest: "diagnostics failed to execute",
     });
+  }
+}
+
+// ==== PARENT PORTAL ADMIN APIs ====
+export async function getElections(schoolId: string) {
+  if (await hasDB()) {
+    return serialize(await prisma.election.findMany({ 
+      where: { schoolId }, 
+      include: { candidates: { include: { student: true } } } 
+    }));
+  }
+  return [];
+}
+
+export async function createElection(schoolId: string, title: string, term: number, year: number) {
+  if (await hasDB()) {
+    return serialize(await prisma.election.create({ data: { schoolId, title, term, year } }));
+  }
+}
+
+export async function addCandidate(electionId: string, studentId: string, position: string, manifesto: string) {
+  if (await hasDB()) {
+    return serialize(await prisma.prefectCandidate.create({ data: { electionId, studentId, position, manifesto } }));
+  }
+}
+
+export async function getHolidayWorks(schoolId: string) {
+  if (await hasDB()) {
+    return serialize(await prisma.holidayWork.findMany({ 
+      where: { schoolId }, 
+      include: { class: true, stream: true, submissions: true } 
+    }));
+  }
+  return [];
+}
+
+export async function createHolidayWork(schoolId: string, classId: string, streamId: string | null, title: string, description: string, term: number, year: number) {
+  if (await hasDB()) {
+    return serialize(await prisma.holidayWork.create({ data: { schoolId, classId, streamId, title, description, term, year } }));
   }
 }

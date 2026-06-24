@@ -32,6 +32,8 @@ model School {
   smsCredits   SmsCredit[]
 
   schoolPayTransactions SchoolPayTransaction[]
+  elections          Election[]
+  holidayWork        HolidayWork[]
 
   // Custom metadata fields
   logoUrl            String?
@@ -122,6 +124,7 @@ model Class {
   teacherSubjects TeacherSubject[]
   feeStructures FeeStructure[]
   examPapers   ExamPaper[]
+  holidayWork   HolidayWork[]
 }
 
 model Stream {
@@ -132,6 +135,7 @@ model Stream {
   students     Student[]
   teacherSubjects TeacherSubject[]
   subjects     Subject[]
+  holidayWork   HolidayWork[]
 }
 
 model Student {
@@ -151,11 +155,16 @@ model Student {
   registrationNumber String?
   gender             String?
   parentContact    String?   // Parent/Guardian phone number for SMS
+  parentPasswordHash String?
+  parentMustChangePassword Boolean @default(true)
   classTeacherComment String? // Custom class teacher comment
   headTeacherComment  String? // Custom head teacher comment
   marks            Mark[]
   studentPayments  StudentPayment[]
   attendances      Attendance[]
+  candidates         PrefectCandidate[]
+  electionVotes      ElectionVote[]
+  holidaySubmissions HolidayWorkSubmission[]
 
   @@unique([schoolId, studentNumber])
 }
@@ -352,4 +361,75 @@ model SmsCredit {
   amountPaid   Float    // Total amount collected
   status       String   @default("PENDING") // PENDING, CONFIRMED
   purchasedAt  DateTime @default(now())
+}
+
+model Election {
+  id           String    @id @default(uuid())
+  schoolId     String
+  school       School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  title        String    // e.g. "2026 Prefect Elections"
+  status       String    @default("ACTIVE") // "ACTIVE", "CLOSED"
+  term         Int
+  year         Int
+  createdAt    DateTime  @default(now())
+  candidates   PrefectCandidate[]
+  votes        ElectionVote[]
+}
+
+model PrefectCandidate {
+  id           String    @id @default(uuid())
+  electionId   String
+  election     Election  @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  studentId    String
+  student      Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  position     String    // e.g. "Head Boy", "Head Girl"
+  manifesto    String?
+  votes        ElectionVote[]
+}
+
+model ElectionVote {
+  id           String    @id @default(uuid())
+  electionId   String
+  election     Election  @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  candidateId  String
+  candidate    PrefectCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  studentId    String    // The student account representing the parent casting the vote
+  student      Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  position     String
+  createdAt    DateTime  @default(now())
+
+  @@unique([electionId, position, studentId])
+}
+
+model HolidayWork {
+  id           String    @id @default(uuid())
+  schoolId     String
+  school       School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  classId      String
+  class        Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  streamId     String?
+  stream       Stream?   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  title        String
+  description  String
+  fileUrl      String?
+  deadline     DateTime?
+  term         Int
+  year         Int
+  createdAt    DateTime  @default(now())
+  submissions  HolidayWorkSubmission[]
+}
+
+model HolidayWorkSubmission {
+  id             String    @id @default(uuid())
+  holidayWorkId  String
+  holidayWork    HolidayWork @relation(fields: [holidayWorkId], references: [id], onDelete: Cascade)
+  studentId      String
+  student        Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  fileUrl        String?
+  textSubmission String?
+  grade          String?
+  teacherFeedback String?
+  submittedAt    DateTime  @default(now())
+
+  @@unique([holidayWorkId, studentId])
 }

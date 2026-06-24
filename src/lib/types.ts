@@ -104,6 +104,8 @@ export interface Student {
   registrationNumber?: string | null;
   gender?: string | null;
   parentContact?: string | null; // Parent/Guardian phone number for SMS
+  parentPasswordHash?: string | null;
+  parentMustChangePassword?: boolean;
   classTeacherComment?: string | null;
   headTeacherComment?: string | null;
 }
@@ -274,4 +276,56 @@ export interface SmsCredit {
   amountPaid: number;
   status: string;
   purchasedAt: Date;
+}
+
+export interface Election {
+  id: string;
+  schoolId: string;
+  title: string;
+  status: string;
+  term: number;
+  year: number;
+  createdAt: Date;
+}
+
+export interface PrefectCandidate {
+  id: string;
+  electionId: string;
+  studentId: string;
+  position: string;
+  manifesto?: string | null;
+}
+
+export interface ElectionVote {
+  id: string;
+  electionId: string;
+  candidateId: string;
+  studentId: string;
+  position: string;
+  createdAt: Date;
+}
+
+export interface HolidayWork {
+  id: string;
+  schoolId: string;
+  classId: string;
+  streamId?: string | null;
+  title: string;
+  description: string;
+  fileUrl?: string | null;
+  deadline?: Date | null;
+  term: number;
+  year: number;
+  createdAt: Date;
+}
+
+export interface HolidayWorkSubmission {
+  id: string;
+  holidayWorkId: string;
+  studentId: string;
+  fileUrl?: string | null;
+  textSubmission?: string | null;
+  grade?: string | null;
+  teacherFeedback?: string | null;
+  submittedAt: Date;
 }

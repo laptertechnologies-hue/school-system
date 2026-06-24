@@ -540,6 +540,21 @@ export async function authenticateParent(subdomain: string, paymentCode: string,
   return null;
 }
 
+export async function getParentContactByPaycode(subdomain: string, paymentCode: string): Promise<{ contact: string | null; studentId: string | null }> {
+  const sanitizedCode = paymentCode.trim();
+  if (await hasDB()) {
+    const school = await prisma.school.findUnique({ where: { subdomain } });
+    if (!school) return { contact: null, studentId: null };
+    const student = await prisma.student.findFirst({
+      where: { schoolId: school.id, studentPaymentCode: sanitizedCode }
+    });
+    if (student) {
+      return { contact: student.parentContact || null, studentId: student.id };
+    }
+  }
+  return { contact: null, studentId: null };
+}
+
 export async function updateParentPassword(studentId: string, newPasswordHash: string): Promise<boolean> {
   if (await hasDB()) {
     await prisma.student.update({

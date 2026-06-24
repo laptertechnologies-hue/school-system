@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import { 
   authenticateParent, updateParentPassword, initiateMarzpayCollection, checkMarzpayCollectionStatus,
-  getSchoolBySubdomain
+  getSchoolBySubdomain, getParentContactByPaycode
 } from "@/lib/services";
 import { School, Student, Election, HolidayWork } from "@/lib/types";
 import { Lock, User as UserIcon, LogOut, CheckCircle, RefreshCcw, Home, FileText, Vote, GraduationCap, X, ChevronRight } from "lucide-react";
@@ -32,9 +32,10 @@ export default function ParentPortal({ params }: { params: Promise<{ subdomain: 
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [resetPaycode, setResetPaycode] = useState("");
   const [resetPhone, setResetPhone] = useState("");
+  const [resetStudentId, setResetStudentId] = useState("");
   const [resetOTP, setResetOTP] = useState("");
   const [generatedOTP, setGeneratedOTP] = useState("");
-  const [resetStep, setResetStep] = useState(1); // 1: Request, 2: Enter OTP, 3: New Password
+  const [resetStep, setResetStep] = useState(1); // 1: Lookup, 2: Confirm Payment, 3: OTP, 4: New Password
   const [newPassword, setNewPassword] = useState("");
 
   // Change Password Modal (First Login)
@@ -118,22 +119,37 @@ export default function ParentPortal({ params }: { params: Promise<{ subdomain: 
   };
 
   // ---- Forgot Password Flow ----
-  const handleRequestOTP = async (e: React.FormEvent) => {
+  const handleLookupAccount = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!resetPaycode || !resetPhone) return toast.error("Please enter paycode and mobile money number.");
-
-    const toastId = toast.loading("Initiating mobile money charge (1000 UGX)...");
+    if (!resetPaycode) return toast.error("Please enter the student payment code.");
+    const toastId = toast.loading("Looking up account...");
     try {
-      // Step 1: Charge parent for the SMS
-      const res = await initiateMarzpayCollection(1000, "mobile_money", resetPhone, "Parent Password Reset SMS");
+      const res = await getParentContactByPaycode(subdomain, resetPaycode);
+      if (res.contact && res.studentId) {
+        setResetPhone(res.contact);
+        setResetStudentId(res.studentId);
+        toast.success("Account found!", { id: toastId });
+        setResetStep(2);
+      } else {
+        toast.error("Account not found or no phone number attached.", { id: toastId });
+      }
+    } catch (err) {
+      toast.error("Lookup failed.", { id: toastId });
+    }
+  };
+
+  const handleConfirmPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const toastId = toast.loading("Initiating mobile money charge (500 UGX)...");
+    try {
+      const res = await initiateMarzpayCollection(500, "mobile_money", resetPhone, "Parent Password Reset SMS");
       if (!res?.success || !res.transaction_uuid) {
         toast.error(res?.message || "Failed to initiate payment.", { id: toastId });
         return;
       }
 
-      toast.loading("A push prompt has been sent to your phone. Please approve the 1000 UGX charge...", { id: toastId });
+      toast.loading("A push prompt has been sent to your phone. Please approve the 500 UGX charge...", { id: toastId });
 
-      // Poll until completed
       let attempts = 0;
       let isPaid = false;
       while (attempts < 20) {
@@ -153,13 +169,12 @@ export default function ParentPortal({ params }: { params: Promise<{ subdomain: 
         return;
       }
 
-      // Step 2: Payment successful, "send" OTP
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
       setGeneratedOTP(otp); 
       console.log("Mock SMS Sent to " + resetPhone + ": Your OTP is " + otp);
       
       toast.success("Payment successful! OTP has been sent via SMS.", { id: toastId });
-      setResetStep(2);
+      setResetStep(3);
 
     } catch (err: any) {
       toast.error("Error during reset request: " + (err.message || err), { id: toastId });
@@ -170,7 +185,7 @@ export default function ParentPortal({ params }: { params: Promise<{ subdomain: 
     e.preventDefault();
     if (resetOTP === generatedOTP) {
       toast.success("OTP Verified.");
-      setResetStep(3);
+      setResetStep(4);
     } else {
       toast.error("Invalid OTP.");
     }
@@ -180,11 +195,21 @@ export default function ParentPortal({ params }: { params: Promise<{ subdomain: 
     e.preventDefault();
     if (newPassword.length < 4) return toast.error("Password must be at least 4 characters.");
     
-    const toastId = toast.loading("Resetting password...");
+    const toastId = toast.loading("Saving new password...");
     try {
-      toast.success("Password reset successfully! Please contact admin to sync the new hash or use the fallback 'password'.", { id: toastId });
-      setShowForgotModal(false);
-      setResetStep(1);
+      const hash = await sha256(newPassword);
+      const success = await updateParentPassword(resetStudentId, hash);
+      if (success) {
+        toast.success("Password reset successfully! You can now log in.", { id: toastId });
+        setShowForgotModal(false);
+        setResetStep(1);
+        setResetPaycode("");
+        setResetPhone("");
+        setResetOTP("");
+        setNewPassword("");
+      } else {
+        toast.error("Failed to update password in database.", { id: toastId });
+      }
     } catch (err) {
       toast.error("Error resetting.", { id: toastId });
     }
@@ -261,25 +286,35 @@ export default function ParentPortal({ params }: { params: Promise<{ subdomain: 
               </div>
               <div className="modal-body">
                 {resetStep === 1 && (
-                  <form onSubmit={handleRequestOTP}>
+                  <form onSubmit={handleLookupAccount}>
                     <p style={{ fontSize: "13px", color: "#64748b", marginBottom: "16px" }}>
-                      To securely reset your password, we will send an SMS OTP to your registered phone. This incurs a processing fee of 1,000 UGX.
+                      Enter your Student Payment Code to securely locate your account.
                     </p>
                     <div className="form-group">
                       <label className="form-label">Student Payment Code</label>
                       <input type="text" className="input-field" value={resetPaycode} onChange={e => setResetPaycode(e.target.value)} required />
                     </div>
-                    <div className="form-group">
-                      <label className="form-label">Mobile Money Number (For 1000 UGX Fee)</label>
-                      <input type="text" className="input-field" placeholder="07XXXXXXXX" value={resetPhone} onChange={e => setResetPhone(e.target.value)} required />
-                    </div>
-                    <button type="submit" className="btn btn-primary" style={{ width: "100%", background: school.themeColor || "var(--primary)" }}>
-                      Pay & Send OTP
+                    <button type="submit" className="btn btn-primary" style={{ width: "100%", background: school?.themeColor || "var(--primary)" }}>
+                      Find Account
                     </button>
                   </form>
                 )}
 
                 {resetStep === 2 && (
+                  <form onSubmit={handleConfirmPayment}>
+                    <p style={{ fontSize: "13px", color: "#64748b", marginBottom: "16px" }}>
+                      Account found! We will send an SMS OTP to your registered phone number (ending in {resetPhone.slice(-4)}).
+                    </p>
+                    <p style={{ fontSize: "13px", color: "#64748b", marginBottom: "16px" }}>
+                      A processing fee of <strong>500 UGX</strong> is required to dispatch the SMS.
+                    </p>
+                    <button type="submit" className="btn btn-primary" style={{ width: "100%", background: school?.themeColor || "var(--primary)" }}>
+                      Pay 500 UGX & Send SMS
+                    </button>
+                  </form>
+                )}
+
+                {resetStep === 3 && (
                   <form onSubmit={handleVerifyOTP}>
                     <p style={{ fontSize: "13px", color: "#64748b", marginBottom: "16px" }}>
                       Please enter the 6-digit OTP sent to your phone.
@@ -288,19 +323,19 @@ export default function ParentPortal({ params }: { params: Promise<{ subdomain: 
                       <label className="form-label">OTP Code</label>
                       <input type="text" className="input-field" value={resetOTP} onChange={e => setResetOTP(e.target.value)} required />
                     </div>
-                    <button type="submit" className="btn btn-primary" style={{ width: "100%", background: school.themeColor || "var(--primary)" }}>
+                    <button type="submit" className="btn btn-primary" style={{ width: "100%", background: school?.themeColor || "var(--primary)" }}>
                       Verify OTP
                     </button>
                   </form>
                 )}
 
-                {resetStep === 3 && (
+                {resetStep === 4 && (
                   <form onSubmit={handleSetNewPassword}>
                     <div className="form-group">
                       <label className="form-label">New Password</label>
                       <input type="password" className="input-field" value={newPassword} onChange={e => setNewPassword(e.target.value)} required />
                     </div>
-                    <button type="submit" className="btn btn-primary" style={{ width: "100%", background: school.themeColor || "var(--primary)" }}>
+                    <button type="submit" className="btn btn-primary" style={{ width: "100%", background: school?.themeColor || "var(--primary)" }}>
                       Save New Password
                     </button>
                   </form>

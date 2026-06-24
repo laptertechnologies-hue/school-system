@@ -57,7 +57,7 @@ export default function ParentPortal({ params }: { params: Promise<{ subdomain: 
   const [studentPayments, setStudentPayments] = useState<StudentPayment[]>([]);
   const [gradeRanges, setGradeRanges] = useState<GradeRange[]>([]);
   
-  const [selectedTerm, setSelectedTerm] = useState<string>("Term 1");
+  const [selectedTerm, setSelectedTerm] = useState<number>(1);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
 
   useEffect(() => {
@@ -483,10 +483,10 @@ export default function ParentPortal({ params }: { params: Promise<{ subdomain: 
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
                 <h3>Academic Reports</h3>
                 <div style={{ display: "flex", gap: "10px" }}>
-                  <select className="input-field" value={selectedTerm} onChange={e => setSelectedTerm(e.target.value)} style={{ padding: "6px 12px", height: "auto" }}>
-                    <option>Term 1</option>
-                    <option>Term 2</option>
-                    <option>Term 3</option>
+                  <select className="input-field" value={selectedTerm} onChange={e => setSelectedTerm(parseInt(e.target.value))} style={{ padding: "6px 12px", height: "auto" }}>
+                    <option value={1}>Term 1</option>
+                    <option value={2}>Term 2</option>
+                    <option value={3}>Term 3</option>
                   </select>
                   <select className="input-field" value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} style={{ padding: "6px 12px", height: "auto" }}>
                     {[new Date().getFullYear(), new Date().getFullYear()-1].map(y => <option key={y} value={y}>{y}</option>)}

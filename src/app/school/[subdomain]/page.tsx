@@ -15,6 +15,3852 @@ import {
   initiateMarzpayCollection, checkMarzpayCollectionStatus,
   updateStudent, deleteStudent, deleteStudentsByClass, updateUser, deleteUser, getGradeRanges, saveGradeRanges,
   getTeacherSubjects, createTeacherSubject, deleteTeacherSubject, resetUserPassword, runDiagnostics,
+  deleteStudentPayment, getSchoolPayTransactions,
+  updateClass, deleteClass, updateStream, deleteStream, deleteSubject,
+  getSmsLogs, saveSmsLog, updateSmsLog, getSmsCredits, saveSmsCredit, updateSmsCredit,
+  getTotalAvailableSmsCredits, deductSmsCredits, getMarzSmsBalance, sendRealSms
+} from "../../../lib/services";
+
+import { Database, CreditCard, Building2, CheckCircle, MessageSquare, Sliders, User as UserIcon, Calendar, Eye, EyeOff, Vote, FileText } from "lucide-react";
+import { 
+  GraduationCap, 
+  Users, 
+  BookOpen, 
+  Award, 
+  DollarSign, 
+  TrendingUp, 
+  PlusCircle, 
+  LogOut, 
+  Lock, 
+  UserCheck, 
+  ChevronRight,
+  ClipboardList,
+  Layers,
+  Settings,
+  Printer,
+  ChevronDown,
+  Info,
+  XCircle,
+  FileText,
+  Menu,
+  X,
+  RefreshCw,
+  Receipt,
+  BarChart2,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  AlertTriangle,
+  Download
+} from "lucide-react";
+
+const computeGradeFromRanges = (score: number, systemType: "PRIMARY" | "SECONDARY", ranges: GradeRange[]) => {
+  const filtered = ranges.filter(r => r.systemType === systemType);
+  // Sort minMark descending to find the correct bracket
+  const sorted = [...filtered].sort((a, b) => b.minMark - a.minMark);
+  const match = sorted.find(r => score >= r.minMark);
+  if (match) {
+    return {
+      grade: match.grade,
+      level: match.achievementLevel,
+      descriptor: match.descriptor,
+      classTeacherComment: match.classTeacherComment,
+      headTeacherComment: match.headTeacherComment
+    };
+  }
+  // Fallback to defaults if no match found or ranges empty
+  if (systemType === "SECONDARY") {
+    if (score >= 80) return { grade: "A", level: "Exceptional", descriptor: "Highly proficient in subject skills", classTeacherComment: "Excellent academic performance! Keep up the outstanding work.", headTeacherComment: "An exceptional result. I am proud of your achievements." };
+    if (score >= 70) return { grade: "B", level: "Outstanding", descriptor: "Consistently demonstrates subject skills", classTeacherComment: "Very good progress. With continued effort, you can achieve even higher grades.", headTeacherComment: "Good work. Maintain this standard." };
+    if (score >= 55) return { grade: "C", level: "Satisfactory", descriptor: "Demonstrates basic subject skills", classTeacherComment: "A fair performance. Focus more on your weaker subjects next term.", headTeacherComment: "You have potential. Push yourself harder next term." };
+    if (score >= 40) return { grade: "D", level: "Basic", descriptor: "Beginning to develop subject skills", classTeacherComment: "Below average. You need to put in more effort.", headTeacherComment: "Urgent improvement is required. Please double your efforts." };
+    return { grade: "E", level: "Elementary", descriptor: "Needs guidance to develop skills", classTeacherComment: "Poor performance. Consult your teachers for support.", headTeacherComment: "Academic probation warning. You must work much harder." };
+  } else {
+    if (score >= 90) return { grade: "1", level: "Distinction", descriptor: "Outstanding performance", classTeacherComment: "Excellent academic performance!", headTeacherComment: "An exceptional result." };
+    if (score >= 80) return { grade: "2", level: "Distinction", descriptor: "Very good performance", classTeacherComment: "Very good progress.", headTeacherComment: "Good work." };
+    if (score >= 70) return { grade: "3", level: "Credit", descriptor: "Good performance", classTeacherComment: "Good performance overall.", headTeacherComment: "Satisfactory effort." };
+    if (score >= 60) return { grade: "4", level: "Credit", descriptor: "Fairly good performance", classTeacherComment: "A fair performance.", headTeacherComment: "You have potential." };
+    if (score >= 55) return { grade: "5", level: "Credit", descriptor: "Average performance", classTeacherComment: "Average performance.", headTeacherComment: "Push yourself harder." };
+    if (score >= 50) return { grade: "6", level: "Credit", descriptor: "Satisfactory performance", classTeacherComment: "Below average.", headTeacherComment: "Improvement is needed." };
+    if (score >= 45) return { grade: "7", level: "Pass", descriptor: "Pass level performance", classTeacherComment: "Weak pass.", headTeacherComment: "Please double your efforts." };
+    if (score >= 40) return { grade: "8", level: "Pass", descriptor: "Weak pass performance", classTeacherComment: "Barely passed.", headTeacherComment: "Seek immediate academic support." };
+    return { grade: "9", level: "Fail", descriptor: "Failure level performance", classTeacherComment: "Failed.", headTeacherComment: "Academic probation warning." };
+  }
+};
+
+interface PageProps {
+  params: Promise<{ subdomain: string }>;
+}
+
+export default function SchoolPortal({ params }: PageProps) {
+  const resolvedParams = use(params);
+  const subdomain = resolvedParams.subdomain;
+
+  // Active view session states
+  const [school, setSchool] = useState<School | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [diagnostics, setDiagnostics] = useState<any>(null);
+  const [runningDiagnostics, setRunningDiagnostics] = useState(false);
+  const [diagError, setDiagError] = useState<string | null>(null);
+
+  // Authentication states
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [authError, setAuthError] = useState("");
+
+  // Forgot Password flow states
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetNewPassword, setResetNewPassword] = useState("");
+  const [resetError, setResetError] = useState("");
+  const [resetSuccess, setResetSuccess] = useState("");
+  const [resetStep, setResetStep] = useState<0 | 1>(0);
+
+  // Force Password change states
+  const [forceNewPassword, setForceNewPassword] = useState("");
+  const [forceConfirmPassword, setForceConfirmPassword] = useState("");
+  const [forcePasswordError, setForcePasswordError] = useState("");
+  const [forcePasswordSuccess, setForcePasswordSuccess] = useState("");
+
+  // Logged-in profile edit states
+  const [profileEditName, setProfileEditName] = useState("");
+  const [profileEditPhoto, setProfileEditPhoto] = useState("");
+  const [profileNewPassword, setProfileNewPassword] = useState("");
+  const [profileConfirmPassword, setProfileConfirmPassword] = useState("");
+  const [profilePasswordError, setProfilePasswordError] = useState("");
+  const [profilePasswordSuccess, setProfilePasswordSuccess] = useState("");
+  const [profileDetailsSuccess, setProfileDetailsSuccess] = useState("");
+
+  // Administrative reset password states
+  const [adminResetPasswordVal, setAdminResetPasswordVal] = useState("");
+
+  // Teacher assignments state
+  const [teacherAssignments, setTeacherAssignments] = useState<TeacherSubject[]>([]);
+  const [newAssignmentTeacherId, setNewAssignmentTeacherId] = useState("");
+  const [newAssignmentClassId, setNewAssignmentClassId] = useState("");
+  const [newAssignmentStreamId, setNewAssignmentStreamId] = useState("");
+  const [newAssignmentSubjectId, setNewAssignmentSubjectId] = useState("");
+  const [staffSubTab, setStaffSubTab] = useState<"directory" | "assignments">("directory");
+
+  // Data collections
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [streams, setStreams] = useState<Stream[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [exams, setExams] = useState<ExamPaper[]>([]);
+  const [marks, setMarks] = useState<Mark[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  
+  // Finance state (Premium only)
+  const [feeStructures, setFeeStructures] = useState<FeeStructure[]>([]);
+  const [studentPayments, setStudentPayments] = useState<StudentPayment[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [schoolPayTransactions, setSchoolPayTransactions] = useState<SchoolPayTransaction[]>([]);
+  const [spSyncing, setSpSyncing] = useState(false);
+  const [spSyncMsg, setSpSyncMsg] = useState("");
+  const [spSelectedTerm, setSpSelectedTerm] = useState<number | "ALL">("ALL");
+  const [spSyncStartDate, setSpSyncStartDate] = useState("");
+  const [spSyncEndDate, setSpSyncEndDate] = useState("");
+  const [dbConnected, setDbConnected] = useState<boolean | null>(null);
+
+  // Navigation state inside dashboard
+  const [activeTab, setActiveTab] = useState("overview");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Setup form states
+  const [newClassName, setNewClassName] = useState("");
+  const [newClassLevel, setNewClassLevel] = useState<"PRIMARY" | "SECONDARY">("PRIMARY");
+  const [newStreamClassId, setNewStreamClassId] = useState("");
+  const [newStreamName, setNewStreamName] = useState("");
+  
+  const [newTeacherName, setNewTeacherName] = useState("");
+  const [newTeacherEmail, setNewTeacherEmail] = useState("");
+  const [newTeacherPassword, setNewTeacherPassword] = useState("password");
+  const [newTeacherRole, setNewTeacherRole] = useState<"TEACHER" | "DOS" | "HEADTEACHER" | "DIRECTOR">("TEACHER");
+
+  const [newStudentName, setNewStudentName] = useState("");
+  const [newStudentNumber, setNewStudentNumber] = useState("");
+  const [newStudentClassId, setNewStudentClassId] = useState("");
+  const [newStudentStreamId, setNewStudentStreamId] = useState("");
+  const [newStudentType, setNewStudentType] = useState<"DAY" | "BOARDING">("DAY");
+  const [newStudentPhoto, setNewStudentPhoto] = useState("");
+  const [newStudentLin, setNewStudentLin] = useState("");
+  const [newStudentPaymentCode, setNewStudentPaymentCode] = useState("");
+  const [newStudentRegNumber, setNewStudentRegNumber] = useState("");
+  const [newStudentGender, setNewStudentGender] = useState<"MALE" | "FEMALE">("MALE");
+  const [newStudentParentContact, setNewStudentParentContact] = useState("");
+
+  const [newTeacherPhoto, setNewTeacherPhoto] = useState("");
+  const [newTeacherStaffNumber, setNewTeacherStaffNumber] = useState("");
+  const [newTeacherContact, setNewTeacherContact] = useState("");
+
+  // Modals view/edit states for Students
+  const [selectedViewStudent, setSelectedViewStudent] = useState<Student | null>(null);
+  const [showViewStudentModal, setShowViewStudentModal] = useState(false);
+  const [selectedEditStudent, setSelectedEditStudent] = useState<Student | null>(null);
+  const [showEditStudentModal, setShowEditStudentModal] = useState(false);
+
+  // Edit student inputs
+  const [editStudentName, setEditStudentName] = useState("");
+  const [editStudentNumber, setEditStudentNumber] = useState("");
+  const [editStudentClassId, setEditStudentClassId] = useState("");
+  const [editStudentStreamId, setEditStudentStreamId] = useState("");
+  const [editStudentType, setEditStudentType] = useState<"DAY" | "BOARDING">("DAY");
+  const [editStudentPhoto, setEditStudentPhoto] = useState("");
+  const [editStudentPhotoChanged, setEditStudentPhotoChanged] = useState(false);
+  const [editStudentLin, setEditStudentLin] = useState("");
+  const [editStudentGender, setEditStudentGender] = useState<"MALE" | "FEMALE">("MALE");
+
+  // Modals view/edit states for Staff
+  const [selectedViewStaff, setSelectedViewStaff] = useState<User | null>(null);
+  const [showViewStaffModal, setShowViewStaffModal] = useState(false);
+  const [selectedEditStaff, setSelectedEditStaff] = useState<User | null>(null);
+  const [showEditStaffModal, setShowEditStaffModal] = useState(false);
+
+  // Edit staff inputs
+  const [editStaffName, setEditStaffName] = useState("");
+  const [editStaffEmail, setEditStaffEmail] = useState("");
+  const [editStaffRole, setEditStaffRole] = useState<"ADMIN" | "TEACHER" | "DOS" | "HEADTEACHER" | "DIRECTOR">("TEACHER");
+  const [editStaffNumber, setEditStaffNumber] = useState("");
+  const [editStaffPhoto, setEditStaffPhoto] = useState("");
+  const [editStaffContact, setEditStaffContact] = useState("");
+
+  // Edit student extra fields
+  const [editStudentParentContact, setEditStudentParentContact] = useState("");
+  const [editStudentPaymentCode, setEditStudentPaymentCode] = useState("");
+
+  // Class & Stream edit states
+  const [showEditClassModal, setShowEditClassModal] = useState(false);
+  const [selectedEditClass, setSelectedEditClass] = useState<Class | null>(null);
+  const [editClassName, setEditClassName] = useState("");
+  const [editClassLevel, setEditClassLevel] = useState<"PRIMARY" | "SECONDARY">("PRIMARY");
+  const [editStreamNewName, setEditStreamNewName] = useState("");
+  const [editStreamRenames, setEditStreamRenames] = useState<{ [id: string]: string }>({});
+
+  // Bulk upload states
+  const [showBulkStudentModal, setShowBulkStudentModal] = useState(false);
+  const [showBulkStaffModal, setShowBulkStaffModal] = useState(false);
+  const [studentExcelFile, setStudentExcelFile] = useState<File | null>(null);
+  const [staffExcelFile, setStaffExcelFile] = useState<File | null>(null);
+  const [bulkStudentClassId, setBulkStudentClassId] = useState("");
+  const [bulkStudentStreamId, setBulkStudentStreamId] = useState("");
+
+  // Bulk student photo upload states
+  const [showBulkPhotoModal, setShowBulkPhotoModal] = useState(false);
+  const [bulkPhotoClassId, setBulkPhotoClassId] = useState("");
+  const [bulkPhotoStreamId, setBulkPhotoStreamId] = useState("");
+  const [bulkPhotoMatches, setBulkPhotoMatches] = useState<any[]>([]);
+  const [isApplyingPhotos, setIsApplyingPhotos] = useState(false);
+
+  const [isImportingStudents, setIsImportingStudents] = useState(false);
+  const [importStudentProgress, setImportStudentProgress] = useState(0);
+  const [importStudentTotal, setImportStudentTotal] = useState(0);
+
+  const [isImportingStaff, setIsImportingStaff] = useState(false);
+  const [importStaffProgress, setImportStaffProgress] = useState(0);
+  const [importStaffTotal, setImportStaffTotal] = useState(0);
+
+  const [newSubjectName, setNewSubjectName] = useState("");
+  const [newSubjectClassId, setNewSubjectClassId] = useState("");
+  const [newSubjectStreamId, setNewSubjectStreamId] = useState("");
+  const [newSubjectCode, setNewSubjectCode] = useState("");
+
+  // Subject multiple add / pool assignment states
+  const [subjectPoolSelectedClassId, setSubjectPoolSelectedClassId] = useState("");
+  const [subjectPoolSelectedSubjects, setSubjectPoolSelectedSubjects] = useState<string[]>([]);
+  const [subjectAssignMode, setSubjectAssignMode] = useState<"single" | "multiple" | "pool">("single");
+
+  // DOS exam state
+  const [newExamName, setNewExamName] = useState("");
+  const [newExamTerm, setNewExamTerm] = useState("1");
+  const [newExamYear, setNewExamYear] = useState("2026");
+  const [newExamIsNewCurriculum, setNewExamIsNewCurriculum] = useState(false);
+  const [newExamClassId, setNewExamClassId] = useState("");
+  const [newExamCbU1Active, setNewExamCbU1Active] = useState(true);
+  const [newExamCbU2Active, setNewExamCbU2Active] = useState(true);
+  const [newExamCbEtActive, setNewExamCbEtActive] = useState(true);
+  const [newExamCbHpgActive, setNewExamCbHpgActive] = useState(true);
+  const [newExamCbU1Max, setNewExamCbU1Max] = useState(3);
+  const [newExamCbU2Max, setNewExamCbU2Max] = useState(3);
+  const [newExamCbEtMax, setNewExamCbEtMax] = useState(3);
+  const [newExamCbHpgMax, setNewExamCbHpgMax] = useState(3);
+
+  // Edit exam states
+  const [selectedEditExam, setSelectedEditExam] = useState<ExamPaper | null>(null);
+  const [editExamName, setEditExamName] = useState("");
+  const [editExamTerm, setEditExamTerm] = useState("1");
+  const [editExamYear, setEditExamYear] = useState("2026");
+  const [editExamClassId, setEditExamClassId] = useState("");
+  const [editExamIsNewCurriculum, setEditExamIsNewCurriculum] = useState(false);
+  const [editExamCbU1Active, setEditExamCbU1Active] = useState(true);
+  const [editExamCbU2Active, setEditExamCbU2Active] = useState(true);
+  const [editExamCbEtActive, setEditExamCbEtActive] = useState(true);
+  const [editExamCbHpgActive, setEditExamCbHpgActive] = useState(true);
+  const [editExamCbU1Max, setEditExamCbU1Max] = useState(3);
+  const [editExamCbU2Max, setEditExamCbU2Max] = useState(3);
+  const [editExamCbEtMax, setEditExamCbEtMax] = useState(3);
+  const [editExamCbHpgMax, setEditExamCbHpgMax] = useState(3);
+  const [showEditExamModal, setShowEditExamModal] = useState(false);
+
+  // Teacher marks entry states
+  const [selectedExamId, setSelectedExamId] = useState("");
+  const [selectedClassId, setSelectedClassId] = useState("");
+  const [selectedStreamId, setSelectedStreamId] = useState("");
+  const [selectedSubjectId, setSelectedSubjectId] = useState("");
+  const [inputScores, setInputScores] = useState<{ [studentId: string]: string }>({});
+  const [inputU1, setInputU1] = useState<{ [studentId: string]: string }>({});
+  const [inputU2, setInputU2] = useState<{ [studentId: string]: string }>({});
+  const [inputU3, setInputU3] = useState<{ [studentId: string]: string }>({});
+  const [inputHPG, setInputHPG] = useState<{ [studentId: string]: string }>({});
+  const [inputEOY, setInputEOY] = useState<{ [studentId: string]: string }>({});
+  const [inputComments, setInputComments] = useState<{ [studentId: string]: string }>({});
+
+  // Grade Range Customizer States
+  const [gradeRanges, setGradeRanges] = useState<GradeRange[]>([]);
+  const [selectedScaleType, setSelectedScaleType] = useState<"PRIMARY" | "SECONDARY">("SECONDARY");
+  const [scaleRanges, setScaleRanges] = useState<GradeRange[]>([]);
+
+  // Next term fees customization states
+  const [designerNextTermFeesDay, setDesignerNextTermFeesDay] = useState<number>(150000);
+  const [designerNextTermFeesBoarding, setDesignerNextTermFeesBoarding] = useState<number>(350000);
+
+  // Finance form states
+  const [selectedFeeClassId, setSelectedFeeClassId] = useState("");
+  const [tuitionAmount, setTuitionAmount] = useState("");
+  const [boardingAmount, setBoardingAmount] = useState("");
+  
+  const [selectedPayStudentId, setSelectedPayStudentId] = useState("");
+  const [payAmountPaid, setPayAmountPaid] = useState("");
+  const [payMethod, setPayMethod] = useState("CASH");
+  const [payNotes, setPayNotes] = useState("");
+  const [payReceiptNum, setPayReceiptNum] = useState("");
+  const [payBBF, setPayBBF] = useState("0");
+  const [payTerm, setPayTerm] = useState("1");
+  const [payYear, setPayYear] = useState(new Date().getFullYear().toString());
+
+  // Finance filter/report states
+  const [finFilterTerm, setFinFilterTerm] = useState("1");
+  const [finFilterYear, setFinFilterYear] = useState(new Date().getFullYear().toString());
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [invoiceStudent, setInvoiceStudent] = useState<any>(null);
+  const [finFilterClassId, setFinFilterClassId] = useState("");
+  const [spTxFilter, setSpTxFilter] = useState<"ALL" | "MATCHED" | "UNMATCHED">("ALL");
+
+  // SchoolPay Auto-Import State
+  const [showAutoImportModal, setShowAutoImportModal] = useState(false);
+  const [autoImportTx, setAutoImportTx] = useState<SchoolPayTransaction | null>(null);
+  const [autoImportClassId, setAutoImportClassId] = useState("");
+  const [autoImportStreamId, setAutoImportStreamId] = useState("");
+  const [autoImportType, setAutoImportType] = useState<"DAY" | "BOARDING">("DAY");
+  const [autoImportTerm, setAutoImportTerm] = useState("1");
+  const [autoImportYear, setAutoImportYear] = useState(new Date().getFullYear().toString());
+
+  const [expCategory, setExpCategory] = useState("Salaries");
+  const [expAmount, setExpAmount] = useState("");
+  const [expDesc, setExpDesc] = useState("");
+
+  // Report Card selection
+  const [selectedReportClassId, setSelectedReportClassId] = useState("");
+  const [selectedReportTerm, setSelectedReportTerm] = useState("1");
+  const [selectedReportStudent, setSelectedReportStudent] = useState<Student | null>(null);
+  const [isBulkReportMode, setIsBulkReportMode] = useState(false);
+  const [selectedFilterClassId, setSelectedFilterClassId] = useState("");
+  const [tempClassTeacherComment, setTempClassTeacherComment] = useState("");
+  const [tempHeadTeacherComment, setTempHeadTeacherComment] = useState("");
+
+  // Student Promotion States
+  const [promoteFromClassId, setPromoteFromClassId] = useState("");
+  const [promoteToClassId, setPromoteToClassId] = useState("");
+
+  // Attendance Registry States
+  const [attendanceClassId, setAttendanceClassId] = useState("");
+  const [attendanceStreamId, setAttendanceStreamId] = useState("");
+  const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split("T")[0]);
+  const [attendanceStatuses, setAttendanceStatuses] = useState<{ [studentId: string]: "PRESENT" | "ABSENT" | "SICK" }>({});
+
+  // School profile metadata form states
+  const [profileName, setProfileName] = useState("");
+  const [profilePoBox, setProfilePoBox] = useState("");
+  const [profilePhone, setProfilePhone] = useState("");
+  const [profileHeadTeacher, setProfileHeadTeacher] = useState("");
+  const [profileDeputyHeadTeacher, setProfileDeputyHeadTeacher] = useState("");
+  const [profileDirector, setProfileDirector] = useState("");
+  const [profileLogoUrl, setProfileLogoUrl] = useState("");
+  const [profileThemeColor, setProfileThemeColor] = useState("#38bdf8");
+  const [profileSchoolType, setProfileSchoolType] = useState<"PRIMARY" | "SECONDARY" | "COMBINED">("COMBINED");
+  const [profileSchoolPayCode, setProfileSchoolPayCode] = useState("");
+  const [profileSchoolPayPassword, setProfileSchoolPayPassword] = useState("");
+  const [profileCurrentTerm, setProfileCurrentTerm] = useState("1");
+  const [profileCurrentYear, setProfileCurrentYear] = useState(new Date().getFullYear().toString());
+  const [profileTerm1Start, setProfileTerm1Start] = useState("");
+  const [profileTerm1End, setProfileTerm1End] = useState("");
+  const [profileTerm2Start, setProfileTerm2Start] = useState("");
+  const [profileTerm2End, setProfileTerm2End] = useState("");
+  const [profileTerm3Start, setProfileTerm3Start] = useState("");
+  const [profileTerm3End, setProfileTerm3End] = useState("");
+  const [profileSuccessMsg, setProfileSuccessMsg] = useState("");
+
+  // Continuous Assessment (CA) configurations
+  const [cbU1Max, setCbU1Max] = useState<number>(3);
+  const [cbU2Max, setCbU2Max] = useState<number>(3);
+  const [cbEtMax, setCbEtMax] = useState<number>(3);
+  const [cbHpgMax, setCbHpgMax] = useState<number>(3);
+  const [cbU1Active, setCbU1Active] = useState<boolean>(true);
+  const [cbU2Active, setCbU2Active] = useState<boolean>(true);
+  const [cbEtActive, setCbEtActive] = useState<boolean>(true);
+  const [cbHpgActive, setCbHpgActive] = useState<boolean>(true);
+
+  // Grade Range custom settings
+  const [editingGradeRanges, setEditingGradeRanges] = useState<GradeRange[]>([]);
+
+  // First-time branding setup states
+  const [showFirstTimeSetup, setShowFirstTimeSetup] = useState(false);
+  const [setupAdminEmail, setSetupAdminEmail] = useState("");
+  const [setupAdminPassword, setSetupAdminPassword] = useState("");
+  const [setupName, setSetupName] = useState("");
+  const [setupPoBox, setSetupPoBox] = useState("");
+  const [setupPhone, setSetupPhone] = useState("");
+  const [setupHeadTeacher, setSetupHeadTeacher] = useState("");
+  const [setupDeputyHeadTeacher, setSetupDeputyHeadTeacher] = useState("");
+  const [setupDirector, setSetupDirector] = useState("");
+  const [setupLogoUrl, setSetupLogoUrl] = useState("");
+  const [setupThemeColor, setSetupThemeColor] = useState("#38bdf8");
+  const [setupError, setSetupError] = useState("");
+
+  // Payroll States
+  const [payTeacherId, setPayTeacherId] = useState("");
+  const [payMonthName, setPayMonthName] = useState("May");
+  const [paySalaryAmount, setPaySalaryAmount] = useState("");
+
+  // Mobile Money & Card Overlay Simulation States
+  const [showMoMoModal, setShowMoMoModal] = useState(false);
+  const [momoPhone, setMomoPhone] = useState("");
+  const [momoAmount, setMomoAmount] = useState("");
+  const [momoPurpose, setMomoPurpose] = useState<"TUITION" | "PACKAGE">("TUITION");
+  const [momoStudentId, setMomoStudentId] = useState("");
+  const [momoStep, setMomoStep] = useState(0); // 0 = Form, 1 = Prompt, 2 = PIN/OTP, 3 = Verifying, 4 = Success
+  const [momoProvider, setMomoProvider] = useState<"MTN" | "AIRTEL" | "CARD">("MTN");
+  const [cardName, setCardName] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCvv, setCardCvv] = useState("");
+  const [cardOtp, setCardOtp] = useState("");
+  const [momoTxUuid, setMomoTxUuid] = useState("");
+  const [momoSplitAmounts, setMomoSplitAmounts] = useState<number[]>([]);
+  const [momoSplitIndex, setMomoSplitIndex] = useState<number>(0);
+  const [momoCompletedSplits, setMomoCompletedSplits] = useState<{ amount: number; uuid: string }[]>([]);
+
+  // SMS Broadcaster States
+  const [smsGroup, setSmsGroup] = useState("CLASS_PARENTS");
+  const [smsTemplate, setSmsTemplate] = useState("");
+  const [smsMessage, setSmsMessage] = useState("");
+  const [smsLogs, setSmsLogs] = useState<SmsLog[]>([]);
+  const [smsCredits, setSmsCredits] = useState<SmsCredit[]>([]);
+  const [smsTotalCredits, setSmsTotalCredits] = useState(0);
+  const [smsTargetClassId, setSmsTargetClassId] = useState("");
+  const [smsTargetStreamId, setSmsTargetStreamId] = useState("");
+  const [smsManualContacts, setSmsManualContacts] = useState("");
+  const [smsPayerPhone, setSmsPayerPhone] = useState("");
+  const [smsPaymentMode, setSmsPaymentMode] = useState<"mobile_money" | "card">("mobile_money");
+  const [smsCardRedirectUrl, setSmsCardRedirectUrl] = useState("");
+  const [showSmsCardPayModal, setShowSmsCardPayModal] = useState(false);
+  const [smsPayAmount, setSmsPayAmount] = useState(0);
+  const [smsSendStatus, setSmsSendStatus] = useState<"idle" | "collecting" | "sending" | "done" | "error">("idle");
+  const [smsSendResult, setSmsSendResult] = useState<any>(null);
+  const [smsMarzBalance, setSmsMarzBalance] = useState<number | null>(null);
+  // Credit purchase states
+  const [showBuyCreditModal, setShowBuyCreditModal] = useState(false);
+  const [buyCreditsAmount, setBuyCreditsAmount] = useState(10);
+  const [buyCreditsPhone, setBuyCreditsPhone] = useState("");
+  const [buyCreditsStatus, setBuyCreditsStatus] = useState<"idle" | "collecting" | "done" | "error">("idle");
+  const [buyCreditsResult, setBuyCreditsResult] = useState<any>(null);
+
+  // Rank and Totals calculator for Report Cards
+  const getStudentRankAndTotals = (studentId: string, classId: string, examPaperId: string) => {
+    const classStudents = students.filter(st => st.classId === classId);
+    
+    const studentTotals = classStudents.map(st => {
+      const stMarks = marks.filter(m => m.studentId === st.id && m.examPaperId === examPaperId);
+      
+      let sumOfTotals = 0;
+      let count = 0;
+      stMarks.forEach(m => {
+        sumOfTotals += m.score;
+        count++;
+      });
+
+      return {
+        studentId: st.id,
+        totalScore: sumOfTotals,
+        count
+      };
+    });
+
+    studentTotals.sort((a, b) => b.totalScore - a.totalScore);
+
+    const rankIndex = studentTotals.findIndex(item => item.studentId === studentId);
+    const position = rankIndex !== -1 ? rankIndex + 1 : "-";
+    const totalStudents = classStudents.length;
+
+    let totalAllMarks = 0;
+    let totalMarksCount = 0;
+    studentTotals.forEach(item => {
+      totalAllMarks += item.totalScore;
+      totalMarksCount += item.count;
+    });
+    const classAverage = totalMarksCount > 0 ? (totalAllMarks / totalMarksCount).toFixed(1) : "0";
+    const studentAvg = rankIndex !== -1 && studentTotals[rankIndex].count > 0
+      ? (studentTotals[rankIndex].totalScore / studentTotals[rankIndex].count).toFixed(1)
+      : "0";
+
+    return {
+      position,
+      totalStudents,
+      classAverage,
+      studentTotal: studentTotals[rankIndex]?.totalScore.toFixed(0) || "0",
+      studentAverage: studentAvg
+    };
+  };
+
+  const renderRealPerformanceChart = (student: Student, eotExam: ExamPaper) => {
+    const stMarks = marks.filter(m => m.studentId === student.id && m.examPaperId === eotExam.id);
+    const classSubjects = subjects.filter(sub => sub.classId === student.classId);
+    const chartData = classSubjects.map(sub => {
+      const m = stMarks.find(mk => mk.subjectId === sub.id);
+      return {
+        subjectCode: sub.code || sub.name.substring(0, 3).toUpperCase(),
+        score: m ? m.score : 0,
+        hasMark: !!m
+      };
+    }).filter(d => d.hasMark);
+
+    if (chartData.length === 0) return null;
+
+    const targetClass = classes.find(c => c.id === student.classId);
+    const classTextColor = targetClass?.themeTextColor || "#000000";
+    const isDarkText = classTextColor === "#ffffff" || classTextColor.toLowerCase() === "#fff" || classTextColor.toLowerCase() === "#faf5ff" || classTextColor.toLowerCase() === "#f8fafc" || classTextColor.toLowerCase() === "#e2e8f0";
+
+    const gridColor = isDarkText ? "rgba(255, 255, 255, 0.1)" : "#e2e8f0";
+    const axisColor = isDarkText ? "rgba(255, 255, 255, 0.25)" : "#cbd5e1";
+    const labelColor = isDarkText ? "rgba(255, 255, 255, 0.6)" : "#64748b";
+    const scoreColor = isDarkText ? "#ffffff" : "#0f172a";
+
+    return (
+      <div className="chart-container" style={{ border: isDarkText ? "1px solid rgba(255,255,255,0.2)" : "1px solid #cbd5e1", borderRadius: "3px", padding: "6px", background: isDarkText ? "rgba(255,255,255,0.02)" : "white", marginBottom: "8px", display: "block" }}>
+        <div style={{ fontWeight: "bold", fontSize: "7px", marginBottom: "4px", textAlign: "center", color: labelColor, textTransform: "uppercase" }}>Subject Performance Chart</div>
+        <svg viewBox="0 0 300 80" style={{ width: "100%", height: "auto" }}>
+          {/* Y-axis gridlines */}
+          <line x1="20" y1="10" x2="295" y2="10" stroke={gridColor} strokeWidth="0.5" />
+          <line x1="20" y1="25" x2="295" y2="25" stroke={gridColor} strokeWidth="0.5" />
+          <line x1="20" y1="40" x2="295" y2="40" stroke={gridColor} strokeWidth="0.5" />
+          <line x1="20" y1="55" x2="295" y2="55" stroke={gridColor} strokeWidth="0.5" />
+          <line x1="20" y1="70" x2="295" y2="70" stroke={axisColor} strokeWidth="0.8" />
+          
+          {/* Tick labels */}
+          <text x="15" y="12" fontSize="5px" textAnchor="end" fill={labelColor}>100%</text>
+          <text x="15" y="27" fontSize="5px" textAnchor="end" fill={labelColor}>75%</text>
+          <text x="15" y="42" fontSize="5px" textAnchor="end" fill={labelColor}>50%</text>
+          <text x="15" y="57" fontSize="5px" textAnchor="end" fill={labelColor}>25%</text>
+          <text x="15" y="72" fontSize="5px" textAnchor="end" fill={labelColor}>0%</text>
+
+          {/* Bars */}
+          {chartData.map((d, i) => {
+            const spacing = 260 / chartData.length;
+            const barWidth = Math.min(20, spacing * 0.6);
+            const x = 30 + i * spacing + (spacing - barWidth) / 2;
+            const height = (d.score / 100) * 60; // Max height is 60px (from y=10 to y=70)
+            const y = 70 - height;
+            
+            let color = school?.reportHeaderColor || "#1e3a8a";
+            if (d.score < 20) {
+              color = "#ef4444"; // Red
+            } else if (d.score < 60) {
+              color = "#f59e0b"; // Orange
+            }
+
+            return (
+              <g key={i}>
+                <rect 
+                  x={x} 
+                  y={y} 
+                  width={barWidth} 
+                  height={height} 
+                  fill={color} 
+                  rx="1" 
+                  style={{ printColorAdjust: "exact", WebkitPrintColorAdjust: "exact" }} 
+                />
+                <text x={x + barWidth / 2} y={y - 3} fontSize="6px" textAnchor="middle" fontWeight="bold" fill={scoreColor}>{d.score}</text>
+                <text x={x + barWidth / 2} y="77" fontSize="5px" textAnchor="middle" fill={labelColor} fontWeight="600">{d.subjectCode}</text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    );
+  };
+
+  const renderMarksAssessmentTable = (student: Student, eotExam: ExamPaper) => {
+    const isCBC = eotExam.isNewCurriculum;
+    const stMarks = marks.filter(m => m.studentId === student.id && m.examPaperId === eotExam.id);
+    const classSubjects = subjects.filter(sub => sub.classId === student.classId);
+
+    if (classSubjects.length === 0) {
+      return (
+        <div style={{ padding: "10px", textAlign: "center", fontStyle: "italic", border: "1px solid #cbd5e1", fontSize: "12px", color: "#64748b" }}>
+          No subjects registered for this class.
+        </div>
+      );
+    }
+
+    if (isCBC) {
+      const u1Active = eotExam?.cbU1Active !== false;
+      const u2Active = eotExam?.cbU2Active !== false;
+      const etActive = eotExam?.cbEtActive !== false;
+      const hpgActive = eotExam?.cbHpgActive !== false;
+
+      const u1Max = eotExam?.cbU1Max ?? 3;
+      const u2Max = eotExam?.cbU2Max ?? 3;
+      const etMax = eotExam?.cbEtMax ?? 3;
+      const hpgMax = eotExam?.cbHpgMax ?? 3;
+
+      const classStudentsIds = students.filter(st => st.classId === student.classId).map(st => st.id);
+      const rankInfo = getStudentRankAndTotals(student.id, student.classId, eotExam.id);
+      const targetClass = classes.find(c => c.id === student.classId);
+      const classTextColor = targetClass?.themeTextColor || "#000000";
+
+      // Determine colors based on theme contrast
+      const isDarkText = classTextColor === "#ffffff" || classTextColor.toLowerCase() === "#fff" || classTextColor.toLowerCase() === "#faf5ff" || classTextColor.toLowerCase() === "#f8fafc" || classTextColor.toLowerCase() === "#e2e8f0";
+      const tableBorderColor = isDarkText ? "rgba(255, 255, 255, 0.2)" : "#cbd5e1";
+      const headerBackground = isDarkText ? "rgba(255, 255, 255, 0.1)" : "#f1f5f9";
+      const summaryBackground = isDarkText ? "rgba(255, 255, 255, 0.05)" : "#f8fafc";
+      const outerBorder = isDarkText ? "1px solid rgba(255,255,255,0.2)" : "1px solid #cbd5e1";
+
+      // Summary calculations
+      let totalPtSum = 0;
+      let ptCount = 0;
+      let summSum = 0;
+      let summCount = 0;
+
+      classSubjects.forEach(sub => {
+        const m = stMarks.find(mk => mk.subjectId === sub.id);
+        if (m) {
+          let totalCA = 0;
+          let maxTotal = 0;
+          if (u1Active) { maxTotal += u1Max; if (m.u1 !== null && m.u1 !== undefined) totalCA += m.u1; }
+          if (u2Active) { maxTotal += u2Max; if (m.u2 !== null && m.u2 !== undefined) totalCA += m.u2; }
+          if (etActive) { maxTotal += etMax; if (m.u3 !== null && m.u3 !== undefined) totalCA += m.u3; }
+          if (hpgActive) { maxTotal += hpgMax; if (m.hpg !== null && m.hpg !== undefined) totalCA += m.hpg; }
+
+          if (maxTotal > 0) {
+            totalPtSum += (totalCA / maxTotal) * 3;
+            ptCount++;
+          }
+          if (m.eoy !== null && m.eoy !== undefined) {
+            summSum += m.eoy;
+            summCount++;
+          }
+        }
+      });
+
+      const avgPt = ptCount > 0 ? (totalPtSum / ptCount).toFixed(1) : "-";
+      const avgIdent = ptCount > 0 ? Math.round(totalPtSum / ptCount) : "-";
+      let avgDesc = "-";
+      if (ptCount > 0) {
+        const roundedIdent = Math.round(totalPtSum / ptCount);
+        if (roundedIdent >= 3) avgDesc = "Outstanding";
+        else if (roundedIdent === 2) avgDesc = "Moderate";
+        else if (roundedIdent === 1) avgDesc = "Basic";
+        else avgDesc = "Elementary";
+      }
+      const summAvg = summCount > 0 ? `${Math.round(summSum / summCount)}%` : "-";
+
+      const rankSpan = (u1Active ? 1 : 0) + (u2Active ? 1 : 0) + (etActive ? 1 : 0);
+      const rankColSpan = rankSpan > 0 ? rankSpan : 1;
+      const totScoreColSpan = rankSpan > 0 ? (4 + (hpgActive ? 1 : 0)) : (3 + (hpgActive ? 1 : 0));
+
+      return (
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "8.5px", marginBottom: "20px", border: outerBorder }}>
+          <thead>
+            <tr style={{ background: headerBackground, textAlign: "center", fontWeight: "bold" }}>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "left", width: "14%" }} rowSpan={2}>SUBJECT</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px" }} colSpan={(u1Active ? 1 : 0) + (u2Active ? 1 : 0) + (etActive ? 1 : 0) + 7}>FORMATIVE ASSESSMENT SCORES (AOI & PROJECT WORK)</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px" }} rowSpan={2}>SUMMATIVE<br />EXAMINATION<br />OUT OF 80</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px" }} rowSpan={2}>OVERALL<br />SCORE<br />%</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px" }} rowSpan={2}>OVERALL<br />GRADE<br />SCORED</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "3px" }} rowSpan={2}>TEACHERS<br />INITIALS</th>
+            </tr>
+            <tr style={{ background: headerBackground, textAlign: "center", fontWeight: "bold" }}>
+              {u1Active && <th style={{ border: `1px solid ${tableBorderColor}`, padding: "2px" }}>U1</th>}
+              {u2Active && <th style={{ border: `1px solid ${tableBorderColor}`, padding: "2px" }}>U2</th>}
+              {etActive && <th style={{ border: `1px solid ${tableBorderColor}`, padding: "2px" }}>U3</th>}
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "2px" }}>TOTAL PTS</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "2px" }}>AMR SCORE</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "2px" }}>TOTAL<br />Out of 10</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "2px" }}>SCORE<br />IDENTIFIER</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "2px" }}>DESCRIPTOR</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "2px" }}>PROJECT<br />OUT OF 10</th>
+              <th style={{ border: `1px solid ${tableBorderColor}`, padding: "2px" }}>TOTAL<br />OUT OF 20</th>
+            </tr>
+          </thead>
+          <tbody>
+            {classSubjects.map(sub => {
+              const m = stMarks.find(mk => mk.subjectId === sub.id);
+              const subjectMarks = marks.filter(mk => mk.subjectId === sub.id && mk.examPaperId === eotExam.id && classStudentsIds.includes(mk.studentId));
+              const hasU1 = u1Active && subjectMarks.some(mk => mk.u1 !== null && mk.u1 !== undefined);
+              const hasU2 = u2Active && subjectMarks.some(mk => mk.u2 !== null && mk.u2 !== undefined);
+              const hasEt = etActive && subjectMarks.some(mk => mk.u3 !== null && mk.u3 !== undefined);
+              const hasHpg = hpgActive && subjectMarks.some(mk => mk.hpg !== null && mk.hpg !== undefined);
+
+              let totalCA = 0;
+              let maxTotal = 0;
+              if (hasU1) { maxTotal += u1Max; if (m?.u1 !== null && m?.u1 !== undefined) totalCA += m.u1; }
+              if (hasU2) { maxTotal += u2Max; if (m?.u2 !== null && m?.u2 !== undefined) totalCA += m.u2; }
+              if (hasEt) { maxTotal += etMax; if (m?.u3 !== null && m?.u3 !== undefined) totalCA += m.u3; }
+              if (hasHpg) { maxTotal += hpgMax; if (m?.hpg !== null && m?.hpg !== undefined) totalCA += m.hpg; }
+
+              const avgCA = maxTotal > 0 && m ? ((totalCA / maxTotal) * 3).toFixed(1) : "-";
+              const outOf10 = maxTotal > 0 && m ? ((totalCA / maxTotal) * 10).toFixed(1) : "-";
+              const scoreIdentifier = maxTotal > 0 && m ? Math.round((totalCA / maxTotal) * 3).toFixed(1) : "-";
+              
+              let descVal = "-";
+              if (maxTotal > 0 && m) {
+                const idVal = Math.round((totalCA / maxTotal) * 3);
+                if (idVal >= 3) descVal = "Outstanding";
+                else if (idVal === 2) descVal = "Moderate";
+                else if (idVal === 1) descVal = "Basic";
+                else descVal = "Elementary";
+              }
+
+              const totalOut20 = maxTotal > 0 && m ? ((totalCA / maxTotal) * 20).toFixed(1) : "-";
+              const projectOut10 = m?.hpg !== null && m?.hpg !== undefined ? m.hpg.toFixed(1) : "";
+
+              const eoyVal = m?.eoy !== null && m?.eoy !== undefined ? m.eoy.toFixed(1) : "-";
+              const totalVal = m ? m.score.toFixed(0) : "-";
+              const gradeVal = m ? m.competencyGrade : "-";
+
+              const assignment = teacherAssignments.find(ta => ta.classId === student.classId && ta.streamId === student.streamId && ta.subjectId === sub.id);
+              let teacherInitials = "";
+              if (assignment) {
+                const teacherUser = users.find(u => u.id === assignment.teacherId);
+                if (teacherUser) {
+                  teacherInitials = teacherUser.name.split(" ").map(w => w[0]).join("").toUpperCase().replace(/[^A-Z]/g, "");
+                }
+              }
+
+              return (
+                <tr key={sub.id}>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", fontWeight: "bold" }}>{sub.name}</td>
+                  {u1Active && <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center" }}>{m?.u1 !== null && m?.u1 !== undefined ? m.u1.toFixed(1) : "-"}</td>}
+                  {u2Active && <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center" }}>{m?.u2 !== null && m?.u2 !== undefined ? m.u2.toFixed(1) : "-"}</td>}
+                  {etActive && <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center" }}>{m?.u3 !== null && m?.u3 !== undefined ? m.u3.toFixed(1) : "-"}</td>}
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center", fontWeight: "600" }}>{m ? totalCA.toFixed(1) : "-"}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center" }}>{avgCA}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center" }}>{outOf10}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center" }}>{scoreIdentifier}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center" }}>{descVal}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center" }}>{projectOut10}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center" }}>{totalOut20}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center" }}>{eoyVal}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center", fontWeight: "bold" }}>{m ? `${totalVal}` : "-"}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center", fontWeight: "bold", color: "var(--primary)" }}>{gradeVal}</td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "3px", textAlign: "center", fontWeight: "bold" }}>{teacherInitials || "-"}</td>
+                </tr>
+              );
+            })}
+            {school?.reportShowSummaryRow !== false && rankInfo && (
+              <>
+                <tr style={{ background: summaryBackground, fontWeight: "bold", fontSize: "11px" }}>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "8px", textAlign: "left", verticalAlign: "middle" }} colSpan={(u1Active ? 1 : 0) + (u2Active ? 1 : 0) + (etActive ? 1 : 0) + 6} rowSpan={2}>
+                    OVERALL AVERAGE LEVEL OF ACHIEVEMENT
+                  </td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px", textAlign: "center" }}>
+                    <div style={{ fontSize: "9px", color: "#475569", textTransform: "uppercase", marginBottom: "2px" }}>CLASS RANKING</div>
+                    <div style={{ fontSize: "14px" }}>{rankInfo.position}</div>
+                  </td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px", textAlign: "center" }}>
+                    <div style={{ fontSize: "9px", color: "#475569", textTransform: "uppercase", marginBottom: "2px" }}>CLASS TOTAL</div>
+                    <div style={{ fontSize: "14px" }}>{rankInfo.totalStudents}</div>
+                  </td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px", textAlign: "center" }} rowSpan={2}>
+                    <div style={{ fontSize: "9px", color: "#475569", textTransform: "uppercase", marginBottom: "2px" }}>TOTAL SCORE</div>
+                    <div style={{ fontSize: "14px" }}>{rankInfo.studentTotal}</div>
+                  </td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px", textAlign: "center" }} rowSpan={2}>
+                    <div style={{ fontSize: "9px", color: "#475569", textTransform: "uppercase", marginBottom: "2px" }}>Av. Score</div>
+                    <div style={{ fontSize: "14px" }}>{avgPt}</div>
+                  </td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px", textAlign: "center" }} rowSpan={2}>
+                    <div style={{ fontSize: "9px", color: "#475569", textTransform: "uppercase", marginBottom: "2px" }}>Ident.</div>
+                    <div style={{ fontSize: "14px" }}>{avgIdent}</div>
+                  </td>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px", textAlign: "center" }} rowSpan={2}>
+                    <div style={{ fontSize: "9px", color: "#475569", textTransform: "uppercase", marginBottom: "2px" }}>Descriptor</div>
+                    <div style={{ fontSize: "14px" }}>{avgDesc}</div>
+                  </td>
+                </tr>
+                <tr style={{ background: summaryBackground, fontWeight: "bold", fontSize: "11px" }}>
+                  <td style={{ border: `1px solid ${tableBorderColor}`, padding: "4px", textAlign: "center" }} colSpan={2}>
+                    <div style={{ fontSize: "9px", color: "#475569", textTransform: "uppercase", marginBottom: "2px" }}>AVERAGE SCORE</div>
+                    <div style={{ fontSize: "14px" }}>{Math.round(parseFloat(rankInfo.classAverage))}</div>
+                  </td>
+                </tr>
+              </>
+            )}
+          </tbody>
+        </table>
+      );
+    } else {
+      const rankInfo = getStudentRankAndTotals(student.id, student.classId, eotExam.id);
+      return (
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", marginBottom: "20px" }}>
+          <thead>
+            <tr style={{ background: "#f1f5f9" }}>
+              <th style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "left" }}>Subject Title</th>
+              <th style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center" }}>Raw Mark (100)</th>
+              <th style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center" }}>Grade Column</th>
+              <th style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "left" }}>Teacher Comments</th>
+            </tr>
+          </thead>
+          <tbody>
+            {classSubjects.map(sub => {
+              const m = stMarks.find(mk => mk.subjectId === sub.id);
+              const gradeObj = m ? computeGradeFromRanges(m.score, "PRIMARY", gradeRanges) : null;
+              const gradeVal = m ? m.competencyGrade : "-";
+
+              return (
+                <tr key={sub.id}>
+                  <td style={{ border: "1px solid #94a3b8", padding: "8px", fontWeight: "bold" }}>{sub.name}</td>
+                  <td style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center" }}>{m ? `${m.score}%` : "-"}</td>
+                  <td style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center", fontWeight: "bold" }}>{m ? `PLE: Grade ${gradeVal}` : "-"}</td>
+                  <td style={{ border: "1px solid #94a3b8", padding: "8px" }}>{m ? (m.comments || gradeObj?.descriptor || "Good effort") : "-"}</td>
+                </tr>
+              );
+            })}
+            {school?.reportShowSummaryRow !== false && rankInfo && (
+              <tr style={{ background: "#f8fafc", fontWeight: "bold" }}>
+                <td style={{ border: "1px solid #94a3b8", padding: "8px" }}>OVERALL AVERAGE</td>
+                <td style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center" }}>
+                  AVG: {rankInfo.studentAverage}%
+                </td>
+                <td style={{ border: "1px solid #94a3b8", padding: "8px", textAlign: "center" }}>
+                  RANK: {rankInfo.position} / {rankInfo.totalStudents}
+                </td>
+                <td style={{ border: "1px solid #94a3b8", padding: "8px" }}>
+                  TOTAL SCORE: {rankInfo.studentTotal}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      );
+    }
+  };
+
+  // Report Card Designer States
+  const [designerTitle, setDesignerTitle] = useState("OFFICIAL ACADEMIC REPORT CARD");
+  const [designerMotto, setDesignerMotto] = useState("");
+  const [designerShowBadge, setDesignerShowBadge] = useState(true);
+  const [designerShowResidency, setDesignerShowResidency] = useState(true);
+  const [designerShowSignatures, setDesignerShowSignatures] = useState(true);
+  const [designerShowRules, setDesignerShowRules] = useState(true);
+  const [designerLogoSize, setDesignerLogoSize] = useState<number>(60);
+  const [designerShowStudentPhoto, setDesignerShowStudentPhoto] = useState<boolean>(true);
+  const [designerHeaderColor, setDesignerHeaderColor] = useState<string>("#1e3a8a");
+  const [designerBorderType, setDesignerBorderType] = useState<string>("double");
+  const [designerTikTok, setDesignerTikTok] = useState("");
+  const [designerWebsite, setDesignerWebsite] = useState("");
+  const [designerLocation, setDesignerLocation] = useState("");
+  const [designerShowChart, setDesignerShowChart] = useState(true);
+  const [designerShowLIN, setDesignerShowLIN] = useState(true);
+  const [designerShowPayCode, setDesignerShowPayCode] = useState(true);
+  const [designerShowComments, setDesignerShowComments] = useState(true);
+  const [designerShowFees, setDesignerShowFees] = useState(true);
+  const [designerShowTermDates, setDesignerShowTermDates] = useState(true);
+  const [designerShowSummaryRow, setDesignerShowSummaryRow] = useState(true);
+
+  useEffect(() => {
+    if (selectedReportStudent) {
+      setTempClassTeacherComment(selectedReportStudent.classTeacherComment || "");
+      setTempHeadTeacherComment(selectedReportStudent.headTeacherComment || "");
+    } else {
+      setTempClassTeacherComment("");
+      setTempHeadTeacherComment("");
+    }
+  }, [selectedReportStudent]);
+
+  useEffect(() => {
+    async function fetchSchool() {
+      try {
+        setLoading(true);
+        setLoadError(null);
+        
+        const res = await fetch(`/api/school-data?subdomain=${subdomain}`);
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || `HTTP error! status: ${res.status}`);
+        }
+        
+        const data = await res.json();
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        const s = data.school;
+        setSchool(s);
+        if (s) {
+          setProfileName(s.name || "");
+          setProfilePoBox(s.poBox || "");
+          setProfilePhone(s.contactPhone || "");
+          setProfileHeadTeacher(s.headTeacher || "");
+          setProfileDeputyHeadTeacher(s.deputyHeadTeacher || "");
+          setProfileDirector(s.director || "");
+          setProfileLogoUrl(s.logoUrl || "");
+          setProfileThemeColor(s.themeColor || "#38bdf8");
+          setProfileSchoolType(s.schoolType as any || "COMBINED");
+          setProfileSchoolPayCode(s.schoolPayCode || "");
+          setProfileSchoolPayPassword(s.schoolPayPassword || "");
+          setProfileCurrentTerm(s.currentTerm?.toString() || "1");
+          setProfileCurrentYear(s.currentYear?.toString() || new Date().getFullYear().toString());
+      setProfileTerm1Start(s.term1Start ? new Date(s.term1Start).toISOString().split('T')[0] : "");
+      setProfileTerm1End(s.term1End ? new Date(s.term1End).toISOString().split('T')[0] : "");
+      setProfileTerm2Start(s.term2Start ? new Date(s.term2Start).toISOString().split('T')[0] : "");
+      setProfileTerm2End(s.term2End ? new Date(s.term2End).toISOString().split('T')[0] : "");
+      setProfileTerm3Start(s.term3Start ? new Date(s.term3Start).toISOString().split('T')[0] : "");
+      setProfileTerm3End(s.term3End ? new Date(s.term3End).toISOString().split('T')[0] : "");
+
+          setNewClassLevel(s.schoolType === "SECONDARY" ? "SECONDARY" : "PRIMARY");
+          setNewExamIsNewCurriculum(s.schoolType === "SECONDARY");
+
+          setSetupName(s.name || "");
+          setSetupPhone(s.contactPhone || "");
+          setSetupPoBox(s.poBox || "");
+          setSetupHeadTeacher(s.headTeacher || "");
+          setSetupDeputyHeadTeacher(s.deputyHeadTeacher || "");
+          setSetupDirector(s.director || "");
+          setSetupLogoUrl(s.logoUrl || "");
+          setSetupThemeColor(s.themeColor || "#38bdf8");
+
+          setDesignerTitle(s.reportTitle || "OFFICIAL ACADEMIC REPORT CARD");
+          setDesignerMotto(s.reportMotto || "");
+          setDesignerShowBadge(s.reportShowBadge !== false);
+          setDesignerShowResidency(s.reportShowResidency !== false);
+          setDesignerShowSignatures(s.reportShowSignatures !== false);
+          setDesignerShowRules(s.reportShowRules !== false);
+          setDesignerLogoSize(s.reportLogoSize || 60);
+          setDesignerShowStudentPhoto(s.reportShowStudentPhoto !== false);
+          setDesignerHeaderColor(s.reportHeaderColor || "#1e3a8a");
+          setDesignerBorderType(s.reportBorderType || "double");
+          setDesignerTikTok(s.reportTikTok || "");
+          setDesignerWebsite(s.reportWebsite || "");
+          setDesignerLocation(s.reportLocation || "");
+          setDesignerShowChart(s.reportShowChart !== false);
+          setDesignerShowLIN(s.reportShowLIN !== false);
+          setDesignerShowPayCode(s.reportShowPayCode !== false);
+          setDesignerShowComments(s.reportShowComments !== false);
+          setDesignerShowFees(s.reportShowFees !== false);
+          setDesignerShowTermDates(s.reportShowTermDates !== false);
+          setDesignerShowSummaryRow(s.reportShowSummaryRow !== false);
+
+          setCbU1Max(s.cbU1Max ?? 3);
+          setCbU2Max(s.cbU2Max ?? 3);
+          setCbEtMax(s.cbEtMax ?? 3);
+          setCbHpgMax(s.cbHpgMax ?? 3);
+          setCbU1Active(s.cbU1Active !== false);
+          setCbU2Active(s.cbU2Active !== false);
+          setCbEtActive(s.cbEtActive !== false);
+          setCbHpgActive(s.cbHpgActive !== false);
+
+          const ranges = data.gradeRanges || [];
+          setGradeRanges(ranges);
+          setEditingGradeRanges(ranges);
+
+          // Initialize design next term fees:
+          setDesignerNextTermFeesDay(s.reportNextTermFeesDay || 150000);
+          setDesignerNextTermFeesBoarding(s.reportNextTermFeesBoarding || 350000);
+        }
+        
+        setDbConnected(!!data.dbConnected);
+      } catch (err: any) {
+        console.error("Error loading school portal data:", err);
+        const msg = err?.message || "";
+        if (msg.includes("Server Components") || msg.includes("production builds") || msg.includes("Digest")) {
+          setLoadError("Unable to connect to the school database. The server may be starting up â€” please wait a moment and try again.");
+        } else {
+          setLoadError(msg || "An unexpected error occurred while connecting to the database server.");
+        }
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchSchool();
+  }, [subdomain]);
+
+  const handleRunDiagnostics = async () => {
+    setRunningDiagnostics(true);
+    setDiagError(null);
+    try {
+      const res = await fetch("/api/diagnostics");
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text.substring(0, 300)}`);
+      }
+      const data = await res.json();
+      setDiagnostics(data);
+    } catch (err: any) {
+      console.error("Diagnostics error:", err);
+      setDiagError(err.message || String(err));
+    } finally {
+      setRunningDiagnostics(false);
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const searchParams = new URLSearchParams(window.location.search);
+      const emailParam = searchParams.get("email");
+      if (emailParam) {
+        setEmail(emailParam);
+      }
+    }
+  }, []);
+
+  // Load core school data when logged in
+  const loadSchoolData = async (schoolId: string) => {
+    try {
+      const cls = await getClasses(schoolId);
+      const strms = await getStreams(schoolId);
+      const studs = await getStudents(schoolId);
+      const subjs = await getSubjects(schoolId);
+      const exms = await getExamPapers(schoolId);
+      const mrks = await getMarks(schoolId);
+      const usrs = await getUsers(schoolId);
+
+      setClasses(cls);
+      setStreams(strms);
+      setStudents(studs);
+      setSubjects(subjs);
+      setExams(exms);
+      setMarks(mrks);
+      setUsers(usrs);
+      const ranges = await getGradeRanges(schoolId);
+      setGradeRanges(ranges);
+      setEditingGradeRanges(ranges);
+
+      const assignments = await getTeacherSubjects(schoolId);
+      setTeacherAssignments(assignments);
+
+      const staffTeachers = usrs.filter(u => u.role === "TEACHER");
+      if (staffTeachers.length > 0) setNewAssignmentTeacherId(staffTeachers[0].id);
+      if (cls.length > 0) {
+        setNewAssignmentClassId(cls[0].id);
+        const clStreams = strms.filter(st => st.classId === cls[0].id);
+        if (clStreams.length > 0) setNewAssignmentStreamId(clStreams[0].id);
+        const clSubjects = subjs.filter(sb => sb.classId === cls[0].id);
+        if (clSubjects.length > 0) setNewAssignmentSubjectId(clSubjects[0].id);
+      }
+
+      // Pre-populate dynamic Student/Staff ID Numbers
+      const activeSchool = school || (await getSchoolBySubdomain(subdomain));
+      if (activeSchool) {
+        const initials = activeSchool.name.split(" ").map(w => w[0]).join("").toUpperCase().replace(/[^A-Z]/g, "") || subdomain.toUpperCase();
+        
+        const nextStudentNum = `${initials}-STU-${(studs.length + 1).toString().padStart(4, "0")}`;
+        setNewStudentNumber(nextStudentNum);
+
+        const staffCount = usrs.filter(u => u.role !== "ADMIN").length;
+        const nextStaffNum = `${initials}-STF-${(staffCount + 1).toString().padStart(4, "0")}`;
+        setNewTeacherStaffNumber(nextStaffNum);
+      }
+
+      // Pre-fill lists
+      if (cls.length > 0) {
+        setNewStreamClassId(cls[0].id);
+        setNewStudentClassId(cls[0].id);
+        setNewSubjectClassId(cls[0].id);
+        setBulkStudentClassId(cls[0].id);
+        const subStreams = strms.filter(st => st.classId === cls[0].id);
+        if (subStreams.length > 0) {
+          setBulkStudentStreamId(subStreams[0].id);
+        }
+        setSelectedClassId(cls[0].id);
+        setSelectedFeeClassId(cls[0].id);
+        setSelectedReportClassId(cls[0].id);
+        
+        setPromoteFromClassId(cls[0].id);
+        setPromoteToClassId(cls[1]?.id || "");
+        setAttendanceClassId(cls[0].id);
+      }
+
+      // Pre-fill stream mapping
+      const classStreams = strms.filter(st => st.classId === (cls[0]?.id || ""));
+      if (classStreams.length > 0) {
+        setNewStudentStreamId(classStreams[0].id);
+        setSelectedStreamId(classStreams[0].id);
+        setAttendanceStreamId(classStreams[0].id);
+      }
+
+      if (exms.length > 0) {
+        setSelectedExamId(exms[0].id);
+      }
+
+      if (subjs.length > 0) {
+        setSelectedSubjectId(subjs[0].id);
+      }
+
+      const pmts = await getPayments(schoolId);
+      pmts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setPayments(pmts);
+      if (school?.packageType === "PREMIUM") {
+        setFeeStructures(await getFeeStructures(schoolId));
+        setStudentPayments(await getStudentPayments(schoolId));
+        setExpenses(await getExpenses(schoolId));
+        // Load SchoolPay transactions (if configured)
+        try {
+          const spTx = await getSchoolPayTransactions(schoolId);
+          setSchoolPayTransactions(spTx);
+        } catch {}
+        if (studs.length > 0) {
+          setSelectedPayStudentId(studs[0].id);
+        }
+      }
+
+      // Load SMS logs and credits
+      try {
+        const logs = await getSmsLogs(schoolId);
+        setSmsLogs(logs);
+        const credits = await getSmsCredits(schoolId);
+        setSmsCredits(credits);
+        const totalCredits = credits.filter(c => c.status === "CONFIRMED")
+          .reduce((sum, c) => sum + (c.creditsPurchased - c.creditsUsed), 0);
+        setSmsTotalCredits(totalCredits);
+      } catch {}
+
+      // Pre-set SMS target class to first class
+      if (cls.length > 0) setSmsTargetClassId(cls[0].id);
+    } catch (err) {
+      console.error("Error loading data:", err);
+    }
+  };
+
+  const loadAttendance = async (classId: string, streamId: string, dateStr: string) => {
+    if (!school || !classId || !streamId) return;
+    try {
+      const records = await getAttendance(school.id, classId, dateStr);
+      const mapped: { [studentId: string]: "PRESENT" | "ABSENT" | "SICK" } = {};
+      records.forEach(r => {
+        mapped[r.studentId] = r.status as any;
+      });
+      setAttendanceStatuses(mapped);
+    } catch (err) {
+      console.error("Error loading attendance:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (attendanceClassId && attendanceStreamId && attendanceDate) {
+      loadAttendance(attendanceClassId, attendanceStreamId, attendanceDate);
+    }
+  }, [attendanceClassId, attendanceStreamId, attendanceDate]);
+
+  useEffect(() => {
+    if (!selectedExamId || !selectedSubjectId || !selectedClassId || !selectedStreamId) {
+      setInputScores({});
+      setInputU1({});
+      setInputU2({});
+      setInputU3({});
+      setInputHPG({});
+      setInputEOY({});
+      setInputComments({});
+      return;
+    }
+    
+    const relevantStudents = students.filter(st => st.classId === selectedClassId && st.streamId === selectedStreamId);
+    const newScores: { [key: string]: string } = {};
+    const newU1: { [key: string]: string } = {};
+    const newU2: { [key: string]: string } = {};
+    const newU3: { [key: string]: string } = {};
+    const newHPG: { [key: string]: string } = {};
+    const newEOY: { [key: string]: string } = {};
+    const newComments: { [key: string]: string } = {};
+
+    relevantStudents.forEach(st => {
+      const m = marks.find(mk => mk.studentId === st.id && mk.examPaperId === selectedExamId && mk.subjectId === selectedSubjectId);
+      if (m) {
+        newScores[st.id] = String(m.score);
+        newU1[st.id] = m.u1 !== null && m.u1 !== undefined && (school?.cbU1Max || 3) > 0 ? String(Math.round((m.u1 / (school?.cbU1Max || 3)) * 100)) : "";
+        newU2[st.id] = m.u2 !== null && m.u2 !== undefined && (school?.cbU2Max || 3) > 0 ? String(Math.round((m.u2 / (school?.cbU2Max || 3)) * 100)) : "";
+        newU3[st.id] = m.u3 !== null && m.u3 !== undefined && (school?.cbEtMax || 3) > 0 ? String(Math.round((m.u3 / (school?.cbEtMax || 3)) * 100)) : "";
+        newHPG[st.id] = m.hpg !== null && m.hpg !== undefined && (school?.cbHpgMax || 3) > 0 ? String(Math.round((m.hpg / (school?.cbHpgMax || 3)) * 100)) : "";
+        newEOY[st.id] = m.eoy !== null && m.eoy !== undefined ? String(Math.round((m.eoy / 80) * 100)) : "";
+        newComments[st.id] = m.comments || "";
+      }
+    });
+
+    setInputScores(newScores);
+    setInputU1(newU1);
+    setInputU2(newU2);
+    setInputU3(newU3);
+    setInputHPG(newHPG);
+    setInputEOY(newEOY);
+    setInputComments(newComments);
+  }, [selectedExamId, selectedSubjectId, selectedClassId, selectedStreamId, marks, students]);
+
+  // Synchronize selections for TEACHER role when assignments or selections change
+  useEffect(() => {
+    if (currentUser?.role === "TEACHER" && teacherAssignments.length > 0 && classes.length > 0) {
+      const myClasses = classes.filter(c => teacherAssignments.some(ta => ta.teacherId === currentUser.id && ta.classId === c.id));
+      if (myClasses.length > 0) {
+        const firstClass = myClasses[0].id;
+        if (!selectedClassId || !myClasses.some(c => c.id === selectedClassId)) {
+          setSelectedClassId(firstClass);
+        }
+        const classIdToUse = !selectedClassId || !myClasses.some(c => c.id === selectedClassId) ? firstClass : selectedClassId;
+        
+        const myStreams = streams.filter(st => st.classId === classIdToUse && teacherAssignments.some(ta => ta.teacherId === currentUser.id && ta.classId === classIdToUse && ta.streamId === st.id));
+        if (myStreams.length > 0) {
+          const firstStream = myStreams[0].id;
+          if (!selectedStreamId || !myStreams.some(s => s.id === selectedStreamId)) {
+            setSelectedStreamId(firstStream);
+          }
+          const streamIdToUse = !selectedStreamId || !myStreams.some(s => s.id === selectedStreamId) ? firstStream : selectedStreamId;
+          
+          const mySubjects = subjects.filter(sub => sub.classId === classIdToUse && teacherAssignments.some(ta => ta.teacherId === currentUser.id && ta.classId === classIdToUse && ta.streamId === streamIdToUse && ta.subjectId === sub.id));
+          if (mySubjects.length > 0) {
+            if (!selectedSubjectId || !mySubjects.some(s => s.id === selectedSubjectId)) {
+              setSelectedSubjectId(mySubjects[0].id);
+            }
+          }
+        }
+      }
+    }
+  }, [currentUser, teacherAssignments, classes, streams, subjects, selectedClassId, selectedStreamId]);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError("");
+
+    if (!school) return;
+
+    if (school.status !== "ACTIVE") {
+      setAuthError("This school's account is pending activation. Please pay/contact super admin.");
+      return;
+    }
+
+    try {
+      const user = await authenticateUser(email, password, subdomain);
+      if (user) {
+        if (user.id === "ERROR") {
+          setAuthError(user.name);
+          return;
+        }
+        setCurrentUser(user);
+        await loadSchoolData(school.id);
+        // Auto tab based on role
+        if (user.role === "TEACHER") setActiveTab("marks");
+        else if (user.role === "DOS") setActiveTab("exams");
+        else if (user.role === "DIRECTOR" && school.packageType === "PREMIUM") setActiveTab("finance");
+        else setActiveTab("overview");
+      } else {
+        setAuthError("Invalid username or password.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      setAuthError(err.message || "An error occurred while signing in.");
+    }
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setEmail("");
+    setPassword("");
+  };
+
+  useEffect(() => {
+    if (currentUser) {
+      setProfileEditName(currentUser.name);
+      setProfileEditPhoto(currentUser.photo || "");
+    } else {
+      setProfileEditName("");
+      setProfileEditPhoto("");
+    }
+  }, [currentUser]);
+
+  const handleFirstTimeSetup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSetupError("");
+    if (!school) return;
+
+    // Authenticate setup user
+    const user = await authenticateUser(setupAdminEmail, setupAdminPassword, subdomain);
+    if (!user || user.role !== "ADMIN") {
+      setSetupError("Invalid administrator credentials for this school subdomain.");
+      return;
+    }
+
+    try {
+      const updated = await updateSchoolMetadata(school.id, {
+        name: setupName,
+        poBox: setupPoBox,
+        contactPhone: setupPhone,
+        headTeacher: setupHeadTeacher,
+        deputyHeadTeacher: setupDeputyHeadTeacher,
+        director: setupDirector,
+        logoUrl: setupLogoUrl,
+        themeColor: setupThemeColor
+      });
+      setSchool(updated);
+      
+      // Sync profile form states
+      setProfileName(updated.name || "");
+      setProfilePhone(updated.contactPhone || "");
+      setProfilePoBox(updated.poBox || "");
+      setProfileHeadTeacher(updated.headTeacher || "");
+      setProfileDeputyHeadTeacher(updated.deputyHeadTeacher || "");
+      setProfileDirector(updated.director || "");
+      setProfileLogoUrl(updated.logoUrl || "");
+      setProfileThemeColor(updated.themeColor || "#38bdf8");
+      setProfileSchoolPayCode(updated.schoolPayCode || "");
+      setProfileSchoolPayPassword(updated.schoolPayPassword || "");
+      setProfileCurrentTerm(updated.currentTerm?.toString() || "1");
+      setProfileCurrentYear(updated.currentYear?.toString() || new Date().getFullYear().toString());
+      setProfileTerm1Start(updated.term1Start ? new Date(updated.term1Start).toISOString().split('T')[0] : "");
+      setProfileTerm1End(updated.term1End ? new Date(updated.term1End).toISOString().split('T')[0] : "");
+      setProfileTerm2Start(updated.term2Start ? new Date(updated.term2Start).toISOString().split('T')[0] : "");
+      setProfileTerm2End(updated.term2End ? new Date(updated.term2End).toISOString().split('T')[0] : "");
+      setProfileTerm3Start(updated.term3Start ? new Date(updated.term3Start).toISOString().split('T')[0] : "");
+      setProfileTerm3End(updated.term3End ? new Date(updated.term3End).toISOString().split('T')[0] : "");
+
+
+      toast.success("School branding and leaders configured successfully!");
+      setShowFirstTimeSetup(false);
+      setSetupAdminEmail("");
+      setSetupAdminPassword("");
+    } catch (err) {
+      setSetupError("Failed to update school metadata.");
+    }
+  };
+
+  const handleCreateAssignment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!school) return;
+    if (!newAssignmentTeacherId || !newAssignmentClassId || !newAssignmentStreamId || !newAssignmentSubjectId) {
+      toast.error("Please fill all assignment fields.");
+      return;
+    }
+    const duplicate = teacherAssignments.find(
+      ts => ts.teacherId === newAssignmentTeacherId &&
+            ts.classId === newAssignmentClassId &&
+            ts.streamId === newAssignmentStreamId &&
+            ts.subjectId === newAssignmentSubjectId
+    );
+    if (duplicate) {
+      toast.error("This teacher is already assigned to this class, stream, and subject!");
+      return;
+    }
+    try {
+      await createTeacherSubject({
+        teacherId: newAssignmentTeacherId,
+        classId: newAssignmentClassId,
+        streamId: newAssignmentStreamId,
+        subjectId: newAssignmentSubjectId
+      });
+      toast.success("Teacher assignment saved successfully!");
+      await loadSchoolData(school.id);
+    } catch (err: any) {
+      toast.error("Failed to create assignment: " + (err.message || err));
+    }
+  };
+
+  const handleDeleteAssignment = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this teacher assignment?")) return;
+    if (!school) return;
+    try {
+      const ok = await deleteTeacherSubject(id);
+      if (ok) {
+        toast.success("Assignment deleted successfully.");
+        await loadSchoolData(school.id);
+      }
+    } catch (err: any) {
+      toast.error("Failed to delete assignment: " + (err.message || err));
+    }
+  };
+
+  // Update school settings and metadata handler
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!school) return;
+    try {
+      setProfileSuccessMsg("");
+      const updated = await updateSchoolMetadata(school.id, {
+        name: profileName,
+        poBox: profilePoBox,
+        contactPhone: profilePhone,
+        schoolType: profileSchoolType,
+        headTeacher: profileHeadTeacher,
+        deputyHeadTeacher: profileDeputyHeadTeacher,
+        director: profileDirector,
+        logoUrl: profileLogoUrl,
+        themeColor: profileThemeColor,
+        currentTerm: parseInt(profileCurrentTerm) || 1,
+        currentYear: parseInt(profileCurrentYear) || new Date().getFullYear(),
+
+        term1Start: profileTerm1Start ? new Date(profileTerm1Start) : null,
+        term1End: profileTerm1End ? new Date(profileTerm1End) : null,
+        term2Start: profileTerm2Start ? new Date(profileTerm2Start) : null,
+        term2End: profileTerm2End ? new Date(profileTerm2End) : null,
+        term3Start: profileTerm3Start ? new Date(profileTerm3Start) : null,
+        term3End: profileTerm3End ? new Date(profileTerm3End) : null,
+
+        schoolPayCode: profileSchoolPayCode,
+        schoolPayPassword: profileSchoolPayPassword,
+        cbU1Max,
+        cbU2Max,
+        cbEtMax,
+        cbHpgMax,
+        cbU1Active,
+        cbU2Active,
+        cbEtActive,
+        cbHpgActive,
+      });
+      setSchool(updated);
+      setNewClassLevel(updated.schoolType === "SECONDARY" ? "SECONDARY" : "PRIMARY");
+      setNewExamIsNewCurriculum(updated.schoolType === "SECONDARY");
+      setProfileSuccessMsg("School profile and settings updated successfully!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update school profile");
+    }
+  };
+
+  const handleGradeRangeChange = (index: number, field: keyof GradeRange, value: any) => {
+    const updated = [...editingGradeRanges];
+    updated[index] = {
+      ...updated[index],
+      [field]: value
+    };
+    setEditingGradeRanges(updated);
+  };
+
+  const handleSaveCustomGradeRanges = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!school) return;
+    try {
+      const cleaned = editingGradeRanges.map(r => ({
+        systemType: r.systemType,
+        grade: r.grade,
+        minMark: Number(r.minMark),
+        maxMark: Number(r.maxMark),
+        achievementLevel: r.achievementLevel,
+        descriptor: r.descriptor || ""
+      }));
+      const updated = await saveGradeRanges(school.id, cleaned);
+      setGradeRanges(updated);
+      setEditingGradeRanges(updated);
+      toast.success("Custom grade ranges and achievement levels updated successfully!");
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Failed to save grade ranges: " + (err.message || err));
+    }
+  };
+
+  // Create class handler
+  const handleCreateClass = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newClassName || !school) return;
+    try {
+      await createClass(school.id, newClassName, newClassLevel);
+      setNewClassName("");
+      await loadSchoolData(school.id);
+      toast.success("Class created successfully!");
+    } catch (err: any) {
+      console.error("Error creating class:", err);
+      toast.error("Failed to create class: " + (err.message || err));
+    }
+  };
+
+  // Create stream handler
+  const handleCreateStream = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newStreamName || !newStreamClassId || !school) return;
+    try {
+      await createStream(newStreamClassId, newStreamName);
+      setNewStreamName("");
+      await loadSchoolData(school.id);
+      toast.success("Stream created successfully!");
+    } catch (err: any) {
+      console.error("Error creating stream:", err);
+      toast.error("Failed to create stream: " + (err.message || err));
+    }
+  };
+
+  // Create staff user handler
+  const handleCreateStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTeacherName || !newTeacherEmail || !school) return;
+    try {
+      const res = await createUser({
+        schoolId: school.id,
+        name: newTeacherName,
+        email: newTeacherEmail,
+        passwordHash: newTeacherPassword,
+        role: newTeacherRole,
+        photo: newTeacherPhoto || null,
+        staffNumber: newTeacherStaffNumber || null,
+        contact: newTeacherContact || null,
+      });
+      if (!res.success) {
+        toast.error("Failed to create staff account: " + res.error);
+        return;
+      }
+      setNewTeacherName("");
+      setNewTeacherEmail("");
+      setNewTeacherPassword("password");
+      setNewTeacherPhoto("");
+      setNewTeacherContact("");
+      await loadSchoolData(school.id);
+      toast.success("Staff member user account created successfully!");
+    } catch (err: any) {
+      console.error("Error creating staff:", err);
+      toast.error("Failed to create staff account: " + (err.message || err));
+    }
+  };
+
+  // Create student handler
+  const handleCreateStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newStudentName || !newStudentNumber || !newStudentClassId || !newStudentStreamId || !school) return;
+    try {
+      await createStudent({
+        schoolId: school.id,
+        classId: newStudentClassId,
+        streamId: newStudentStreamId,
+        name: newStudentName,
+        studentNumber: newStudentNumber,
+        type: newStudentType,
+        photo: newStudentPhoto || null,
+        lin: newStudentLin || null,
+        studentPaymentCode: newStudentPaymentCode || null,
+        registrationNumber: newStudentRegNumber || null,
+        gender: newStudentGender,
+        parentContact: newStudentParentContact || null,
+      });
+      setNewStudentName("");
+      setNewStudentNumber("");
+      setNewStudentPhoto("");
+      setNewStudentLin("");
+      setNewStudentPaymentCode("");
+      setNewStudentRegNumber("");
+      setNewStudentGender("MALE");
+      setNewStudentParentContact("");
+      await loadSchoolData(school.id);
+      toast.success("Student registered successfully!");
+    } catch (err: any) {
+      console.error("Error registering student:", err);
+      toast.error("Failed to register student: " + (err.message || err));
+    }
+  };
+
+  // --- Class & Stream Mutation Handlers ---
+  const handleUpdateClass = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEditClass || !editClassName) return;
+    try {
+      await updateClass(selectedEditClass.id, editClassName, editClassLevel);
+      setShowEditClassModal(false);
+      setSelectedEditClass(null);
+      await loadSchoolData(school!.id);
+      toast.success("Class updated successfully!");
+    } catch (err: any) {
+      toast.error("Error updating class: " + (err.message || err));
+    }
+  };
+
+  const handleDeleteClass = async (classId: string) => {
+    const cls = classes.find(c => c.id === classId);
+    if (!cls) return;
+    if (confirm(`⚠️ WARNING: Deleting class "${cls.name}" will permanently delete ALL students in this class, along with their marks, payments, attendances, and class streams/subjects. Are you sure you want to proceed?`)) {
+      try {
+        await deleteClass(classId);
+        await loadSchoolData(school!.id);
+        toast.success("Class and all associated records deleted successfully!");
+      } catch (err: any) {
+        toast.error("Error deleting class: " + (err.message || err));
+      }
+    }
+  };
+
+  const handleDeleteAllStudentsOfClass = async (classId: string) => {
+    const cls = classes.find(c => c.id === classId);
+    if (!cls) return;
+    const studentCount = students.filter(st => st.classId === classId).length;
+    if (studentCount === 0) {
+      toast.error(`There are no students registered in class "${cls.name}" to delete.`);
+      return;
+    }
+    if (confirm(`⚠️ WARNING: Are you sure you want to permanently delete ALL ${studentCount} students in class "${cls.name}"? This will also delete all their marks, payments, and attendance records. This action CANNOT be undone.`)) {
+      try {
+        await deleteStudentsByClass(classId);
+        await loadSchoolData(school!.id);
+        toast.success(`Successfully deleted all students of class "${cls.name}".`);
+      } catch (err: any) {
+        toast.error("Error deleting class students: " + (err.message || err));
+      }
+    }
+  };
+
+  const handleRenameStream = async (streamId: string, newName: string) => {
+    if (!newName.trim()) return;
+    try {
+      await updateStream(streamId, newName.trim());
+      // Refresh renames state
+      setEditStreamRenames(prev => ({ ...prev, [streamId]: newName }));
+      await loadSchoolData(school!.id);
+    } catch (err: any) {
+      toast.error("Error renaming stream: " + (err.message || err));
+    }
+  };
+
+  const handleAddStreamToClass = async (classId: string, name: string) => {
+    if (!name.trim()) return;
+    try {
+      await createStream(classId, name.trim());
+      setEditStreamNewName("");
+      await loadSchoolData(school!.id);
+      toast.success("Stream added successfully!");
+    } catch (err: any) {
+      toast.error("Error adding stream: " + (err.message || err));
+    }
+  };
+
+  const handleDeleteStreamFromClass = async (streamId: string) => {
+    try {
+      await deleteStream(streamId);
+      await loadSchoolData(school!.id);
+      toast.success("Stream deleted successfully!");
+    } catch (err: any) {
+      toast.error(err.message || err);
+    }
+  };
+
+  const handleDeleteSubject = async (subjectId: string, subjectName: string, className: string) => {
+    if (confirm(`Are you sure you want to delete subject "${subjectName}" from class "${className}"? This will delete all marks recorded for this subject.`)) {
+      try {
+        await deleteSubject(subjectId);
+        await loadSchoolData(school!.id);
+        toast.success("Subject deleted successfully!");
+      } catch (err: any) {
+        toast.error("Error deleting subject: " + (err.message || err));
+      }
+    }
+  };
+
+  // Excel Parsing and Template Downloads
+  const downloadStudentTemplate = () => {
+    const headers = [["Name", "Student Number (Optional)", "Residency (DAY or BOARDING)", "LIN (Optional)", "Gender (MALE or FEMALE)", "Pay Code (Optional)", "Parent Contact (Optional)"]];
+    const sampleData = [
+      ["Namusoke Joy", "", "DAY", "", "FEMALE", "194570001", "0771234567"],
+      ["Opio Peter", "STU-0002", "BOARDING", "LIN-98765432", "MALE", "194570002", "0700987654"]
+    ];
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet([]);
+    XLSX.utils.sheet_add_aoa(ws, [...headers, ...sampleData]);
+    XLSX.utils.book_append_sheet(wb, ws, "Students");
+    XLSX.writeFile(wb, "Student_Upload_Template.xlsx");
+  };
+
+  const downloadStaffTemplate = () => {
+    const headers = [["Full Name", "Email Address", "Role (TEACHER, DOS, HEADTEACHER, DIRECTOR)", "Staff Number (Optional)"]];
+    const sampleData = [
+      ["Opio Peter", "peter@school.ug", "TEACHER", ""],
+      ["Nakafeero Sylvia", "sylvia@school.ug", "DOS", "STF-0012"]
+    ];
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet([]);
+    XLSX.utils.sheet_add_aoa(ws, [...headers, ...sampleData]);
+    XLSX.utils.book_append_sheet(wb, ws, "Staff");
+    XLSX.writeFile(wb, "Staff_Upload_Template.xlsx");
+  };
+
+  const handleParseExcel = (file: File): Promise<any[]> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: "array" });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+          resolve(jsonData);
+        } catch (err) {
+          reject(err);
+        }
+      };
+      reader.onerror = (err) => reject(err);
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  // Bulk student upload handler
+  const handleBulkStudentUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!school || !bulkStudentClassId || !bulkStudentStreamId || !studentExcelFile) {
+      toast.error("Please choose a class, stream, and select an Excel template file.");
+      return;
+    }
+    try {
+      const rows = await handleParseExcel(studentExcelFile);
+      if (rows.length <= 1) {
+        toast.error("The uploaded Excel file has no student data rows.");
+        return;
+      }
+
+      setIsImportingStudents(true);
+      setImportStudentProgress(0);
+      setImportStudentTotal(rows.length - 1);
+
+      let successCount = 0;
+      let existingCount = students.length;
+
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || !row[0]) {
+          setImportStudentProgress(i);
+          continue;
+        }
+
+        const name = String(row[0]).trim();
+        let studentNumber = row[1] ? String(row[1]).trim() : "";
+        let typeStr = row[2] ? String(row[2]).trim() : "DAY";
+        let lin = row[3] ? String(row[3]).trim() : "";
+        let genderStr = row[4] ? String(row[4]).trim() : "MALE";
+        let payCode = row[5] ? String(row[5]).trim() : "";
+        let parentContact = row[6] ? String(row[6]).trim() : "";
+
+        if (!studentNumber) {
+          existingCount++;
+          const initials = school.name.split(/\s+/).map(w => w[0]).join("").toUpperCase().replace(/[^A-Z]/g, "") || subdomain.toUpperCase();
+          studentNumber = `${initials}-STU-${String(existingCount).padStart(4, "0")}`;
+        }
+
+        let residencyType: "DAY" | "BOARDING" = "DAY";
+        if (typeStr.toUpperCase() === "BOARDING" || typeStr.toUpperCase() === "B") {
+          residencyType = "BOARDING";
+        }
+
+        let genderVal: "MALE" | "FEMALE" = "MALE";
+        if (genderStr.toUpperCase() === "FEMALE" || genderStr.toUpperCase() === "F") {
+          genderVal = "FEMALE";
+        }
+
+        await createStudent({
+          schoolId: school.id,
+          classId: bulkStudentClassId,
+          streamId: bulkStudentStreamId,
+          name,
+          studentNumber,
+          type: residencyType,
+          photo: null,
+          lin: lin || null,
+          gender: genderVal,
+          studentPaymentCode: payCode || null,
+          parentContact: parentContact || null,
+        });
+        successCount++;
+        setImportStudentProgress(i);
+      }
+
+      setStudentExcelFile(null);
+      setShowBulkStudentModal(false);
+      await loadSchoolData(school.id);
+      toast.success(`Successfully imported ${successCount} students!`);
+    } catch (err: any) {
+      toast.error("Error importing students: " + (err.message || err));
+    } finally {
+      setIsImportingStudents(false);
+      setImportStudentProgress(0);
+      setImportStudentTotal(0);
+    }
+  };
+
+  // Bulk staff upload handler
+  const handleBulkStaffUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!school || !staffExcelFile) {
+      toast.error("Please select an Excel template file.");
+      return;
+    }
+    try {
+      const rows = await handleParseExcel(staffExcelFile);
+      if (rows.length <= 1) {
+        toast.error("The uploaded Excel file has no staff data rows.");
+        return;
+      }
+
+      let successCount = 0;
+      let existingCount = users.length;
+
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || !row[0]) continue;
+
+        const name = String(row[0]).trim();
+        const email = row[1] ? String(row[1]).trim() : "";
+        let roleStr = row[2] ? String(row[2]).trim() : "TEACHER";
+        let staffNumber = row[3] ? String(row[3]).trim() : "";
+
+        if (!email) continue;
+
+        let role: "ADMIN" | "TEACHER" | "DOS" | "HEADTEACHER" | "DIRECTOR" = "TEACHER";
+        const upperRole = roleStr.toUpperCase();
+        if (upperRole === "ADMIN") role = "ADMIN";
+        else if (upperRole === "DOS") role = "DOS";
+        else if (upperRole === "HEADTEACHER" || upperRole === "HEAD") role = "HEADTEACHER";
+        else if (upperRole === "DIRECTOR") role = "DIRECTOR";
+
+        if (!staffNumber) {
+          existingCount++;
+          const initials = school.name.split(/\s+/).map(w => w[0]).join("").toUpperCase().replace(/[^A-Z]/g, "") || subdomain.toUpperCase();
+          staffNumber = `${initials}-STF-${String(existingCount).padStart(4, "0")}`;
+        }
+
+        const res = await createUser({
+          schoolId: school.id,
+          name,
+          email,
+          passwordHash: "password",
+          role,
+          photo: null,
+          staffNumber,
+        });
+        if (!res.success) {
+          console.error("Bulk staff import failed for " + email + ": " + res.error);
+          continue;
+        }
+        successCount++;
+      }
+
+      setStaffExcelFile(null);
+      setShowBulkStaffModal(false);
+      await loadSchoolData(school.id);
+      toast.success(`Successfully imported ${successCount} staff accounts!`);
+    } catch (err: any) {
+      toast.error("Error importing staff: " + (err.message || err));
+    }
+  };
+
+  // Helper to match filename to student name
+  const matchStudentPhotoFilename = (filename: string, classStudents: any[]) => {
+    const filenameWithNoExt = filename.substring(0, filename.lastIndexOf('.')) || filename;
+    const normalizedFilename = filenameWithNoExt.trim().toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ');
+    const fileWords = normalizedFilename.split(' ').filter((w: string) => w.length > 0);
+    
+    let matchedStudentId = "";
+    let matchType: "Exact" | "Fuzzy" | "Unmatched" = "Unmatched";
+    let highestScore = 0;
+    
+    for (const student of classStudents) {
+      const normalizedStudentName = student.name.trim().toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ');
+      
+      // Exact match
+      if (normalizedStudentName === normalizedFilename) {
+        matchedStudentId = student.id;
+        matchType = "Exact";
+        break;
+      }
+      
+      // Fuzzy match based on words overlap
+      const studentWords = normalizedStudentName.split(' ').filter((w: string) => w.length > 0);
+      const commonWords = fileWords.filter((w: string) => studentWords.includes(w));
+      
+      if (fileWords.length > 0 && studentWords.length > 0) {
+        const score = commonWords.length / Math.max(fileWords.length, studentWords.length);
+        const allFileWordsInStudent = fileWords.every((w: string) => studentWords.includes(w));
+        const allStudentWordsInFile = studentWords.every((w: string) => studentWords.includes(w));
+        
+        if ((allFileWordsInStudent || allStudentWordsInFile || score > 0.4) && score > highestScore) {
+          highestScore = score;
+          matchedStudentId = student.id;
+          matchType = "Fuzzy";
+        }
+      }
+    }
+    
+    return { matchedStudentId, matchType };
+  };
+
+  // Bulk student photo upload selected handler
+  const handleBulkPhotoUploadSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const files = Array.from(e.target.files);
+    
+    // Filter students in selected class/stream
+    const classStudents = students.filter(st => {
+      const matchClass = !bulkPhotoClassId || st.classId === bulkPhotoClassId;
+      const matchStream = !bulkPhotoStreamId || st.streamId === bulkPhotoStreamId;
+      return matchClass && matchStream;
+    });
+
+    const matches: any[] = [];
+    
+    for (const file of files) {
+      try {
+        // Convert file to base64 Data URL
+        const base64Data = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        
+        // Match filename
+        const { matchedStudentId, matchType } = matchStudentPhotoFilename(file.name, classStudents);
+        
+        matches.push({
+          filename: file.name,
+          fileSize: file.size,
+          base64Data,
+          matchedStudentId,
+          matchType,
+        });
+      } catch (err) {
+        console.error("Error reading file " + file.name + ":", err);
+      }
+    }
+    
+    setBulkPhotoMatches(matches);
+  };
+
+  // Apply bulk student photos handler
+  const handleApplyBulkPhotos = async () => {
+    const validMatches = bulkPhotoMatches.filter(m => m.matchedStudentId);
+    if (validMatches.length === 0) {
+      toast.error("No student matches to apply.");
+      return;
+    }
+    
+    setIsApplyingPhotos(true);
+    try {
+      let successCount = 0;
+      for (const match of validMatches) {
+        try {
+          await updateStudent(match.matchedStudentId, { photo: match.base64Data });
+          successCount++;
+        } catch (err) {
+          console.error(`Failed to update photo for student ID ${match.matchedStudentId}:`, err);
+        }
+      }
+      
+      await loadSchoolData(school!.id);
+      setShowBulkPhotoModal(false);
+      setBulkPhotoMatches([]);
+      toast.success(`Successfully uploaded and aligned photos for ${successCount} students!`);
+    } catch (err: any) {
+      toast.error("Error applying student photos: " + (err.message || err));
+    } finally {
+      setIsApplyingPhotos(false);
+    }
+  };
+
+  // Create subject handler
+  const handleCreateSubject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSubjectName || !newSubjectClassId || !school) return;
+    
+    const createOp = async () => {
+      await createSubject({
+        schoolId: school.id,
+        classId: newSubjectClassId,
+        streamId: newSubjectStreamId || null,
+        name: newSubjectName,
+        code: newSubjectCode,
+      });
+      setNewSubjectName("");
+      setNewSubjectCode("");
+      setNewSubjectStreamId("");
+      await loadSchoolData(school.id);
+      return "Subject created successfully!";
+    };
+
+    toast.promise(createOp(), {
+      loading: 'Processing command...',
+      success: (msg) => msg,
+      error: (err) => "Failed to create subject: " + (err.message || err),
+    });
+  };
+
+  const handleBulkCreateSubjects = async (e: React.FormEvent, targetClassId: string, targetStreamId: string, subjectString: string) => {
+    e.preventDefault();
+    if (!targetClassId || !subjectString.trim() || !school) return;
+    
+    const subjectNames = subjectString.split(",").map(s => s.trim()).filter(s => s.length > 0);
+    if (subjectNames.length === 0) {
+      toast.error("Please enter at least one subject name.");
+      return;
+    }
+
+    const bulkOp = async () => {
+      for (const name of subjectNames) {
+        const code = name.slice(0, 3).toUpperCase();
+        await createSubject({
+          schoolId: school.id,
+          classId: targetClassId,
+          streamId: targetStreamId || null,
+          name,
+          code,
+        });
+      }
+      await loadSchoolData(school.id);
+      return `Successfully added ${subjectNames.length} subjects!`;
+    };
+
+    toast.promise(bulkOp(), {
+      loading: 'Processing command...',
+      success: (msg) => msg,
+      error: (err) => "Error adding subjects: " + (err.message || err),
+    });
+  };
+
+  const handleAssignPoolSubjects = async (targetClassId: string) => {
+    if (!targetClassId || subjectPoolSelectedSubjects.length === 0 || !school) return;
+    
+    const assignOp = async () => {
+      for (const name of subjectPoolSelectedSubjects) {
+        const code = name.slice(0, 3).toUpperCase();
+        await createSubject({
+          schoolId: school.id,
+          classId: targetClassId,
+          name,
+          code,
+        });
+      }
+      setSubjectPoolSelectedSubjects([]);
+      await loadSchoolData(school.id);
+      return `Successfully assigned ${subjectPoolSelectedSubjects.length} subjects from pool!`;
+    };
+
+    toast.promise(assignOp(), {
+      loading: 'Processing command...',
+      success: (msg) => msg,
+      error: (err) => "Error assigning subjects: " + (err.message || err),
+    });
+  };
+
+  // Create exam paper
+  const handleCreateExam = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newExamName || !school) return;
+    try {
+      await createExamPaper({
+        schoolId: school.id,
+        name: newExamName,
+        term: parseInt(newExamTerm),
+        year: parseInt(newExamYear),
+        maxMarks: 100,
+        isNewCurriculum: newExamIsNewCurriculum,
+        classId: newExamClassId || null,
+        cbU1Active: newExamCbU1Active,
+        cbU2Active: newExamCbU2Active,
+        cbEtActive: newExamCbEtActive,
+        cbHpgActive: newExamCbHpgActive,
+        cbU1Max: newExamCbU1Max,
+        cbU2Max: newExamCbU2Max,
+        cbEtMax: newExamCbEtMax,
+        cbHpgMax: newExamCbHpgMax,
+      });
+      setNewExamName("");
+      setNewExamClassId("");
+      setNewExamCbU1Active(true);
+      setNewExamCbU2Active(true);
+      setNewExamCbEtActive(true);
+      setNewExamCbHpgActive(true);
+      setNewExamCbU1Max(3);
+      setNewExamCbU2Max(3);
+      setNewExamCbEtMax(3);
+      setNewExamCbHpgMax(3);
+      await loadSchoolData(school.id);
+      toast.success("Exam Paper scheduled successfully!");
+    } catch (err: any) {
+      console.error("Error creating exam:", err);
+      toast.error("Failed to schedule exam paper: " + (err.message || err));
+    }
+  };
+
+  // Update exam paper
+  const handleUpdateExam = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEditExam || !editExamName || !school) return;
+    try {
+      await updateExamPaper(selectedEditExam.id, {
+        name: editExamName,
+        term: parseInt(editExamTerm),
+        year: parseInt(editExamYear),
+        classId: editExamClassId || null,
+        isNewCurriculum: editExamIsNewCurriculum,
+        cbU1Active: editExamCbU1Active,
+        cbU2Active: editExamCbU2Active,
+        cbEtActive: editExamCbEtActive,
+        cbHpgActive: editExamCbHpgActive,
+        cbU1Max: editExamCbU1Max,
+        cbU2Max: editExamCbU2Max,
+        cbEtMax: editExamCbEtMax,
+        cbHpgMax: editExamCbHpgMax,
+      });
+      setShowEditExamModal(false);
+      setSelectedEditExam(null);
+      await loadSchoolData(school.id);
+      toast.success("Exam Paper updated successfully!");
+    } catch (err: any) {
+      console.error("Error updating exam:", err);
+      toast.error("Failed to update exam: " + (err.message || err));
+    }
+  };
+
+  // Delete exam paper
+  const handleDeleteExam = async (examId: string) => {
+    const ex = exams.find(e => e.id === examId);
+    if (!ex) return;
+    if (confirm(`⚠️ WARNING: Deleting exam "${ex.name}" will permanently delete ALL associated student marks for this exam. Are you sure you want to proceed?`)) {
+      try {
+        await deleteExamPaper(examId);
+        await loadSchoolData(school!.id);
+        toast.success("Exam Paper deleted successfully!");
+      } catch (err: any) {
+        toast.error("Error deleting exam: " + (err.message || err));
+      }
+    }
+  };
+
+  // Get student's rank/position in their class for a specific exam
+  const getStudentRankInClass = (studentId: string, classId: string, examPaperId: string) => {
+    const classStudents = students.filter(s => s.classId === classId);
+    const studentScores = classStudents.map(st => {
+      const stMarks = marks.filter(m => m.studentId === st.id && m.examPaperId === examPaperId);
+      if (stMarks.length === 0) return { studentId: st.id, total: -1, count: 0 };
+      const sum = stMarks.reduce((acc, m) => acc + m.score, 0);
+      return { studentId: st.id, total: sum, count: stMarks.length };
+    });
+    
+    const gradedStudents = studentScores.filter(s => s.count > 0);
+    gradedStudents.sort((a, b) => b.total - a.total);
+    
+    const rankIndex = gradedStudents.findIndex(s => s.studentId === studentId);
+    if (rankIndex === -1) return "N/A";
+    return {
+      position: rankIndex + 1,
+      totalCount: gradedStudents.length
+    };
+  };
+
+  // Save marks for a class
+  const handleDownloadMarksTemplate = () => {
+    if (!selectedExamId || !selectedSubjectId || !selectedClassId || !selectedStreamId) {
+      toast.error("Please select exam, class, stream, and subject first.");
+      return;
+    }
+    const currentExam = exams.find(ex => ex.id === selectedExamId);
+    if (!currentExam) return;
+
+    const relevantStudents = students.filter(st => st.classId === selectedClassId && st.streamId === selectedStreamId);
+    if (relevantStudents.length === 0) {
+      toast.error("No students found in the selected class and stream.");
+      return;
+    }
+
+    let headers: string[] = [];
+    if (currentExam.isNewCurriculum) {
+      headers = ["Student Number", "Student Name"];
+      if (currentExam.cbU1Active !== false) headers.push("U1 (%)");
+      if (currentExam.cbU2Active !== false) headers.push("U2 (%)");
+      if (currentExam.cbEtActive !== false) headers.push("E.T (%)");
+      if (currentExam.cbHpgActive !== false) headers.push("HPG (%)");
+      headers.push("EOY (%)");
+      headers.push("Remarks");
+    } else {
+      headers = ["Student Number", "Student Name", "Score", "Remarks"];
+    }
+
+    const templateData = relevantStudents.map(st => {
+      const row: any[] = [st.studentNumber, st.name];
+      if (currentExam.isNewCurriculum) {
+        if (currentExam.cbU1Active !== false) row.push("");
+        if (currentExam.cbU2Active !== false) row.push("");
+        if (currentExam.cbEtActive !== false) row.push("");
+        if (currentExam.cbHpgActive !== false) row.push("");
+        row.push("");
+        row.push("");
+      } else {
+        row.push("");
+        row.push("");
+      }
+      return row;
+    });
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...templateData]);
+    // Set column widths
+    const wscols = [
+      { wch: 15 }, // Student Number
+      { wch: 25 }, // Student Name
+      ...Array(headers.length - 2).fill({ wch: 10 }), // Scores
+      { wch: 30 } // Remarks
+    ];
+    ws['!cols'] = wscols;
+
+    XLSX.utils.book_append_sheet(wb, ws, "Marks Template");
+    const streamName = streams.find(s => s.id === selectedStreamId)?.name || "";
+    const subjectName = subjects.find(s => s.id === selectedSubjectId)?.name || "";
+    XLSX.writeFile(wb, `Marks_Template_${streamName}_${subjectName}.xlsx`);
+  };
+
+  const handleBulkMarksUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!selectedExamId || !selectedSubjectId || !selectedClassId || !selectedStreamId) {
+      toast.error("Please select exam, class, stream, and subject first.");
+      if (e.target) e.target.value = '';
+      return;
+    }
+
+    const currentExam = exams.find(ex => ex.id === selectedExamId);
+    if (!currentExam) return;
+
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: "binary" });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json<any>(ws, { header: 1 });
+
+        if (data.length < 2) {
+          toast.error("The Excel file is empty or missing data.");
+          return;
+        }
+
+        const headers = data[0] as string[];
+        const rows = data.slice(1);
+        let successCount = 0;
+
+        rows.forEach(row => {
+          if (!row[0]) return; // Skip empty rows
+          const studentNumber = row[0].toString();
+          const st = students.find(s => s.studentNumber === studentNumber && s.classId === selectedClassId && s.streamId === selectedStreamId);
+          if (!st) return;
+
+          const studentId = st.id;
+          if (currentExam.isNewCurriculum) {
+            let colIdx = 2; // Starts after Student Number and Student Name
+            if (currentExam.cbU1Active !== false) {
+              const val = row[colIdx];
+              if (val !== undefined && val !== null && val !== "") setInputU1(prev => ({ ...prev, [studentId]: val.toString() }));
+              colIdx++;
+            }
+            if (currentExam.cbU2Active !== false) {
+              const val = row[colIdx];
+              if (val !== undefined && val !== null && val !== "") setInputU2(prev => ({ ...prev, [studentId]: val.toString() }));
+              colIdx++;
+            }
+            if (currentExam.cbEtActive !== false) {
+              const val = row[colIdx];
+              if (val !== undefined && val !== null && val !== "") setInputU3(prev => ({ ...prev, [studentId]: val.toString() }));
+              colIdx++;
+            }
+            if (currentExam.cbHpgActive !== false) {
+              const val = row[colIdx];
+              if (val !== undefined && val !== null && val !== "") setInputHPG(prev => ({ ...prev, [studentId]: val.toString() }));
+              colIdx++;
+            }
+            const eoyVal = row[colIdx];
+            if (eoyVal !== undefined && eoyVal !== null && eoyVal !== "") setInputEOY(prev => ({ ...prev, [studentId]: eoyVal.toString() }));
+            colIdx++;
+
+            const remarkVal = row[colIdx];
+            if (remarkVal !== undefined && remarkVal !== null && remarkVal !== "") setInputComments(prev => ({ ...prev, [studentId]: remarkVal.toString() }));
+          } else {
+            const scoreVal = row[2];
+            if (scoreVal !== undefined && scoreVal !== null && scoreVal !== "") setInputScores(prev => ({ ...prev, [studentId]: scoreVal.toString() }));
+            const remarkVal = row[3];
+            if (remarkVal !== undefined && remarkVal !== null && remarkVal !== "") setInputComments(prev => ({ ...prev, [studentId]: remarkVal.toString() }));
+          }
+          successCount++;
+        });
+
+        toast.success(`Successfully imported marks for ${successCount} students. Please review the grid and click "Save Grid Marks" to save.`);
+      } catch (err: any) {
+        toast.error("Error parsing Excel file: " + (err.message || err));
+      }
+    };
+    reader.readAsBinaryString(file);
+    if (e.target) e.target.value = ''; // Reset input
+  };
+
+  const handleSaveMarks = async () => {
+    if (!selectedExamId || !selectedSubjectId || !currentUser) {
+      toast.error("Please select exam and subject first.");
+      return;
+    }
+
+    const currentExam = exams.find(ex => ex.id === selectedExamId);
+    if (!currentExam) return;
+
+    const relevantStudents = students.filter(st => st.classId === selectedClassId && st.streamId === selectedStreamId);
+
+    try {
+      for (const st of relevantStudents) {
+        const studentId = st.id;
+        const comment = inputComments[studentId] || "";
+
+        if (currentExam.isNewCurriculum) {
+          const u1Str = inputU1[studentId];
+          const u2Str = inputU2[studentId];
+          const u3Str = inputU3[studentId];
+          const hpgStr = inputHPG[studentId];
+          const eoyStr = inputEOY[studentId];
+
+          // If all fields are empty, don't save anything
+          if (!u1Str && !u2Str && !u3Str && !hpgStr && !eoyStr) continue;
+
+          const u1Active = currentExam.cbU1Active !== false;
+          const u2Active = currentExam.cbU2Active !== false;
+          const etActive = currentExam.cbEtActive !== false;
+          const hpgActive = currentExam.cbHpgActive !== false;
+
+          const u1Max = currentExam.cbU1Max ?? 3;
+          const u2Max = currentExam.cbU2Max ?? 3;
+          const etMax = currentExam.cbEtMax ?? 3;
+          const hpgMax = currentExam.cbHpgMax ?? 3;
+
+          let u1Scaled: number | null = null;
+          let u2Scaled: number | null = null;
+          let u3Scaled: number | null = null;
+          let hpgScaled: number | null = null;
+          let eoyScaled: number | null = null;
+
+          if (u1Active && u1Str) {
+            const raw = parseFloat(u1Str);
+            if (isNaN(raw) || raw < 0 || raw > 100) continue;
+            u1Scaled = (raw / 100) * u1Max;
+          }
+          if (u2Active && u2Str) {
+            const raw = parseFloat(u2Str);
+            if (isNaN(raw) || raw < 0 || raw > 100) continue;
+            u2Scaled = (raw / 100) * u2Max;
+          }
+          if (etActive && u3Str) {
+            const raw = parseFloat(u3Str);
+            if (isNaN(raw) || raw < 0 || raw > 100) continue;
+            u3Scaled = (raw / 100) * etMax;
+          }
+          if (hpgActive && hpgStr) {
+            const raw = parseFloat(hpgStr);
+            if (isNaN(raw) || raw < 0 || raw > 100) continue;
+            hpgScaled = (raw / 100) * hpgMax;
+          }
+          if (eoyStr) {
+            const raw = parseFloat(eoyStr);
+            if (isNaN(raw) || raw < 0 || raw > 100) continue;
+            eoyScaled = (raw / 100) * 80;
+          }
+
+          const totalCA = (u1Scaled || 0) + (u2Scaled || 0) + (u3Scaled || 0) + (hpgScaled || 0);
+          let maxCATotal = 0;
+          if (u1Scaled !== null) maxCATotal += u1Max;
+          if (u2Scaled !== null) maxCATotal += u2Max;
+          if (u3Scaled !== null) maxCATotal += etMax;
+          if (hpgScaled !== null) maxCATotal += hpgMax;
+
+          const caScoreOutOf20 = maxCATotal > 0 ? Math.round((totalCA / maxCATotal) * 20) : 0;
+          const finalTotal = caScoreOutOf20 + (eoyScaled || 0);
+
+          const gradeObj = computeGradeFromRanges(finalTotal, "SECONDARY", gradeRanges);
+          const compGrade = gradeObj.grade;
+          const finalComment = comment || gradeObj.descriptor || "Satisfactory progress";
+
+          await addMark({
+            studentId,
+            examPaperId: selectedExamId,
+            subjectId: selectedSubjectId,
+            score: finalTotal,
+            competencyGrade: compGrade,
+            comments: finalComment,
+            createdById: currentUser.id,
+            u1: u1Scaled,
+            u2: u2Scaled,
+            u3: u3Scaled,
+            hpg: hpgScaled,
+            eoy: eoyScaled
+          });
+        } else {
+          const scoreStr = inputScores[studentId];
+          if (!scoreStr) continue;
+
+          const rawScore = parseFloat(scoreStr);
+          if (isNaN(rawScore) || rawScore < 0 || rawScore > currentExam.maxMarks) continue;
+
+          const gradeObj = computeGradeFromRanges(rawScore, "PRIMARY", gradeRanges);
+          const compGrade = gradeObj.grade;
+          const finalComment = comment || gradeObj.descriptor || "Good effort";
+
+          await addMark({
+            studentId,
+            examPaperId: selectedExamId,
+            subjectId: selectedSubjectId,
+            score: rawScore,
+            competencyGrade: compGrade,
+            comments: finalComment,
+            createdById: currentUser.id,
+          });
+        }
+      }
+      toast.success("Marks saved successfully!");
+      await loadSchoolData(school!.id);
+      setInputScores({});
+      setInputU1({});
+      setInputU2({});
+      setInputU3({});
+      setInputHPG({});
+      setInputEOY({});
+      setInputComments({});
+    } catch (err) {
+      console.error(err);
+      toast.error("Error saving marks");
+    }
+  };
+
+  // Record school fee structure
+  const handleSaveFee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedFeeClassId || !tuitionAmount || !boardingAmount || !school) return;
+    await createFeeStructure({
+      schoolId: school.id,
+      classId: selectedFeeClassId,
+      term: 1, // Mock term 1
+      year: 2026,
+      tuitionAmount: parseFloat(tuitionAmount),
+      boardingAmount: parseFloat(boardingAmount),
+    });
+    setTuitionAmount("");
+    setBoardingAmount("");
+    await loadSchoolData(school.id);
+    toast.success("Fee structure saved!");
+  };
+
+  // Record student fee payment (enhanced)
+  const handleRecordStudentPay = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPayStudentId || !payAmountPaid || !school) return;
+
+    const stud = students.find(s => s.id === selectedPayStudentId);
+    if (!stud) return;
+
+    const fs = feeStructures.find(f => f.classId === stud.classId);
+    const totalDue = stud.type === "BOARDING" 
+      ? (fs?.tuitionAmount || 0) + (fs?.boardingAmount || 0)
+      : (fs?.tuitionAmount || 0);
+
+    const paidVal = parseFloat(payAmountPaid);
+    const bbfVal = parseFloat(payBBF) || 0;
+
+    // Calculate balance: total due - BBF credit - new payment
+    const prevPayments = studentPayments.filter(p => p.studentId === selectedPayStudentId && p.term === parseInt(payTerm) && p.year === parseInt(payYear));
+    const alreadyPaid = prevPayments.reduce((sum, p) => sum + p.amountPaid, 0);
+    const newTotalPaid = alreadyPaid + paidVal;
+    const balance = Math.max(0, totalDue - bbfVal - newTotalPaid);
+
+    // Auto-generate receipt number if not provided
+    const receipt = payReceiptNum || `RCP-${Date.now().toString(36).toUpperCase()}`;
+
+    await recordStudentPayment({
+      studentId: selectedPayStudentId,
+      term: parseInt(payTerm),
+      year: parseInt(payYear),
+      amountPaid: paidVal,
+      balance,
+      balanceBF: bbfVal,
+      notes: payNotes || null,
+      paymentMethod: payMethod,
+      receiptNumber: receipt,
+    });
+
+    setPayAmountPaid("");
+    setPayNotes("");
+    setPayReceiptNum("");
+    setPayBBF("0");
+    await loadSchoolData(school.id);
+    toast.success(`Payment recorded! Receipt: ${receipt}`);
+  };
+
+  // Manual SchoolPay Sync
+  const handleSchoolPaySync = async () => {
+    if (!school) return;
+    setSpSyncing(true);
+    setSpSyncMsg("");
+    try {
+      const res = await fetch("/api/finance/sync-schoolpay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          schoolId: school.id,
+          startDate: spSyncStartDate || undefined,
+          endDate: spSyncEndDate || undefined
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSpSyncMsg(`✅ Sync complete: ${data.result?.importedCount ?? 0} new transaction(s) imported.`);
+        if (data.transactions) setSchoolPayTransactions(data.transactions);
+        // Refresh student payments
+        const spay = await getStudentPayments(school.id);
+        setStudentPayments(spay);
+      } else {
+        setSpSyncMsg(`❌ ${data.error || "Sync failed. Check credentials."}`);
+      }
+    } catch (err) {
+      setSpSyncMsg("❌ Network error. Try again.");
+    } finally {
+      setSpSyncing(false);
+    }
+  };
+
+  
+  const handleBulkAutoImport = async () => {
+    if (!school) return;
+    const term = school.currentTerm || 1;
+    const year = school.currentYear || new Date().getFullYear();
+    
+    if (!confirm(`Are you sure you want to bulk import all matched transactions into Term ${term}, ${year}?`)) return;
+    
+    setSpSyncing(true);
+    let successCount = 0;
+    
+    try {
+      const unmatched = schoolPayTransactions.filter(tx => !tx.reconciled);
+      
+      for (const tx of unmatched) {
+        if (!tx.studentPaymentCode) continue;
+        const matchedStudent = students.find(s => s.studentPaymentCode === tx.studentPaymentCode);
+        
+        if (matchedStudent) {
+          const fs = feeStructures.find(f => f.classId === matchedStudent.classId);
+          const totalDue = matchedStudent.type === "BOARDING"
+            ? (fs?.tuitionAmount || 0) + (fs?.boardingAmount || 0)
+            : (fs?.tuitionAmount || 0);
+
+          const prevPayments = studentPayments.filter(p => p.studentId === matchedStudent.id && p.term === term && p.year === year);
+          const alreadyPaid = prevPayments.reduce((sum, p) => sum + p.amountPaid, 0);
+          const balance = Math.max(0, totalDue - (alreadyPaid + tx.amount));
+
+          await recordStudentPayment({
+            studentId: matchedStudent.id,
+            term: term,
+            year: year,
+            amountPaid: tx.amount,
+            balance,
+            paymentMethod: "SCHOOL_PAY",
+            receiptNumber: tx.receiptNumber,
+            notes: `Bulk Auto-imported for Term ${term}, ${year}`,
+          });
+          successCount++;
+        }
+      }
+      
+      if (successCount > 0) {
+        setStudentPayments(await getStudentPayments(school.id));
+        setSchoolPayTransactions(await getSchoolPayTransactions(school.id));
+        toast.success(`Successfully bulk imported ${successCount} transaction(s)!`);
+      } else {
+        toast.success("No exact payment code matches found for bulk import. New students must be imported manually.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Error during bulk import.");
+    } finally {
+      setSpSyncing(false);
+    }
+  };
+
+  // Auto-import Student from SchoolPay Transaction
+  const handleAutoImportStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!school || !autoImportTx || !autoImportClassId || !autoImportStreamId) return;
+
+    try {
+      // 1. Create the student
+      const nameParts = autoImportTx.studentName.split(" ");
+      const newStudent = await createStudent({
+        schoolId: school.id,
+        classId: autoImportClassId,
+        streamId: autoImportStreamId,
+        name: autoImportTx.studentName,
+        type: autoImportType,
+        studentPaymentCode: autoImportTx.studentPaymentCode || "",
+        studentNumber: `STU-${Date.now().toString(36).toUpperCase()}`
+      });
+
+      // 2. Refresh students so we have the new ID
+      const updatedStudents = await getStudents(school.id);
+      setStudents(updatedStudents);
+      const matchedStudent = updatedStudents.find(s => s.studentPaymentCode === autoImportTx.studentPaymentCode);
+
+      if (matchedStudent) {
+        const fs = feeStructures.find(f => f.classId === matchedStudent.classId);
+        const totalDue = matchedStudent.type === "BOARDING"
+          ? (fs?.tuitionAmount || 0) + (fs?.boardingAmount || 0)
+          : (fs?.tuitionAmount || 0);
+
+        const termNum = parseInt(autoImportTerm);
+        const yearNum = parseInt(autoImportYear);
+        const prevPayments = studentPayments.filter(p => p.studentId === matchedStudent.id && p.term === termNum && p.year === yearNum);
+        const alreadyPaid = prevPayments.reduce((sum, p) => sum + p.amountPaid, 0);
+        const balance = Math.max(0, totalDue - (alreadyPaid + autoImportTx.amount));
+
+        // 3. Record the payment and automatically reconcile
+        await recordStudentPayment({
+          studentId: matchedStudent.id,
+          term: termNum,
+          year: yearNum,
+          amountPaid: autoImportTx.amount,
+          balance,
+          paymentMethod: "SCHOOL_PAY",
+          receiptNumber: autoImportTx.receiptNumber,
+          notes: `Auto-imported and matched from SchoolPay transaction`,
+        });
+
+        // 4. Refresh data
+        setStudentPayments(await getStudentPayments(school.id));
+        setSchoolPayTransactions(await getSchoolPayTransactions(school.id));
+        toast.success(`Successfully imported ${autoImportTx.studentName} and recorded their payment of ${autoImportTx.amount.toLocaleString()} UGX!`);
+      } else {
+        toast.error("Student created, but there was an error matching the transaction.");
+      }
+
+      setShowAutoImportModal(false);
+      setAutoImportTx(null);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to auto-import student.");
+    }
+  };
+
+  // Record expense
+  const handleCreateExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!expAmount || !school) return;
+    await createExpense({
+      schoolId: school.id,
+      category: expCategory,
+      amount: parseFloat(expAmount),
+      description: expDesc,
+    });
+    setExpAmount("");
+    setExpDesc("");
+    await loadSchoolData(school.id);
+    toast.success("Expense recorded!");
+  };
+
+  // Save daily student attendance registry
+  const handleSaveAttendance = async () => {
+    if (!attendanceClassId || !attendanceStreamId || !attendanceDate || !school) {
+      toast.error("Please select class, stream, and date.");
+      return;
+    }
+
+    try {
+      const classStudents = students.filter(s => s.classId === attendanceClassId && s.streamId === attendanceStreamId);
+      for (const st of classStudents) {
+        const status = attendanceStatuses[st.id] || "PRESENT"; // default to present if unchecked
+        await recordAttendance(
+          st.id,
+          new Date(attendanceDate),
+          status,
+          1, // Term 1
+          2026
+        );
+      }
+      toast.success("Attendance log saved successfully!");
+      await loadAttendance(attendanceClassId, attendanceStreamId, attendanceDate);
+    } catch (err) {
+      toast.error("Error saving attendance registry.");
+    }
+  };
+
+  // Process batch promotion of students
+  const handlePromoteStudents = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!promoteFromClassId || !promoteToClassId || !school) return;
+    if (promoteFromClassId === promoteToClassId) {
+      toast.error("Cannot promote students to the same class.");
+      return;
+    }
+
+    const confirmText = `Are you sure you want to promote all students from ${classes.find(c => c.id === promoteFromClassId)?.name} to ${classes.find(c => c.id === promoteToClassId)?.name}? This cannot be undone.`;
+    if (!window.confirm(confirmText)) return;
+
+    try {
+      await promoteStudents(school.id, promoteFromClassId, promoteToClassId);
+      toast.success("Students promoted successfully!");
+      await loadSchoolData(school.id);
+    } catch (err) {
+      toast.error("Error processing student promotions.");
+    }
+  };
+
+  // Process Teacher Salary Payout
+  const handleProcessSalary = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!payTeacherId || !paySalaryAmount || !school) return;
+    
+    // In mock/Prisma users is available, but wait! We can load users from the schoolId
+    const schoolUsers = await getUsers(school.id);
+    const teacher = schoolUsers.find(u => u.id === payTeacherId);
+    const amountVal = parseFloat(paySalaryAmount);
+    if (!teacher || isNaN(amountVal)) return;
+
+    try {
+      await processTeacherSalary(
+        school.id,
+        payTeacherId,
+        teacher.name,
+        amountVal,
+        payMonthName
+      );
+      setPaySalaryAmount("");
+      await loadSchoolData(school.id);
+      toast.success(`Processed wage payment of ${amountVal.toLocaleString()} UGX for ${teacher.name}!`);
+    } catch (err) {
+      toast.error("Error processing teacher salary payment.");
+    }
+  };
+
+  // Save Report Template Config
+  const handleSaveReportTemplate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!school) return;
+    try {
+      const updated = await updateSchoolMetadata(school.id, {
+        reportTitle: designerTitle,
+        reportMotto: designerMotto,
+        reportShowBadge: designerShowBadge,
+        reportShowResidency: designerShowResidency,
+        reportShowSignatures: designerShowSignatures,
+        reportShowRules: designerShowRules,
+        reportLogoSize: designerLogoSize,
+        reportShowStudentPhoto: designerShowStudentPhoto,
+        reportHeaderColor: designerHeaderColor,
+        reportBorderType: designerBorderType,
+        reportTikTok: designerTikTok,
+        reportWebsite: designerWebsite,
+        reportLocation: designerLocation,
+        reportShowChart: designerShowChart,
+        reportShowLIN: designerShowLIN,
+        reportShowPayCode: designerShowPayCode,
+        reportShowComments: designerShowComments,
+        reportShowFees: designerShowFees,
+        reportShowTermDates: designerShowTermDates,
+        reportShowSummaryRow: designerShowSummaryRow
+      });
+      setSchool(updated);
+      toast.success("Academic report card template layout saved successfully!");
+    } catch (err: any) {
+      toast.error("Failed to save report template config: " + (err.message || err));
+    }
+  };
+
+  // Trigger simulated payment transaction steps
+  const handleTriggerMoMoPayment = (amount: number, purpose: "TUITION" | "PACKAGE", studentId: string = "") => {
+    setMomoAmount(String(amount));
+    setMomoPurpose(purpose);
+    setMomoStudentId(studentId);
+    setMomoStep(0); // Input form
+    setMomoPhone("");
+    setCardName("");
+    setCardNumber("");
+    setCardExpiry("");
+    setCardCvv("");
+    setCardOtp("");
+    setMomoProvider("MTN");
+    setShowMoMoModal(true);
+
+    // Split payment tracking (max 190k per transaction to stay strictly below 200k limit)
+    const maxLimit = 190000;
+    const splits: number[] = [];
+    let tempAmount = amount;
+    while (tempAmount > maxLimit) {
+      splits.push(maxLimit);
+      tempAmount -= maxLimit;
+    }
+    if (tempAmount > 0) {
+      splits.push(tempAmount);
+    }
+    setMomoSplitAmounts(splits);
+    setMomoSplitIndex(0);
+    setMomoCompletedSplits([]);
+    setMomoTxUuid("");
+  };
+
+  const executeSimulatedMoMo = async () => {
+    if (!school) return;
+    
+    const amountVal = parseFloat(momoAmount);
+    if (isNaN(amountVal) || amountVal <= 0) {
+      toast.error("Invalid payment amount");
+      return;
+    }
+
+    if (momoProvider !== "CARD" && !momoPhone) {
+      toast.error("Please enter your mobile phone number.");
+      return;
+    }
+
+    // Determine the current split amount to pay in this transaction
+    const currentSplitAmount = momoSplitAmounts[momoSplitIndex] || amountVal;
+
+    setMomoStep(1); // Connecting gateway
+    try {
+      const res = await initiateMarzpayCollection(
+        currentSplitAmount,
+        momoProvider === "CARD" ? "card" : "mobile_money",
+        momoProvider === "CARD" ? undefined : momoPhone,
+        (momoPurpose === "PACKAGE" ? `Plan Renewal for ${school.name}` : `Tuition Payment for Student ID ${momoStudentId}`) +
+        (momoSplitAmounts.length > 1 ? ` (Part ${momoSplitIndex + 1}/${momoSplitAmounts.length})` : "")
+      );
+
+      if (res && res.status === "success") {
+        setMomoTxUuid(res.uuid);
+        if (momoProvider === "CARD") {
+          // Direct redirect for card payments
+          if (res.redirect_url) {
+            window.location.href = res.redirect_url;
+          } else {
+            toast.error("Card redirect URL not provided by gateway.");
+            setMomoStep(0);
+          }
+        } else {
+          // For Mobile Money, wait for the customer to approve, and display the polling check screen
+          setMomoStep(2); // Waiting for Approval
+        }
+      } else {
+        toast.error(res?.message || "Failed to initiate payment collection from Marzpay.");
+        setMomoStep(0);
+      }
+    } catch (err: any) {
+      toast.error("Error contacting Marzpay gateway: " + (err.message || err));
+      setMomoStep(0);
+    }
+  };
+
+  const checkPaymentStatus = async () => {
+    if (!school) return;
+    if (!momoTxUuid) {
+      toast.error("No transaction reference found.");
+      return;
+    }
+    setMomoStep(3); // Verifying
+    try {
+      const res = await checkMarzpayCollectionStatus(momoTxUuid);
+      if (res && res.status === "success") {
+        // Complete the current split payment locally or trigger next split!
+        const completedAmount = momoSplitAmounts[momoSplitIndex] || parseFloat(momoAmount);
+        
+        if (momoSplitIndex < momoSplitAmounts.length - 1) {
+          // Record this split
+          const newCompleted = [...momoCompletedSplits, { amount: completedAmount, uuid: momoTxUuid }];
+          setMomoCompletedSplits(newCompleted);
+          
+          // Move to next split index
+          const nextIdx = momoSplitIndex + 1;
+          setMomoSplitIndex(nextIdx);
+          
+          // Initiate the next split payment
+          setMomoStep(1); // Connecting gateway
+          try {
+            const nextAmount = momoSplitAmounts[nextIdx];
+            const nextRes = await initiateMarzpayCollection(
+              nextAmount,
+              momoProvider === "CARD" ? "card" : "mobile_money",
+              momoProvider === "CARD" ? undefined : momoPhone,
+              (momoPurpose === "PACKAGE" ? `Plan Renewal for ${school.name}` : `Tuition Payment for Student ID ${momoStudentId}`) +
+              ` (Part ${nextIdx + 1}/${momoSplitAmounts.length})`
+            );
+            
+            if (nextRes && nextRes.status === "success") {
+              setMomoTxUuid(nextRes.uuid);
+              if (momoProvider === "CARD") {
+                if (nextRes.redirect_url) {
+                  window.location.href = nextRes.redirect_url;
+                } else {
+                  toast.error(`Card redirect URL not provided by gateway for Part ${nextIdx + 1}.`);
+                  setMomoStep(0);
+                }
+              } else {
+                setMomoStep(2); // Waiting for Approval
+                toast.error(`Part ${nextIdx} payment succeeded! We are now sending a push prompt for Part ${nextIdx + 1} (${nextAmount.toLocaleString()} UGX) to your phone. Please approve it.`);
+              }
+            } else {
+              toast.error(nextRes?.message || `Failed to initiate Part ${nextIdx + 1} of payment.`);
+              setMomoStep(0);
+            }
+          } catch (err: any) {
+            toast.error(`Error initiating Part ${nextIdx + 1} of payment: ` + (err.message || err));
+            setMomoStep(0);
+          }
+        } else {
+          // All splits completed! Complete the payment locally!
+          try {
+            if (!school) return;
+            if (momoPurpose === "TUITION" && momoStudentId) {
+              const stud = students.find(s => s.id === momoStudentId);
+              if (stud) {
+                const fs = feeStructures.find(f => f.classId === stud.classId);
+                const totalDue = stud.type === "BOARDING" 
+                  ? (fs?.tuitionAmount || 0) + (fs?.boardingAmount || 0)
+                  : (fs?.tuitionAmount || 0);
+
+                const prevPayment = studentPayments.find(p => p.studentId === momoStudentId);
+                const alreadyPaid = prevPayment ? prevPayment.amountPaid : 0;
+                const newTotalPaid = alreadyPaid + parseFloat(momoAmount);
+                const balance = Math.max(0, totalDue - newTotalPaid);
+
+                await recordStudentPayment({
+                  studentId: momoStudentId,
+                  term: 1,
+                  year: 2026,
+                  amountPaid: newTotalPaid,
+                  balance,
+                });
+              }
+            } else if (momoPurpose === "PACKAGE") {
+              await updateSchoolStatus(school.id, "ACTIVE");
+              await createPayment({
+                schoolId: school.id,
+                amount: parseFloat(momoAmount),
+                method: momoProvider === "CARD" ? "CARD" : "MOBILE_MONEY",
+                status: "COMPLETED",
+                txRef: `TX-MARZ-${momoTxUuid.substring(0, 8).toUpperCase()}`
+              });
+              const updatedSch = await getSchoolBySubdomain(subdomain);
+              if (updatedSch) setSchool(updatedSch);
+            }
+            setMomoStep(4); // Success!
+            await loadSchoolData(school.id);
+          } catch (err: any) {
+            toast.error("Error updating transaction records: " + (err.message || err));
+            setMomoStep(2);
+          }
+        }
+      } else if (res && res.status === "failed") {
+        toast.error("Payment failed or was declined by user.");
+        setMomoStep(0);
+      } else {
+        // Still pending
+        toast.error("Payment is still pending. Please approve the USSD prompt on your phone and try again.");
+        setMomoStep(2);
+      }
+    } catch (err: any) {
+      toast.error("Error checking transaction status: " + (err.message || err));
+      setMomoStep(2);
+    }
+  };
+
+  // Generate PLE Report Card Data
+  const getPLEReportDetails = (studentId: string) => {
+    const studentMarks = marks.filter(m => m.studentId === studentId);
+    
+    // Find EOT marks
+    const eotExam = exams.find(e => e.term === parseInt(selectedReportTerm) && e.name.includes("End of Term"));
+    if (!eotExam) return null;
+
+    const termMarks = studentMarks.filter(m => m.examPaperId === eotExam.id);
+    
+    // Sum aggregates
+    let aggregateSum = 0;
+    let missingSubject = false;
+    
+    const subjectGrades = termMarks.map(m => {
+      const subj = subjects.find(s => s.id === m.subjectId);
+      const grade = parseInt(m.competencyGrade || "9");
+      aggregateSum += grade;
+      return {
+        subjectName: subj?.name || "Unknown",
+        score: m.score,
+        grade,
+        comment: m.comments,
+      };
+    });
+
+    // We expect 4 subjects for Primary PLE
+    if (subjectGrades.length < 4) {
+      missingSubject = true;
+    }
+
+    let division = "U";
+    if (!missingSubject) {
+      if (aggregateSum <= 12) division = "I";
+      else if (aggregateSum <= 23) division = "II";
+      else if (aggregateSum <= 29) division = "III";
+      else if (aggregateSum <= 34) division = "IV";
+      else division = "U";
+    }
+
+    return {
+      subjects: subjectGrades,
+      aggregate: missingSubject ? "N/A" : aggregateSum,
+      division: missingSubject ? "Ungraded (Incomplete)" : division,
+    };
+  };
+
+  // Print Report Card Utility
+  const triggerPrint = () => {
+    window.print();
+  };
+
+  // Loading indicator
+  if (loading) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0f172a", color: "white" }}>
+        <h2>Loading School Portal...</h2>
+      </div>
+    );
+  }
+
+  // Connection/Server Error during loading
+  if (loadError) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0f172a", color: "white", padding: "20px" }}>
+        <div style={{ width: "100%", maxWidth: "600px", background: "#1e293b", padding: "40px", borderRadius: "12px", boxShadow: "0 10px 25px rgba(0,0,0,0.3)" }}>
+          <div style={{ textAlign: "center" }}>
+            <XCircle size={60} color="#f43f5e" style={{ marginBottom: "20px", marginLeft: "auto", marginRight: "auto" }} />
+            <h2 style={{ fontSize: "24px", fontWeight: "700", marginBottom: "12px" }}>Connection Error</h2>
+            <p style={{ color: "#94a3b8", fontSize: "15px", lineHeight: "1.6", marginBottom: "24px" }}>
+              {loadError}
+            </p>
+          </div>
+
+          {diagnostics && (
+            <div style={{ background: "#0f172a", padding: "20px", borderRadius: "8px", border: "1px solid #334155", marginBottom: "24px", textAlign: "left", fontSize: "14px" }}>
+              <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "12px", color: "#38bdf8", borderBottom: "1px solid #334155", paddingBottom: "6px" }}>Server Diagnostics Output</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: "8px 16px", fontFamily: "monospace", lineBreak: "anywhere" }}>
+                <span style={{ color: "#94a3b8" }}>DATABASE_URL Config:</span>
+                <span>
+                  {diagnostics.databaseUrlPresent ? (
+                    <span style={{ color: "#4ade80" }}>Present ({diagnostics.databaseUrlLength} chars, starting with {diagnostics.databaseUrlStart})</span>
+                  ) : (
+                    <span style={{ color: "#f43f5e" }}>Missing (Not set in Environment)</span>
+                  )}
+                </span>
+
+                <span style={{ color: "#94a3b8" }}>DB Host Lookup:</span>
+                <span>
+                  {diagnostics.dnsTest === "resolved" ? (
+                    <span style={{ color: "#4ade80" }}>Resolved host {diagnostics.dbHost}</span>
+                  ) : (
+                    <span style={{ color: "#f43f5e" }}>DNS Lookup Failed ({diagnostics.dnsError || "Unknown DNS resolution issue"})</span>
+                  )}
+                </span>
+
+                <span style={{ color: "#94a3b8" }}>Prisma Connection:</span>
+                <span>
+                  {diagnostics.prismaStatus.includes("connected") ? (
+                    <span style={{ color: "#4ade80" }}>Successful! {diagnostics.prismaStatus}</span>
+                  ) : (
+                    <span style={{ color: "#f43f5e" }}>Failed ({diagnostics.prismaError || "Unknown database error"})</span>
+                  )}
+                </span>
+
+                <span style={{ color: "#94a3b8" }}>Node.js Version:</span>
+                <span>{diagnostics.nodeVersion}</span>
+
+                <span style={{ color: "#94a3b8" }}>Loaded Env Keys:</span>
+                <span style={{ fontSize: "12px", color: "#cbd5e1" }}>{diagnostics.envKeys?.join(", ") || "None"}</span>
+              </div>
+
+              {diagnostics.prismaError && (
+                <div style={{ marginTop: "16px", paddingTop: "12px", borderTop: "1px dashed #334155" }}>
+                  <span style={{ color: "#f43f5e", fontWeight: "600", display: "block", marginBottom: "4px" }}>Error Stack Trace:</span>
+                  <pre style={{ margin: 0, padding: "8px", background: "#1e293b", borderRadius: "4px", color: "#cbd5e1", overflowX: "auto", fontSize: "12px", maxHeight: "150px" }}>
+                    {diagnostics.prismaStack || diagnostics.prismaError}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+
+          {diagError && (
+            <div style={{ background: "#4c0519", color: "#fda4af", padding: "12px 16px", borderRadius: "6px", border: "1px solid #9f1239", marginBottom: "24px", textAlign: "left", fontSize: "13px" }}>
+              <strong>Failed to run server diagnostics:</strong> {diagError}
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="btn btn-primary"
+              style={{ 
+                background: "#38bdf8", 
+                color: "#0f172a", 
+                border: "none", 
+                padding: "10px 24px", 
+                borderRadius: "6px", 
+                fontWeight: "600", 
+                cursor: "pointer" 
+              }}
+            >
+              Retry Connection
+            </button>
+
+            <button 
+              onClick={handleRunDiagnostics} 
+              disabled={runningDiagnostics}
+              className="btn"
+              style={{ 
+                background: "transparent", 
+                color: "#94a3b8", 
+                border: "1px solid #475569", 
+                padding: "10px 24px", 
+                borderRadius: "6px", 
+                fontWeight: "600", 
+                cursor: runningDiagnostics ? "not-allowed" : "pointer" 
+              }}
+            >
+              {runningDiagnostics ? "Running Diagnostics..." : "Run System Diagnostics"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // School domain missing or invalid
+  if (!school) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0f172a", color: "white", padding: "20px", textAlign: "center" }}>
+        <div>
+          <XCircle size={48} color="var(--danger)" style={{ marginBottom: "16px" }} />
+          <h2>School Portal Not Found</h2>
+          <p style={{ color: "#9ca3af", marginTop: "8px" }}>The requested subdomain "{subdomain}" does not exist in our systems.</p>
+          <a href="/" className="btn btn-primary" style={{ marginTop: "24px" }}>Go to Main Website</a>
+        </div>
+      </div>
+    );
+  }
+
+  // Render Login Gate
+  if (!currentUser) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)", padding: "20px" }}>
+        {school.themeColor && (
+          <style dangerouslySetInnerHTML={{ __html: `
+            :root {
+              --primary: ${school.themeColor} !important;
+              --primary-hover: ${school.themeColor}dd !important;
+              --primary-glow: ${school.themeColor}2e !important;
+            }
+          `}} />
+        )}
+        <div className="card animate-fade-in" style={{ width: "100%", maxWidth: "450px", background: "#1e293b", borderColor: "#334155" }}>
+          
+          <div style={{ textAlign: "center", marginBottom: "30px" }}>
+            {school.logoUrl ? (
+              <div style={{ marginBottom: "16px", display: "flex", justifyContent: "center" }}>
+                <img src={school.logoUrl} alt={`${school.name} Logo`} style={{ maxWidth: "80px", maxHeight: "80px", borderRadius: "10px", objectFit: "contain", background: "white", padding: "4px" }} />
+              </div>
+            ) : (
+              <div style={{ background: "rgba(59, 130, 246, 0.15)", padding: "16px", borderRadius: "50%", display: "inline-flex", justifyContent: "center", alignItems: "center", marginBottom: "16px" }}>
+                <GraduationCap size={40} color="var(--primary)" />
+              </div>
+            )}
+            <h2 style={{ color: "white" }}>{school.name}</h2>
+            <span style={{ fontSize: "11px", color: "var(--secondary)", textTransform: "uppercase", letterSpacing: "1px" }}>School Management System</span>
+          </div>
+
+          {authError && (
+            <div style={{ background: "rgba(244, 63, 94, 0.15)", border: "1px solid rgba(244, 63, 94, 0.3)", borderRadius: "8px", padding: "12px", color: "var(--danger)", fontSize: "13px", marginBottom: "20px" }}>
+              {authError}
+            </div>
+          )}
+
+          {/* Trial / Demo Guidance */}
+          {(subdomain === "greenhill" || subdomain === "kpps") && (
+            <div style={{ background: "rgba(59, 130, 246, 0.08)", border: "1px solid rgba(59, 130, 246, 0.15)", borderRadius: "8px", padding: "12px", marginBottom: "20px", fontSize: "12px", color: "#93c5fd" }}>
+              <strong style={{ display: "block", marginBottom: "4px" }}>🔑 Trial Demo Quick Credentials:</strong>
+              <div><strong>Admin:</strong> admin@greenhill.ug (password: password)</div>
+              <div><strong>Teacher:</strong> teacher@greenhill.ug (password: password)</div>
+              <div><strong>DOS:</strong> dos@greenhill.ug (password: password)</div>
+              <div><strong>Director:</strong> director@greenhill.ug (password: password)</div>
+            </div>
+          )}
+
+          {showForgotPassword ? (
+            <div>
+              <h3 style={{ color: "white", marginBottom: "10px", fontSize: "18px" }}>Reset Password</h3>
+              <p style={{ color: "#9ca3af", fontSize: "13px", marginBottom: "20px" }}>
+                Provide your registered email address to verify your account and set a new password.
+              </p>
+
+              {resetError && (
+                <div style={{ background: "rgba(244, 63, 94, 0.15)", border: "1px solid rgba(244, 63, 94, 0.3)", borderRadius: "8px", padding: "12px", color: "var(--danger)", fontSize: "13px", marginBottom: "20px" }}>
+                  {resetError}
+                </div>
+              )}
+
+              {resetSuccess && (
+                <div style={{ background: "rgba(16, 185, 129, 0.15)", border: "1px solid rgba(16, 185, 129, 0.3)", borderRadius: "8px", padding: "12px", color: "var(--success)", fontSize: "13px", marginBottom: "20px" }}>
+                  {resetSuccess}
+                </div>
+              )}
+
+              {resetStep === 0 ? (
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  setResetError("");
+                  if (!school) return;
+                  try {
+                    const allUsers = await getUsers(school.id);
+                    const matched = allUsers.find(u => u.email.toLowerCase() === resetEmail.toLowerCase());
+                    if (!matched) {
+                      setResetError("No staff account found with this email address.");
+                      return;
+                    }
+                    setResetStep(1);
+                  } catch (err) {
+                    setResetError("Error looking up account details.");
+                  }
+                }}>
+                  <div className="form-group" style={{ marginBottom: "20px" }}>
+                    <label className="form-label" style={{ color: "#d1d5db" }}>Staff Email Address</label>
+                    <input 
+                      type="email" 
+                      className="input-field" 
+                      placeholder="e.g. teacher@greenhill.ug" 
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      required
+                      style={{ background: "#0f172a", borderColor: "#374151", color: "white" }}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => { setShowForgotPassword(false); setResetStep(0); }} className="btn btn-outline" style={{ flex: 1, color: "#9ca3af", borderColor: "#4b5563", background: "transparent" }}>
+                      Cancel
+                    </button>
+                    <button type="submit" className="btn btn-primary" style={{ flex: 2 }}>
+                      Find Account
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  setResetError("");
+                  if (!school) return;
+                  if (resetNewPassword.length < 4) {
+                    setResetError("Password must be at least 4 characters long.");
+                    return;
+                  }
+                  try {
+                    const done = await resetUserPassword(school.id, resetEmail, resetNewPassword);
+                    if (done) {
+                      setResetSuccess("Password reset successfully! You can now log in.");
+                      setTimeout(() => {
+                        setShowForgotPassword(false);
+                        setResetStep(0);
+                        setResetSuccess("");
+                        setPassword(resetNewPassword);
+                        setEmail(resetEmail);
+                      }, 2000);
+                    } else {
+                      setResetError("Failed to update password.");
+                    }
+                  } catch (err) {
+                    setResetError("Error executing password reset.");
+                  }
+                }}>
+                  <div className="form-group" style={{ marginBottom: "20px" }}>
+                    <label className="form-label" style={{ color: "#d1d5db" }}>New Password</label>
+                    <input 
+                      type="password" 
+                      className="input-field" 
+                      placeholder="••••••••" 
+                      value={resetNewPassword}
+                      onChange={(e) => setResetNewPassword(e.target.value)}
+                      required
+                      style={{ background: "#0f172a", borderColor: "#374151", color: "white" }}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setResetStep(0)} className="btn btn-outline" style={{ flex: 1, color: "#9ca3af", borderColor: "#4b5563", background: "transparent" }}>
+                      Back
+                    </button>
+                    <button type="submit" className="btn btn-primary" style={{ flex: 2 }}>
+                      Save Password
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          ) : (
+            <form onSubmit={handleLogin}>
+              <div className="form-group">
+                <label className="form-label" style={{ color: "#d1d5db" }}>Staff Email Address</label>
+                <input 
+                  type="email" 
+                  className="input-field" 
+                  placeholder="e.g. teacher@greenhill.ug" 
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  style={{ background: "#0f172a", borderColor: "#374151", color: "white" }}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: "24px" }}>
+                <div className="flex justify-between align-center" style={{ marginBottom: "6px" }}>
+                  <label className="form-label" style={{ color: "#d1d5db", margin: 0 }}>Password</label>
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setResetError("");
+                      setResetSuccess("");
+                      setResetEmail(email);
+                      setShowForgotPassword(true);
+                      setResetStep(0);
+                    }}
+                    style={{ background: "transparent", border: "none", color: "var(--primary)", fontSize: "12px", cursor: "pointer", padding: 0 }}
+                  >
+                    Forgot Password?
+                  </button>
+                </div>
+                <div style={{ position: "relative" }}>
+                  <input 
+                    type={showLoginPassword ? "text" : "password"} 
+                    className="input-field" 
+                    placeholder="••••••••" 
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    style={{ background: "#0f172a", borderColor: "#374151", color: "white", paddingRight: "40px" }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginPassword(!showLoginPassword)}
+                    style={{
+                      position: "absolute",
+                      right: "12px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      background: "transparent",
+                      border: "none",
+                      color: "#9ca3af",
+                      cursor: "pointer",
+                      padding: 0,
+                      display: "flex",
+                      alignItems: "center"
+                    }}
+                  >
+                    {showLoginPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <button type="submit" className="btn btn-primary" style={{ width: "100%", padding: "12px" }}>
+                Sign In to Portal
+              </button>
+              
+              <div style={{ marginTop: "20px", textAlign: "center", borderTop: "1px solid #1e293b", paddingTop: "20px" }}>
+                <p style={{ color: "#9ca3af", fontSize: "14px", marginBottom: "12px" }}>Are you a parent or guardian?</p>
+                <button 
+                  type="button" 
+                  onClick={() => window.location.href = `/school/${school?.subdomain || params.subdomain}/parent`}
+                  className="btn btn-outline" 
+                  style={{ width: "100%", padding: "10px", borderColor: "var(--primary)", color: "var(--primary)" }}
+                >
+                  <UserIcon size={16} style={{ marginRight: "8px", display: "inline" }} />
+                  Access Parent Portal
+                </button>
+              </div>
+            </form>
+          )}
+
+
+          <div style={{ textAlign: "center", marginTop: "24px" }}>
+            <a 
+              href="#" 
+              onClick={(e) => {
+                e.preventDefault();
+                const host = window.location.host;
+                if (host.includes("localhost")) {
+                  window.location.href = "http://localhost:3000";
+                } else {
+                  const parts = host.split('.');
+                  if (parts.length > 2) {
+                    parts.shift(); // remove subdomain
+                    window.location.href = window.location.protocol + "//" + parts.join('.');
+                  } else {
+                    window.location.href = "/";
+                  }
+                }
+              }}
+              style={{ fontSize: "13px", color: "#9ca3af", textDecoration: "underline", cursor: "pointer" }}>
+              â€” Back to SchoolPro Main Website
+            </a>
+          </div>
+
+        </div>
+
+        {/* First-Time Setup Modal Overlay */}
+        {showFirstTimeSetup && (
+          <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15, 23, 42, 0.9)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "20px" }} className="animate-fade-in">
+            <div className="card" style={{ width: "100%", maxWidth: "600px", background: "#1e293b", borderColor: "#334155", color: "white", padding: "30px", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)" }}>
+              
+              <div className="flex justify-between align-center" style={{ borderBottom: "1px solid #334155", paddingBottom: "14px", marginBottom: "20px" }}>
+                <h3 style={{ fontFamily: "Outfit", fontWeight: 800, fontSize: "20px", display: "flex", alignItems: "center", gap: "8px" }}>
+                  🏫 School Portal Initial Setup
+                </h3>
+                <button onClick={() => setShowFirstTimeSetup(false)} style={{ background: "transparent", border: "none", color: "#cbd5e1", fontWeight: "bold", cursor: "pointer", fontSize: "18px" }}>✕</button>
+              </div>
+
+              {setupError && (
+                <div style={{ background: "rgba(244, 63, 94, 0.15)", border: "1px solid rgba(244, 63, 94, 0.3)", borderRadius: "8px", padding: "12px", color: "var(--danger)", fontSize: "13px", marginBottom: "20px" }}>
+                  {setupError}
+                </div>
+              )}
+
+              <form onSubmit={handleFirstTimeSetup}>
+                
+                <div style={{ marginBottom: "16px", padding: "12px", background: "rgba(56, 189, 248, 0.05)", border: "1px solid rgba(56, 189, 248, 0.1)", borderRadius: "6px", fontSize: "12px", color: "#93c5fd" }}>
+                  🔑 Enter your school's Administrator credentials to authorize these updates.
+                </div>
+
+                <div className="grid grid-cols-2 gap-2" style={{ marginBottom: "20px" }}>
+                  <div className="form-group">
+                    <label className="form-label" style={{ color: "#d1d5db" }}>Admin Email</label>
+                    <input 
+                      type="email" 
+                      className="input-field" 
+                      placeholder="e.g. admin@school.ug" 
+                      value={setupAdminEmail} 
+                      onChange={(e) => setSetupAdminEmail(e.target.value)} 
+                      required 
+                      style={{ background: "#0f172a", borderColor: "#374151", color: "white" }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ color: "#d1d5db" }}>Admin Password</label>
+                    <input 
+                      type="password" 
+                      className="input-field" 
+                      placeholder="••••••••" 
+                      value={setupAdminPassword} 
+                      onChange={(e) => setSetupAdminPassword(e.target.value)} 
+                      required 
+                      style={{ background: "#0f172a", borderColor: "#374151", color: "white" }}
+                    />
+                  </div>
+                </div>
+
+                <h4 style={{ color: "var(--primary)", fontSize: "14px", marginBottom: "12px", borderBottom: "1px solid #334155", paddingBottom: "4px", fontWeight: 700 }}>🏫 School Information</h4>
+                <div className="grid grid-cols-2 gap-2" style={{ marginBottom: "12px" }}>
+                  <div className="form-group">
+                    <label className="form-label" style={{ color: "#d1d5db" }}>School Name</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      value={setupName} 
+                      onChange={(e) => setSetupName(e.target.value)} 
+                      required 
+                      style={{ background: "#0f172a", borderColor: "#374151", color: "white" }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ color: "#d1d5db" }}>Contact Phone</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      value={setupPhone} 
+                      onChange={(e) => setSetupPhone(e.target.value)} 
+                      required 
+                      style={{ background: "#0f172a", borderColor: "#374151", color: "white" }}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ marginBottom: "12px" }}>
+                  <label className="form-label" style={{ color: "#d1d5db" }}>P.O. Box & Physical Location</label>
+                  <input 
+                    type="text" 
+                    className="input-field" 
+                    placeholder="e.g. P.O. Box 7523, Kampala, Uganda"
+                    value={setupPoBox} 
+                    onChange={(e) => setSetupPoBox(e.target.value)} 
+                    style={{ background: "#0f172a", borderColor: "#374151", color: "white" }}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2" style={{ marginBottom: "16px" }}>
+                  <div className="form-group">
+                    <label className="form-label" style={{ color: "#d1d5db" }}>School Logo/Badge</label>
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      className="input-field" 
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          if (file.size > 1024 * 1024) {
+                            toast.error("Logo image should be less than 1MB to store directly in the database.");
+                            return;
+                          }
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setSetupLogoUrl(reader.result as string);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      style={{ background: "#0f172a", borderColor: "#374151", color: "white", padding: "8px" }}
+                    />
+                    <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "6px" }}>
+                      <span style={{ color: "#9ca3af", fontSize: "11px", whiteSpace: "nowrap" }}>Or URL:</span>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        placeholder="e.g. https://example.com/logo.png"
+                        value={setupLogoUrl && setupLogoUrl.startsWith("data:") ? "" : setupLogoUrl} 
+                        onChange={(e) => setSetupLogoUrl(e.target.value)} 
+                        style={{ background: "#0f172a", borderColor: "#374151", color: "white", fontSize: "11px", padding: "4px 8px", height: "auto" }}
+                      />
+                    </div>
+                    {setupLogoUrl && (
+                      <button 
+                        type="button" 
+                        onClick={() => setSetupLogoUrl("")}
+                        className="btn"
+                        style={{ padding: "4px 8px", fontSize: "11px", marginTop: "4px", background: "#ef4444", color: "white", border: "none", alignSelf: "flex-start", cursor: "pointer", borderRadius: "4px" }}
+                      >
+                        Remove Logo
+                      </button>
+                    )}
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ color: "#d1d5db" }}>Portal Accent Theme Color</label>
+                    <div className="flex align-center gap-1">
+                      <input 
+                        type="color" 
+                        value={setupThemeColor} 
+                        onChange={(e) => setSetupThemeColor(e.target.value)} 
+                        style={{ width: "40px", height: "40px", border: "none", cursor: "pointer", padding: 0, borderRadius: "6px" }}
+                      />
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        value={setupThemeColor} 
+                        onChange={(e) => setSetupThemeColor(e.target.value)} 
+                        style={{ flex: 1, background: "#0f172a", borderColor: "#374151", color: "white" }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <h4 style={{ color: "var(--primary)", fontSize: "14px", marginBottom: "12px", borderBottom: "1px solid #334155", paddingBottom: "4px", fontWeight: 700 }}>👥 Administrative Leaders</h4>
+                <div className="grid grid-cols-3 gap-2" style={{ marginBottom: "24px" }}>
+                  <div className="form-group">
+                    <label className="form-label" style={{ color: "#d1d5db" }}>Head Teacher</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      placeholder="Head Teacher Name" 
+                      value={setupHeadTeacher} 
+                      onChange={(e) => setSetupHeadTeacher(e.target.value)} 
+                      style={{ background: "#0f172a", borderColor: "#374151", color: "white", fontSize: "12px" }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ color: "#d1d5db" }}>Deputy Head</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      placeholder="Deputy Head Name" 
+                      value={setupDeputyHeadTeacher} 
+                      onChange={(e) => setSetupDeputyHeadTeacher(e.target.value)} 
+                      style={{ background: "#0f172a", borderColor: "#374151", color: "white", fontSize: "12px" }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ color: "#d1d5db" }}>Director / Owner</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      placeholder="Director Name" 
+                      value={setupDirector} 
+                      onChange={(e) => setSetupDirector(e.target.value)} 
+                      style={{ background: "#0f172a", borderColor: "#374151", color: "white", fontSize: "12px" }}
+                    />
+                  </div>
+                </div>
+
+                <button type="submit" className="btn btn-primary" style={{ width: "100%", padding: "12px", fontWeight: "bold" }}>
+                  Save Profile Customization & Colors
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Force change password screen
+  if (currentUser && currentUser.mustChangePassword) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)", padding: "20px" }}>
+        {school?.themeColor && (
+          <style dangerouslySetInnerHTML={{ __html: `
+            :root {
+              --primary: ${school.themeColor} !important;
+              --primary-hover: ${school.themeColor}dd !important;
+              --primary-glow: ${school.themeColor}2e !important;
+            }
+          `}} />
+        )}
+        <div className="card animate-fade-in" style={{ width: "100%", maxWidth: "450px", background: "#1e293b", borderColor: "#334155", color: "white", padding: "30px", boxShadow: "var(--shadow-lg)" }}>
+          <div style={{ textAlign: "center", marginBottom: "24px" }}>
+            <div style={{ background: "rgba(245, 158, 11, 0.15)", padding: "16px", borderRadius: "50%", display: "inline-flex", justifyContent: "center", alignItems: "center", marginBottom: "16px" }}>
+              <Lock size={40} color="#f59e0b" />
+            </div>
+            <h2>Change Your Password</h2>
+            <p style={{ fontSize: "13px", color: "#9ca3af", marginTop: "8px" }}>
+              For security reasons, you are required to change your password after your first login or when your password is reset by the administrator.
+            </p>
+          </div>
+
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            setForcePasswordError("");
+            setForcePasswordSuccess("");
+            if (forceNewPassword.length < 4) {
+              setForcePasswordError("Password must be at least 4 characters long.");
+              return;
+            }
+            if (forceNewPassword !== forceConfirmPassword) {
+              setForcePasswordError("New passwords do not match.");
+              return;
+            }
+            try {
+              const resetDone = await resetUserPassword(school!.id, currentUser.email, forceNewPassword);
+              if (resetDone) {
+                await updateUser(currentUser.id, { mustChangePassword: false });
+                setForcePasswordSuccess("Password updated successfully! Redirecting...");
+                setTimeout(() => {
+                  const updatedUser = { ...currentUser, mustChangePassword: false };
+                  setCurrentUser(updatedUser);
+                }, 1500);
+              } else {
+                setForcePasswordError("Failed to update password. Please try again.");
+              }
+            } catch (err) {
+              setForcePasswordError("An error occurred during password change.");
+            }
+          }}>
+            {forcePasswordError && (
+              <div style={{ background: "rgba(244, 63, 94, 0.15)", border: "1px solid rgba(244, 63, 94, 0.3)", borderRadius: "8px", padding: "12px", color: "var(--danger)", fontSize: "13px", marginBottom: "20px" }}>
+                {forcePasswordError}
+              </div>
+            )}
+            {forcePasswordSuccess && (
+              <div style={{ background: "rgba(16, 185, 129, 0.15)", border: "1px solid rgba(16, 185, 129, 0.3)", borderRadius: "8px", padding: "12px", color: "var(--success)", fontSize: "13px", marginBottom: "20px" }}>
+                {forcePasswordSuccess}
+              </div>
+            )}
+
+            <div className="form-group" style={{ marginBottom: "16px", textAlign: "left" }}>
+              <label className="form-label" style={{ color: "#d1d5db" }}>New Password</label>
+              <input 
+                type="password" 
+                className="input-field" 
+                placeholder="Enter new password"
+                value={forceNewPassword} 
+                onChange={(e) => setForceNewPassword(e.target.value)} 
+                required 
+                style={{ background: "#0f172a", border: "1px solid #334155", color: "white" }}
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: "24px", textAlign: "left" }}>
+              <label className="form-label" style={{ color: "#d1d5db" }}>Confirm New Password</label>
+              <input 
+                type="password" 
+                className="input-field" 
+                placeholder="Confirm new password"
+                value={forceConfirmPassword} 
+                onChange={(e) => setForceConfirmPassword(e.target.value)} 
+                required 
+                style={{ background: "#0f172a", border: "1px solid #334155", color: "white" }}
+              />
+            </div>
+
+            <button type="submit" className="btn btn-primary" style={{ width: "100%", justifyContent: "center" }}>
+              Change Password & Continue
+            </button>
+            
+            <button 
+              type="button" 
+              onClick={handleLogout} 
+              className="btn btn-outline" 
+              style={{ width: "100%", justifyContent: "center", marginTop: "10px", color: "#9ca3af", borderColor: "#4b5563" }}
+            >
+              Cancel & Log Out
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+
+  // Filtered lists for Marks Upload if teacher
+  const teacherClasses = currentUser?.role === "TEACHER"
+    ? classes.filter(c => teacherAssignments.some(ta => ta.teacherId === currentUser.id && ta.classId === c.id))
+    : classes;
+  
+  const teacherStreams = currentUser?.role === "TEACHER"
+    ? streams.filter(st => st.classId === selectedClassId && teacherAssignments.some(ta => ta.teacherId === currentUser.id && ta.classId === selectedClassId && ta.streamId === st.id))
+    : streams.filter(st => st.classId === selectedClassId);
+  
+  const teacherSubjectsFiltered = currentUser?.role === "TEACHER"
+    ? subjects.filter(sub => sub.classId === selectedClassId && teacherAssignments.some(ta => ta.teacherId === currentUser.id && ta.classId === selectedClassId && ta.streamId === selectedStreamId && ta.subjectId === sub.id))
+    : subjects.filter(sub => sub.classId === selectedClassId);
+
+  const selectedExam = exams.find(e => e.id === selectedExamId);
+
+  // Dashboard layout
+  return (
+    <div data-theme="light" className="dashboard-layout" style={{ minHeight: "100vh", display: "flex", backgroundColor: "#f1f5f9", color: "#1e293b" }}>
+      {school.themeColor && (
+        <style dangerouslySetInnerHTML={{ __html: `
+          :root {
+            --primary: ${school.themeColor} !important;
+            --primary-hover: ${school.themeColor}dd !important;
+            --primary-glow: ${school.themeColor}2e !important;
+          }
+        `}} />
+      )}
+
+      {/* Sidebar Backdrop Overlay for Mobile */}
+      <div 
+        className={`sidebar-overlay ${sidebarOpen ? "open" : ""}`} 
+        onClick={() => setSidebarOpen(false)}
+        style={{ display: "none" }}
+      />
+      
+      {/* Sidebar navigation */}
+      <aside 
+        style={{ width: "260px", background: "linear-gradient(180deg, var(--primary) 0%, var(--primary-hover) 100%)", color: "white", display: "flex", flexDirection: "column", height: "100vh", position: "sticky", top: 0 }} 
+        className={`sidebar-nav flex-mobile-col no-print ${sidebarOpen ? "open" : ""}`}
+      >
+        <div style={{ padding: "24px", borderBottom: "1px solid rgba(255, 255, 255, 0.15)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            {school.logoUrl ? (
+              <img src={school.logoUrl} alt="Logo" style={{ width: "32px", height: "32px", borderRadius: "6px", objectFit: "contain", background: "white", padding: "2px" }} />
+            ) : (
+              <GraduationCap size={28} color="white" />
+            )}
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <h3 style={{ color: "white", fontSize: "16px", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", maxWidth: "160px" }}>{school.name}</h3>
+              <span style={{ fontSize: "10px", color: "rgba(255, 255, 255, 0.75)", textTransform: "uppercase", letterSpacing: "1px" }}>{currentUser.role} Portal</span>
+              <span style={{ fontSize: "9px", color: "rgba(255, 255, 255, 0.8)", background: "rgba(0,0,0,0.18)", borderRadius: "4px", padding: "1px 6px", width: "fit-content", marginTop: "2px", fontWeight: "bold" }}>
+                {school.schoolType === "PRIMARY" ? "Primary School" : school.schoolType === "SECONDARY" ? "Secondary School" : "Combined School"}
+              </span>
+            </div>
+          </div>
+          {/* Mobile Close Button */}
+          <button 
+            onClick={() => setSidebarOpen(false)}
+            className="mobile-close-btn"
+            style={{ display: "none", background: "transparent", border: "none", color: "white", cursor: "pointer", padding: 0 }}
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <nav 
+          onClick={(e) => {
+            const target = e.target as HTMLElement;
+            if (target.closest("button")) {
+              setSidebarOpen(false);
+            }
+          }}
+          style={{ padding: "20px 10px", flex: 1, display: "flex", flexDirection: "column", gap: "6px", overflowY: "auto" }}
+        >
+          {/* Universal view */}
+          {["ADMIN", "HEADTEACHER", "DIRECTOR", "DOS"].includes(currentUser.role) && (
+            <button 
+              onClick={() => setActiveTab("overview")} 
+              className={`btn ${activeTab === "overview" ? "btn-primary" : "btn-outline"}`}
+              style={{ justifyContent: "flex-start", border: "none", background: activeTab === "overview" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "overview" ? 1 : 0.75, transition: "all 0.2s ease" }}
+            >
+              <ClipboardList size={18} /> Overview
+            </button>
+          )}
+
+          {/* SMS Broadcast Module */}
+          {["ADMIN", "HEADTEACHER", "DOS"].includes(currentUser.role) && (
+            <button 
+              onClick={() => setActiveTab("sms")} 
+              className={`btn ${activeTab === "sms" ? "btn-primary" : "btn-outline"}`}
+              style={{ justifyContent: "flex-start", border: "none", background: activeTab === "sms" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "sms" ? 1 : 0.75, transition: "all 0.2s ease" }}
+            >
+              <MessageSquare size={18} /> SMS Broadcast
+            </button>
+          )}
+
+          {/* School Settings (Admin only) */}
+          {currentUser.role === "ADMIN" && (
+            <button 
+              onClick={() => setActiveTab("settings")} 
+              className={`btn ${activeTab === "settings" ? "btn-primary" : "btn-outline"}`}
+              style={{ justifyContent: "flex-start", border: "none", background: activeTab === "settings" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "settings" ? 1 : 0.75, transition: "all 0.2s ease" }}
+            >
+              <Settings size={18} /> School Profile & Theme
+            </button>
+          )}
+
+          {/* Report Card Designer */}
+          {["ADMIN", "DOS"].includes(currentUser.role) && (
+            <button 
+              onClick={() => setActiveTab("report_designer")} 
+              className={`btn ${activeTab === "report_designer" ? "btn-primary" : "btn-outline"}`}
+              style={{ justifyContent: "flex-start", border: "none", background: activeTab === "report_designer" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "report_designer" ? 1 : 0.75, transition: "all 0.2s ease" }}
+            >
+              <Sliders size={18} /> Report Designer
+            </button>
+          )}
+
+          {/* Parent Portal Admin */}
+          {["ADMIN", "HEADTEACHER", "DOS"].includes(currentUser.role) && (
+            <>
+              <button 
+                onClick={() => setActiveTab("elections")} 
+                className={`btn ${activeTab === "elections" ? "btn-primary" : "btn-outline"}`}
+                style={{ justifyContent: "flex-start", border: "none", background: activeTab === "elections" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "elections" ? 1 : 0.75, transition: "all 0.2s ease" }}
+              >
+                <Vote size={18} /> Manage Elections
+              </button>
+              <button 
+                onClick={() => setActiveTab("holiday")} 
+                className={`btn ${activeTab === "holiday" ? "btn-primary" : "btn-outline"}`}
+                style={{ justifyContent: "flex-start", border: "none", background: activeTab === "holiday" ? "rgba(255,255,255,0.22)" : "transparent", color: "white", opacity: activeTab === "holiday" ? 1 : 0.75, transition: "all 0.2s ease" }}
+              >
+                <FileText size={18} /> Holiday Assignments
+              </button>
+            </>
+          )}
+
+          {/* Grading Setup */}
           {["ADMIN", "DOS"].includes(currentUser.role) && (
             <button 
               onClick={() => setActiveTab("grading")} 

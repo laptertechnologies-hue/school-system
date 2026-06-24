@@ -523,7 +523,7 @@ export default function ParentPortal({ params }: { params: Promise<{ subdomain: 
 
                       let grade = "";
                       const percentage = total; 
-                      const range = gradeRanges.find(r => percentage >= r.minScore && percentage <= r.maxScore);
+                      const range = gradeRanges.find(r => percentage >= r.minMark && percentage <= r.maxMark);
                       if (range) { grade = range.grade; }
 
                       return (

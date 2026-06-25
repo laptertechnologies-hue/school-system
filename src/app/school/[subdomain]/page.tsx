@@ -3317,8 +3317,8 @@ export default function SchoolPortal({ params }: PageProps) {
                           toast.error("Payment received, but SMS failed to send. Please contact admin.", { id: toastId });
                         } else {
                           toast.success("Payment successful! OTP has been sent via SMS.", { id: toastId });
-                          setResetStep(2);
                         }
+                        setResetStep(2);
                       } catch (err: any) {
                         toast.error("Error during reset request: " + (err.message || err), { id: toastId });
                       }

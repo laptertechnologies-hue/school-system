@@ -129,6 +129,9 @@ export default function SchoolPortal({ params }: PageProps) {
 
   // Logged-in profile edit states
   const [profileEditName, setProfileEditName] = useState("");
+  const [profileEditEmail, setProfileEditEmail] = useState("");
+  const [profileEditContact, setProfileEditContact] = useState("");
+  const [profileEditStaffNumber, setProfileEditStaffNumber] = useState("");
   const [profileEditPhoto, setProfileEditPhoto] = useState("");
   const [profileNewPassword, setProfileNewPassword] = useState("");
   const [profileConfirmPassword, setProfileConfirmPassword] = useState("");
@@ -1284,9 +1287,15 @@ export default function SchoolPortal({ params }: PageProps) {
   useEffect(() => {
     if (currentUser) {
       setProfileEditName(currentUser.name);
+      setProfileEditEmail(currentUser.email);
+      setProfileEditContact(currentUser.contact || "");
+      setProfileEditStaffNumber(currentUser.staffNumber || "");
       setProfileEditPhoto(currentUser.photo || "");
     } else {
       setProfileEditName("");
+      setProfileEditEmail("");
+      setProfileEditContact("");
+      setProfileEditStaffNumber("");
       setProfileEditPhoto("");
     }
   }, [currentUser]);
@@ -4062,7 +4071,7 @@ export default function SchoolPortal({ params }: PageProps) {
           )}
 
           {/* Finance dashboard (Director & Admin only & Premium only) */}
-          {["ADMIN", "DIRECTOR"].includes(currentUser.role) && school.packageType === "PREMIUM" && (
+          {["ADMIN", "DIRECTOR", "HEADTEACHER"].includes(currentUser.role) && school.packageType === "PREMIUM" && (
             <>
               <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.7)", textTransform: "uppercase", letterSpacing: "1px", margin: "14px 10px 4px", fontWeight: 700 }}>School Accounts</div>
               
@@ -4244,9 +4253,12 @@ export default function SchoolPortal({ params }: PageProps) {
                     try {
                       const updated = await updateUser(currentUser.id, {
                         name: profileEditName,
+                        email: profileEditEmail,
+                        contact: profileEditContact || null,
+                        staffNumber: profileEditStaffNumber || null,
                         photo: profileEditPhoto || null
                       });
-                      setCurrentUser({ ...currentUser, name: updated.name, photo: updated.photo });
+                      setCurrentUser({ ...currentUser, name: updated.name, email: updated.email, contact: updated.contact, staffNumber: updated.staffNumber, photo: updated.photo });
                       await loadSchoolData(school!.id);
                       setProfileDetailsSuccess("Personal details updated successfully!");
                       setTimeout(() => setProfileDetailsSuccess(""), 3000);
@@ -4268,6 +4280,39 @@ export default function SchoolPortal({ params }: PageProps) {
                         value={profileEditName}
                         onChange={(e) => setProfileEditName(e.target.value)}
                         required
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: "16px" }}>
+                      <label className="form-label">Email Address</label>
+                      <input 
+                        type="email" 
+                        className="input-field" 
+                        value={profileEditEmail}
+                        onChange={(e) => setProfileEditEmail(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: "16px" }}>
+                      <label className="form-label">Phone Contact</label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        value={profileEditContact}
+                        onChange={(e) => setProfileEditContact(e.target.value)}
+                        placeholder="e.g. +256700000000"
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: "16px" }}>
+                      <label className="form-label">Staff Number</label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        value={profileEditStaffNumber}
+                        onChange={(e) => setProfileEditStaffNumber(e.target.value)}
+                        placeholder="e.g. TR-001"
                       />
                     </div>
 

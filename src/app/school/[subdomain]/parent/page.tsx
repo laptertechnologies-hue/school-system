@@ -165,15 +165,15 @@ export default function ParentPortal({ params }: { params: Promise<{ subdomain: 
 
   const handleConfirmPayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    const toastId = toast.loading("Initiating mobile money charge (500 UGX)...");
+    const toastId = toast.loading("Initiating mobile money charge (540 UGX)...");
     try {
-      const res = await initiateMarzpayCollection(500, "mobile_money", resetPhone, "Parent Password Reset SMS");
+      const res = await initiateMarzpayCollection(540, "mobile_money", resetPhone, "Parent Password Reset SMS");
       if (!res?.success || !res.transaction_uuid) {
         toast.error(res?.message || "Failed to initiate payment.", { id: toastId });
         return;
       }
 
-      toast.loading("A push prompt has been sent to your phone. Please approve the 500 UGX charge...", { id: toastId });
+      toast.loading("A push prompt has been sent to your phone. Please approve the 540 UGX charge...", { id: toastId });
 
       let attempts = 0;
       let isPaid = false;
@@ -337,12 +337,15 @@ export default function ParentPortal({ params }: { params: Promise<{ subdomain: 
                     <p style={{ fontSize: "13px", color: "#64748b", marginBottom: "16px" }}>
                       Account found! We will send an SMS OTP to your registered phone number (ending in {resetPhone.slice(-4)}).
                     </p>
-                    <p style={{ fontSize: "13px", color: "#64748b", marginBottom: "16px" }}>
-                      A processing fee of <strong>500 UGX</strong> is required to dispatch the SMS.
+                    <p style={{ color: "#9ca3af", fontSize: "14px", marginBottom: "20px" }}>
+                      We found your account. A processing fee of <strong>540 UGX</strong> is required to dispatch the SMS.
                     </p>
-                    <button type="submit" className="btn btn-primary" style={{ width: "100%", background: school?.themeColor || "var(--primary)" }}>
-                      Pay 500 UGX & Send SMS
-                    </button>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => setResetStep(1)} className="btn btn-outline" style={{ flex: 1, color: "#9ca3af", borderColor: "#4b5563", background: "transparent" }}>Back</button>
+                      <button type="submit" className="btn btn-primary" style={{ flex: 2, background: school?.themeColor || "var(--primary)" }}>
+                        Pay 540 UGX & Send SMS
+                      </button>
+                    </div>
                   </form>
                 )}
 

@@ -3275,20 +3275,20 @@ export default function SchoolPortal({ params }: PageProps) {
               {resetStep === 1 && (
                 <div>
                   <p style={{ color: "#9ca3af", fontSize: "14px", marginBottom: "20px" }}>
-                    We found your account. A processing fee of <strong>500 UGX</strong> is required to dispatch the OTP SMS to your registered phone number (...{resetPhone.slice(-4)}).
+                    We found your account. A processing fee of <strong>540 UGX</strong> is required to dispatch the OTP SMS to your registered phone number (...{resetPhone.slice(-4)}).
                   </p>
                   <div className="flex gap-2">
                     <button type="button" onClick={() => setResetStep(0)} className="btn btn-outline" style={{ flex: 1, color: "#9ca3af", borderColor: "#4b5563", background: "transparent" }}>Back</button>
                     <button type="button" onClick={async () => {
-                      const toastId = toast.loading("Initiating mobile money charge (500 UGX)...");
+                      const toastId = toast.loading("Initiating mobile money charge (540 UGX)...");
                       try {
-                        const res = await initiateMarzpayCollection(500, "mobile_money", resetPhone, "Staff Password Reset SMS");
+                        const res = await initiateMarzpayCollection(540, "mobile_money", resetPhone, "Staff Password Reset SMS");
                         if (!res?.success || !res.transaction_uuid) {
                           toast.error(res?.message || "Failed to initiate payment.", { id: toastId });
                           return;
                         }
 
-                        toast.loading("A push prompt has been sent to your phone. Please approve the 500 UGX charge...", { id: toastId });
+                        toast.loading("A push prompt has been sent to your phone. Please approve the 540 UGX charge...", { id: toastId });
 
                         let attempts = 0;
                         let isPaid = false;
@@ -3323,7 +3323,7 @@ export default function SchoolPortal({ params }: PageProps) {
                         toast.error("Error during reset request: " + (err.message || err), { id: toastId });
                       }
                     }} className="btn btn-primary" style={{ flex: 2 }}>
-                      Pay 500 UGX & Send OTP
+                      Pay 540 UGX & Send OTP
                     </button>
                   </div>
                 </div>

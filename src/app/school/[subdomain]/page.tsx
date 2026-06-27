@@ -375,6 +375,7 @@ export default function SchoolPortal({ params }: PageProps) {
   const [isBulkReportMode, setIsBulkReportMode] = useState(false);
   const [selectedFilterClassId, setSelectedFilterClassId] = useState("");
   const [selectedFilterStreamId, setSelectedFilterStreamId] = useState("");
+  const [searchStudentQuery, setSearchStudentQuery] = useState("");
   const [tempClassTeacherComment, setTempClassTeacherComment] = useState("");
   const [tempHeadTeacherComment, setTempHeadTeacherComment] = useState("");
 
@@ -5965,6 +5966,16 @@ export default function SchoolPortal({ params }: PageProps) {
                   <h4 style={{ margin: 0 }}>Current Enrolled Students</h4>
                   <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        placeholder="Search student..." 
+                        style={{ width: "160px", padding: "6px 10px", fontSize: "12px", height: "32px" }}
+                        value={searchStudentQuery}
+                        onChange={(e) => setSearchStudentQuery(e.target.value)}
+                      />
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                       <span style={{ fontSize: "12px", color: "#64748b", fontWeight: "bold" }}>Class Filter:</span>
                       <select 
                         className="input-field" 
@@ -6044,11 +6055,16 @@ export default function SchoolPortal({ params }: PageProps) {
                     </thead>
                     <tbody>
                       {(() => {
-                        const filtered = selectedFilterClassId 
-                          ? students.filter(st => st.classId === selectedFilterClassId && (!selectedFilterStreamId || st.streamId === selectedFilterStreamId))
-                          : students;
+                        let filtered = students;
+                        if (selectedFilterClassId) {
+                          filtered = filtered.filter(st => st.classId === selectedFilterClassId && (!selectedFilterStreamId || st.streamId === selectedFilterStreamId));
+                        }
+                        if (searchStudentQuery.trim()) {
+                          const q = searchStudentQuery.toLowerCase().trim();
+                          filtered = filtered.filter(st => st.name.toLowerCase().includes(q) || st.studentNumber.toLowerCase().includes(q));
+                        }
                         if (filtered.length === 0) {
-                          return <tr><td colSpan={7} style={{ textAlign: "center", color: "#64748b" }}>No students registered in this class.</td></tr>;
+                          return <tr><td colSpan={7} style={{ textAlign: "center", color: "#64748b" }}>No students found matching your criteria.</td></tr>;
                         }
                         return filtered.map(st => {
                           const cls = classes.find(c => c.id === st.classId)?.name || "N/A";

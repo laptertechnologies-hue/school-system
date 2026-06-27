@@ -5999,23 +5999,24 @@ export default function SchoolPortal({ params }: PageProps) {
                           onClick={() => {
                             const cls = classes.find(c => c.id === selectedFilterClassId)?.name || "Class";
                             const strm = streams.find(s => s.id === selectedFilterStreamId)?.name || "All";
-                            let csv = "ID Number,Student Name,Gender,Class,Stream,Type\n";
-                            students.filter(st => st.classId === selectedFilterClassId && (!selectedFilterStreamId || st.streamId === selectedFilterStreamId)).forEach(st => {
-                              csv += `"${st.studentNumber}","${st.name}","${st.gender || ''}","${classes.find(c => c.id === st.classId)?.name || ''}","${streams.find(s => s.id === st.streamId)?.name || ''}","${st.type}"\n`;
-                            });
-                            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-                            const url = URL.createObjectURL(blob);
-                            const link = document.createElement("a");
-                            link.href = url;
-                            link.setAttribute("download", `${cls}_${strm}_Students.csv`);
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
+                            const exportData = students.filter(st => st.classId === selectedFilterClassId && (!selectedFilterStreamId || st.streamId === selectedFilterStreamId)).map((st, idx) => ({
+                              "No.": idx + 1,
+                              "ID Number": st.studentNumber,
+                              "Student Name": st.name,
+                              "Gender": st.gender === "FEMALE" ? "F" : "M",
+                              "Class": classes.find(c => c.id === st.classId)?.name || "",
+                              "Stream": streams.find(s => s.id === st.streamId)?.name || "",
+                              "Type": st.type
+                            }));
+                            const worksheet = XLSX.utils.json_to_sheet(exportData);
+                            const workbook = XLSX.utils.book_new();
+                            XLSX.utils.book_append_sheet(workbook, worksheet, "Students");
+                            XLSX.writeFile(workbook, `${cls}_${strm}_Students.xlsx`);
                           }}
                           className="btn btn-primary"
                           style={{ padding: "6px 12px", fontSize: "12px", height: "32px", display: "flex", alignItems: "center", gap: "4px", background: "#10b981", borderColor: "#10b981" }}
                         >
-                          <Download size={14} /> Download CSV
+                          <Download size={14} /> Download Excel
                         </button>
                         <button 
                           onClick={() => window.print()}
@@ -6028,9 +6029,9 @@ export default function SchoolPortal({ params }: PageProps) {
                     )}
                   </div>
                 </div>
-                <div className="table-container">
-                  <table className="table">
-                    <thead>
+                <div className="table-container" style={{ maxHeight: "600px", overflowY: "auto" }}>
+                  <table className="table" style={{ position: "relative" }}>
+                    <thead style={{ position: "sticky", top: 0, background: "white", zIndex: 10 }}>
                       <tr>
                         <th>Photo</th>
                         <th>ID Number</th>

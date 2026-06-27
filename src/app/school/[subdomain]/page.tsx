@@ -374,6 +374,7 @@ export default function SchoolPortal({ params }: PageProps) {
   const [selectedReportStudent, setSelectedReportStudent] = useState<Student | null>(null);
   const [isBulkReportMode, setIsBulkReportMode] = useState(false);
   const [selectedFilterClassId, setSelectedFilterClassId] = useState("");
+  const [selectedFilterStreamId, setSelectedFilterStreamId] = useState("");
   const [tempClassTeacherComment, setTempClassTeacherComment] = useState("");
   const [tempHeadTeacherComment, setTempHeadTeacherComment] = useState("");
 
@@ -5969,20 +5970,61 @@ export default function SchoolPortal({ params }: PageProps) {
                         className="input-field" 
                         style={{ width: "140px", padding: "6px 10px", fontSize: "12px", height: "32px" }}
                         value={selectedFilterClassId}
-                        onChange={(e) => setSelectedFilterClassId(e.target.value)}
+                        onChange={(e) => {
+                          setSelectedFilterClassId(e.target.value);
+                          setSelectedFilterStreamId("");
+                        }}
                       >
                         <option value="">All Classes</option>
                         {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                       </select>
                     </div>
                     {selectedFilterClassId && (
-                      <button 
-                        onClick={() => window.print()}
-                        className="btn btn-primary"
-                        style={{ padding: "6px 12px", fontSize: "12px", height: "32px", display: "flex", alignItems: "center", gap: "4px" }}
-                      >
-                        <Printer size={14} /> Print Attendance Sheet
-                      </button>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span style={{ fontSize: "12px", color: "#64748b", fontWeight: "bold" }}>Stream:</span>
+                        <select 
+                          className="input-field" 
+                          style={{ width: "140px", padding: "6px 10px", fontSize: "12px", height: "32px" }}
+                          value={selectedFilterStreamId}
+                          onChange={(e) => setSelectedFilterStreamId(e.target.value)}
+                        >
+                          <option value="">All Streams</option>
+                          {streams.filter(s => s.classId === selectedFilterClassId).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                      </div>
+                    )}
+                    {selectedFilterClassId && (
+                      <>
+                        <button 
+                          onClick={() => {
+                            const cls = classes.find(c => c.id === selectedFilterClassId)?.name || "Class";
+                            const strm = streams.find(s => s.id === selectedFilterStreamId)?.name || "All";
+                            let csv = "ID Number,Student Name,Gender,Class,Stream,Type\n";
+                            students.filter(st => st.classId === selectedFilterClassId && (!selectedFilterStreamId || st.streamId === selectedFilterStreamId)).forEach(st => {
+                              csv += `"${st.studentNumber}","${st.name}","${st.gender || ''}","${classes.find(c => c.id === st.classId)?.name || ''}","${streams.find(s => s.id === st.streamId)?.name || ''}","${st.type}"\n`;
+                            });
+                            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                            const url = URL.createObjectURL(blob);
+                            const link = document.createElement("a");
+                            link.href = url;
+                            link.setAttribute("download", `${cls}_${strm}_Students.csv`);
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                          }}
+                          className="btn btn-primary"
+                          style={{ padding: "6px 12px", fontSize: "12px", height: "32px", display: "flex", alignItems: "center", gap: "4px", background: "#10b981", borderColor: "#10b981" }}
+                        >
+                          <Download size={14} /> Download CSV
+                        </button>
+                        <button 
+                          onClick={() => window.print()}
+                          className="btn btn-primary"
+                          style={{ padding: "6px 12px", fontSize: "12px", height: "32px", display: "flex", alignItems: "center", gap: "4px" }}
+                        >
+                          <Printer size={14} /> Print Attendance Sheet
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -6002,7 +6044,7 @@ export default function SchoolPortal({ params }: PageProps) {
                     <tbody>
                       {(() => {
                         const filtered = selectedFilterClassId 
-                          ? students.filter(st => st.classId === selectedFilterClassId)
+                          ? students.filter(st => st.classId === selectedFilterClassId && (!selectedFilterStreamId || st.streamId === selectedFilterStreamId))
                           : students;
                         if (filtered.length === 0) {
                           return <tr><td colSpan={7} style={{ textAlign: "center", color: "#64748b" }}>No students registered in this class.</td></tr>;
@@ -6127,7 +6169,7 @@ export default function SchoolPortal({ params }: PageProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    {students.filter(st => st.classId === selectedFilterClassId).map((st, idx) => (
+                    {students.filter(st => st.classId === selectedFilterClassId && (!selectedFilterStreamId || st.streamId === selectedFilterStreamId)).map((st, idx) => (
                       <tr key={st.id}>
                         <td>{idx + 1}</td>
                         <td><code>{st.studentNumber}</code></td>

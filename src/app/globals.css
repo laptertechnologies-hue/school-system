@@ -115,10 +115,16 @@ button {
 
 @media (max-width: 768px) {
   .grid-cols-2, .grid-cols-3, .grid-cols-4 {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
   }
   .flex-mobile-col {
-    flex-direction: column;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  /* Force single columns for all general dashboard and form grids on mobile, excluding printable report templates */
+  div[style*="display: grid"]:not(#printable-report):not(#printable-report *):not(.bulk-report-card):not(.bulk-report-card *):not(.student-meta-grid *):not(.signatures-container *):not(.legend-container *):not(.dates-container *) {
+    grid-template-columns: 1fr !important;
   }
 }
 

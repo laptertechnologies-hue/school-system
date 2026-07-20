@@ -70,6 +70,30 @@ export default function SuperAdminDashboard() {
   const [packageFilter, setPackageFilter] = useState<"ALL" | "BASIC" | "PREMIUM">("ALL");
   const [transactionFilter, setTransactionFilter] = useState<"ALL" | "ACTIVE_PAX">("ALL");
 
+  // Dynamic Base Domain Detection
+  const [baseDomain, setBaseDomain] = useState("portal.laptertech.store");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const hostname = window.location.hostname;
+      if (hostname.endsWith("schoolpro.study")) {
+        setBaseDomain("schoolpro.study");
+      } else if (hostname.endsWith("schoolpro.laptertech.store")) {
+        setBaseDomain("schoolpro.laptertech.store");
+      } else if (hostname.endsWith("portal.laptertech.store")) {
+        setBaseDomain("portal.laptertech.store");
+      } else {
+        const parts = hostname.split(".");
+        if (parts.length >= 2) {
+          const suffix = parts.slice(-2).join(".");
+          if (!hostname.endsWith("vercel.app")) {
+            setBaseDomain(suffix);
+          }
+        }
+      }
+    }
+  }, []);
+
   const loadData = async () => {
     setLoading(true);
     try {
@@ -584,7 +608,7 @@ export default function SuperAdminDashboard() {
                               </div>
                             </td>
                             <td>
-                              <span style={{ fontFamily: "monospace", color: "var(--primary)", fontWeight: 700 }}>{s.subdomain}.portal.laptertech.store</span>
+                              <span style={{ fontFamily: "monospace", color: "var(--primary)", fontWeight: 700 }}>{s.subdomain}.{baseDomain}</span>
                             </td>
                             <td>
                               <span className={`badge ${s.packageType === "PREMIUM" ? "badge-success" : "badge-primary"}`} style={{ color: "var(--primary)", background: "var(--primary-light)" }}>
@@ -825,7 +849,7 @@ export default function SuperAdminDashboard() {
                 <div>
                   <strong style={{ fontSize: "14px", color: "#0f172a" }}>{selectedEditSchool.name}</strong>
                   <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>
-                    Subdomain: {selectedEditSchool.subdomain}.portal.laptertech.store
+                    Subdomain: {selectedEditSchool.subdomain}.{baseDomain}
                   </div>
                 </div>
                 <button 
@@ -838,7 +862,7 @@ export default function SuperAdminDashboard() {
                 </button>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }} className="flex-mobile-col">
                 <div className="form-group">
                   <label className="form-label">School Name</label>
                   <input 
@@ -860,7 +884,7 @@ export default function SuperAdminDashboard() {
                 </div>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }} className="flex-mobile-col">
                 <div className="form-group">
                   <label className="form-label">Contact Email</label>
                   <input 

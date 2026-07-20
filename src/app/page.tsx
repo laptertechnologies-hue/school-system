@@ -43,6 +43,30 @@ export default function MarketingPage() {
   const [dbConnected, setDbConnected] = useState<boolean | null>(null);
   const [partnerSchools, setPartnerSchools] = useState<School[]>([]);
 
+  // Dynamic Base Domain Detection
+  const [baseDomain, setBaseDomain] = useState("portal.laptertech.store");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const hostname = window.location.hostname;
+      if (hostname.endsWith("schoolpro.study")) {
+        setBaseDomain("schoolpro.study");
+      } else if (hostname.endsWith("schoolpro.laptertech.store")) {
+        setBaseDomain("schoolpro.laptertech.store");
+      } else if (hostname.endsWith("portal.laptertech.store")) {
+        setBaseDomain("portal.laptertech.store");
+      } else {
+        const parts = hostname.split(".");
+        if (parts.length >= 2) {
+          const suffix = parts.slice(-2).join(".");
+          if (!hostname.endsWith("vercel.app")) {
+            setBaseDomain(suffix);
+          }
+        }
+      }
+    }
+  }, []);
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       setDemoHost(window.location.origin);
@@ -116,7 +140,7 @@ export default function MarketingPage() {
         const parts = host.split("//");
         targetUrl = `${parts[0]}//${sub}.${parts[1]}`;
       } else {
-        targetUrl = `https://${sub}.portal.laptertech.store`;
+        targetUrl = `https://${sub}.${baseDomain}`;
       }
 
       if (loginEmail) {
@@ -490,7 +514,7 @@ export default function MarketingPage() {
 
                     <div className="form-group">
                       <label className="form-label">Requested Subdomain</label>
-                      <div className="flex align-center" style={{ gap: "4px" }}>
+                      <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
                         <input 
                           type="text" 
                           className="input-field" 
@@ -498,13 +522,13 @@ export default function MarketingPage() {
                           value={subdomain}
                           onChange={(e) => handleSubdomainChange(e.target.value)}
                           required
-                          style={{ flex: 1 }}
+                          style={{ width: "100%", paddingRight: `${baseDomain.length * 7 + 25}px`, marginBottom: 0 }}
                         />
-                        <span style={{ background: "#f1f5f9", padding: "12px 14px", borderRadius: "8px", fontSize: "14px", color: "#475569", border: "1px solid #cbd5e1" }}>
-                          .portal.laptertech.store
+                        <span style={{ position: "absolute", right: "12px", color: "#64748b", fontSize: "13px", fontWeight: "600", pointerEvents: "none" }}>
+                          .{baseDomain}
                         </span>
                       </div>
-                      <span style={{ fontSize: "11px", color: "#64748b" }}>Lowercase letters & numbers only, no spaces.</span>
+                      <span style={{ fontSize: "11px", color: "#64748b", marginTop: "4px", display: "block" }}>Lowercase letters & numbers only, no spaces.</span>
                     </div>
 
                     <div className="form-group">
@@ -591,7 +615,7 @@ export default function MarketingPage() {
                     <div style={{ marginBottom: "12px" }}>
                       <strong style={{ display: "block", fontSize: "12px", color: "#64748b", textTransform: "uppercase" }}>School Subdomain</strong>
                       <span style={{ fontSize: "16px", color: "var(--primary)", fontWeight: 700 }}>
-                        {registeredSchool.subdomain}.portal.laptertech.store
+                        {registeredSchool.subdomain}.{baseDomain}
                       </span>
                     </div>
                     
@@ -613,7 +637,7 @@ export default function MarketingPage() {
                   <a 
                     href={demoHost.includes("localhost") 
                       ? `${demoHost.split("//")[0]}//${registeredSchool.subdomain}.${demoHost.split("//")[1]}` 
-                      : `https://${registeredSchool.subdomain}.portal.laptertech.store`}
+                      : `https://${registeredSchool.subdomain}.${baseDomain}`}
                     className="btn btn-primary hover-scale"
                     style={{ width: "100%", padding: "12px", display: "inline-flex", justifyContent: "center" }}
                   >
@@ -640,11 +664,11 @@ export default function MarketingPage() {
                   </div>
                 )}
                 {lastSubdomain && (
-                  <div style={{ background: "var(--primary-light)", border: "1px solid var(--primary-glow)", borderRadius: "8px", padding: "16px", marginBottom: "20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div className="flex-mobile-col" style={{ background: "var(--primary-light)", border: "1px solid var(--primary-glow)", borderRadius: "8px", padding: "16px", marginBottom: "20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
                     <div style={{ textAlign: "left" }}>
                       <span style={{ fontSize: "10px", color: "var(--primary)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px" }}>Returning User</span>
                       <div style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", marginTop: "2px" }}>
-                        {lastSubdomain}.portal.laptertech.store
+                        {lastSubdomain}.{baseDomain}
                       </div>
                     </div>
                     <button 
@@ -656,7 +680,7 @@ export default function MarketingPage() {
                           const parts = host.split("//");
                           targetUrl = `${parts[0]}//${lastSubdomain}.${parts[1]}`;
                         } else {
-                          targetUrl = `https://${lastSubdomain}.portal.laptertech.store`;
+                          targetUrl = `https://${lastSubdomain}.${baseDomain}`;
                         }
                         if (loginEmail) {
                           targetUrl += `?email=${encodeURIComponent(loginEmail)}`;
@@ -674,7 +698,7 @@ export default function MarketingPage() {
                 <form onSubmit={handlePortalRedirect}>
                   <div className="form-group" style={{ marginBottom: "20px" }}>
                     <label className="form-label" style={{ color: "#1e293b" }}>School Subdomain</label>
-                    <div className="flex align-center" style={{ gap: "4px" }}>
+                    <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
                       <input 
                         type="text" 
                         className="input-field" 
@@ -682,13 +706,13 @@ export default function MarketingPage() {
                         value={loginSubdomain}
                         onChange={(e) => setLoginSubdomain(e.target.value)}
                         required
-                        style={{ flex: 1 }}
+                        style={{ width: "100%", paddingRight: `${baseDomain.length * 7 + 25}px`, marginBottom: 0, backgroundColor: "#ffffff", color: "#1e293b" }}
                       />
-                      <span style={{ background: "#f1f5f9", padding: "12px 14px", borderRadius: "8px", fontSize: "14px", color: "#475569", border: "1px solid #cbd5e1" }}>
-                        .portal.laptertech.store
+                      <span style={{ position: "absolute", right: "12px", color: "#64748b", fontSize: "13px", fontWeight: "600", pointerEvents: "none" }}>
+                        .{baseDomain}
                       </span>
                     </div>
-                    <span style={{ fontSize: "11px", color: "#64748b" }}>Tip: Enter "admin" to log in to the Super Admin Panel.</span>
+                    <span style={{ fontSize: "11px", color: "#64748b", marginTop: "4px", display: "block" }}>Tip: Enter "admin" to log in to the Super Admin Panel.</span>
                   </div>
 
                   <div className="form-group" style={{ marginBottom: "24px" }}>

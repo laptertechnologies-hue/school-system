@@ -42,7 +42,7 @@ export function middleware(req: NextRequest) {
   } else {
     // Custom domain check (e.g. schoolname.portal.laptertech.store)
     const customBase = process.env.NEXT_PUBLIC_BASE_DOMAIN || "portal.laptertech.store";
-    const baseDomains = [customBase, "portal.laptertech.store", "schoolpro.laptertech.store"];
+    const baseDomains = [customBase, "portal.laptertech.store", "schoolpro.laptertech.store", "schoolpro.study"];
     
     const matchingBase = baseDomains.find(base => hostname === base || hostname === `www.${base}`);
     

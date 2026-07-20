@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     canonical: "https://portal.laptertech.store",
   },
   verification: {
-    google: "B-3NHVG-ZJQ7AHtCzKVxVIGPTR1qcacEtikgxGOapZs",
+    google: "PqY6kMI7Z4NIwtkIup3RuvErwFFDUNFdhtSpL_dVnFw",
   },
   openGraph: {
     title: "SchoolPro Uganda | #1 School Management System & Report Card Generator",

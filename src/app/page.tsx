@@ -649,22 +649,33 @@ export default function MarketingPage() {
           )}
 
           {activeTab === "login" && (
-            <div className="animate-slide-up" style={{ maxWidth: "500px", margin: "0 auto" }}>
-              <div className="card shadow-lg" style={{ background: "#ffffff", borderColor: "#cbd5e1", padding: "40px" }}>
-                <div style={{ textAlign: "center", marginBottom: "24px" }}>
-                  <h2 style={{ color: "#0f172a", marginBottom: "10px", fontWeight: 800 }}>Access Your School Portal</h2>
-                  <p style={{ color: "#475569", fontSize: "14px" }}>
+            <div className="animate-slide-up" style={{ maxWidth: "520px", margin: "0 auto" }}>
+              <div className="card shadow-lg" style={{ background: "#ffffff", borderColor: "#cbd5e1", padding: "32px 28px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "8px" }}>
+                  <span style={{ fontSize: "11px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "1px", color: "var(--primary)" }}>School Portal Access</span>
+                  <a 
+                    href="/super-admin"
+                    className="btn btn-outline hover-scale"
+                    style={{ padding: "5px 10px", fontSize: "11px", color: "var(--primary)", borderColor: "var(--primary)", background: "var(--primary-light)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                  >
+                    🔑 Super Admin Portal
+                  </a>
+                </div>
+
+                <div style={{ textAlign: "center", marginBottom: "20px" }}>
+                  <h2 style={{ color: "#0f172a", marginBottom: "6px", fontWeight: 800, fontSize: "22px" }}>Access Your School Portal</h2>
+                  <p style={{ color: "#475569", fontSize: "13px" }}>
                     Enter your school's unique subdomain to redirect to your institution's secure login panel.
                   </p>
                 </div>
 
                 {loginError && (
-                  <div style={{ background: "var(--danger-light)", border: "1px solid var(--danger)", borderRadius: "8px", padding: "12px", color: "var(--danger)", fontSize: "14px", marginBottom: "20px" }}>
+                  <div style={{ background: "var(--danger-light)", border: "1px solid var(--danger)", borderRadius: "8px", padding: "12px", color: "var(--danger)", fontSize: "13px", marginBottom: "16px" }}>
                     {loginError}
                   </div>
                 )}
                 {lastSubdomain && (
-                  <div className="flex-mobile-col" style={{ background: "var(--primary-light)", border: "1px solid var(--primary-glow)", borderRadius: "8px", padding: "16px", marginBottom: "20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
+                  <div className="flex-mobile-col" style={{ background: "var(--primary-light)", border: "1px solid var(--primary-glow)", borderRadius: "8px", padding: "14px", marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
                     <div style={{ textAlign: "left" }}>
                       <span style={{ fontSize: "10px", color: "var(--primary)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px" }}>Returning User</span>
                       <div style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", marginTop: "2px" }}>
@@ -696,39 +707,46 @@ export default function MarketingPage() {
                 )}
 
                 <form onSubmit={handlePortalRedirect}>
-                  <div className="form-group" style={{ marginBottom: "20px" }}>
-                    <label className="form-label" style={{ color: "#1e293b" }}>School Subdomain</label>
+                  <div className="form-group" style={{ marginBottom: "16px" }}>
+                    <label className="form-label" style={{ color: "#1e293b", fontWeight: "700", fontSize: "14px" }}>School Subdomain Name</label>
                     <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
                       <input 
                         type="text" 
                         className="input-field" 
-                        placeholder="e.g. greenhill" 
+                        placeholder="Enter subdomain e.g. greenhill" 
                         value={loginSubdomain}
                         onChange={(e) => setLoginSubdomain(e.target.value)}
                         required
-                        style={{ width: "100%", paddingRight: `${baseDomain.length * 7 + 25}px`, marginBottom: 0, backgroundColor: "#ffffff", color: "#1e293b" }}
+                        style={{ width: "100%", height: "50px", fontSize: "16px", paddingLeft: "16px", paddingRight: `${baseDomain.length * 8 + 25}px`, marginBottom: 0, backgroundColor: "#ffffff", color: "#0f172a", border: "2px solid #cbd5e1", borderRadius: "8px" }}
                       />
-                      <span style={{ position: "absolute", right: "12px", color: "#64748b", fontSize: "13px", fontWeight: "600", pointerEvents: "none" }}>
+                      <span style={{ position: "absolute", right: "14px", color: "#64748b", fontSize: "14px", fontWeight: "700", pointerEvents: "none" }}>
                         .{baseDomain}
                       </span>
                     </div>
-                    <span style={{ fontSize: "11px", color: "#64748b", marginTop: "4px", display: "block" }}>Tip: Enter "admin" to log in to the Super Admin Panel.</span>
+
+                    {/* Live Portal Address Preview as typed */}
+                    <div style={{ marginTop: "10px", fontSize: "12px", color: "#0284c7", background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: "6px", padding: "8px 12px", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span>🌐 Target Web Address:</span>
+                      <strong style={{ fontFamily: "monospace", color: "#0369a1", wordBreak: "break-all" }}>
+                        https://{loginSubdomain ? loginSubdomain.toLowerCase().replace(/[^a-z0-9-]/g, "") : "your-school"}.{baseDomain}
+                      </strong>
+                    </div>
                   </div>
 
-                  <div className="form-group" style={{ marginBottom: "24px" }}>
-                    <label className="form-label" style={{ color: "#1e293b" }}>Administrator/Staff Email (Optional)</label>
+                  <div className="form-group" style={{ marginBottom: "20px" }}>
+                    <label className="form-label" style={{ color: "#1e293b", fontSize: "13px" }}>Administrator / Staff Email (Optional)</label>
                     <input 
                       type="email" 
                       className="input-field" 
                       placeholder="e.g. head@yourschool.ug" 
                       value={loginEmail}
                       onChange={(e) => setLoginEmail(e.target.value)}
-                      style={{ background: "#ffffff", color: "#1e293b" }}
+                      style={{ background: "#ffffff", color: "#1e293b", height: "42px", fontSize: "14px" }}
                     />
-                    <span style={{ fontSize: "11px", color: "#64748b" }}>If provided, this will pre-fill the login form for you.</span>
+                    <span style={{ fontSize: "11px", color: "#64748b" }}>If provided, pre-fills your email on the portal login screen.</span>
                   </div>
 
-                  <button type="submit" className="btn btn-primary hover-scale" style={{ width: "100%", padding: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                  <button type="submit" className="btn btn-primary hover-scale" style={{ width: "100%", height: "48px", fontSize: "15px", fontWeight: "700", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", borderRadius: "8px" }}>
                     Find Portal & Go to Login <ArrowRight size={18} />
                   </button>
                 </form>
@@ -737,7 +755,7 @@ export default function MarketingPage() {
           )}
 
           {/* Team Section */}
-          <div style={{ marginTop: "60px", padding: "40px 0", borderTop: "1px solid #e2e8f0" }}>
+          <div style={{ marginTop: "32px", padding: "24px 0", borderTop: "1px solid #e2e8f0" }}>
             <div style={{ textAlign: "center", marginBottom: "40px" }}>
               <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "1.5px" }}>Our Team</span>
               <h2 style={{ fontSize: "32px", fontWeight: 800, color: "#0f172a", marginTop: "8px" }}>Built by Education & Tech Leaders</h2>

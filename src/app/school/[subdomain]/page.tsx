@@ -1685,6 +1685,20 @@ export default function SchoolPortal({ params }: PageProps) {
     XLSX.writeFile(wb, "Student_Upload_Template.xlsx");
   };
 
+  const downloadLearnersMigrationTemplate = () => {
+    const headers = [["photo", "firstName", "lastName", "otherName", "gender", "dateOfBirth", "registrationNumber", "admissionNumber", "entryStatus", "residency", "stream", "address", "nin", "lin", "indexNumber", "schoolPayCode", "previousBalance", "notes"]];
+    const sampleData = [
+      ["", "ADRIKO", "MIKE", "", "male", "", "GFSS26014509", "", "continuing", "boarding", "C", "", "", "", "", "0", "0", ""],
+      ["", "ADYERO", "CATHERIN", "", "female", "2011-11-04", "GFSS26014522", "", "continuing", "boarding", "C", "", "", "", "", "0", "0", ""],
+      ["", "ASIIMWE", "PROMISE", "JACKLINE", "female", "", "GFSS26014489", "", "continuing", "day", "C", "", "", "LIN-12345", "", "0", "0", ""]
+    ];
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet([]);
+    XLSX.utils.sheet_add_aoa(ws, [...headers, ...sampleData]);
+    XLSX.utils.book_append_sheet(wb, ws, "Learners Migration");
+    XLSX.writeFile(wb, "Learners_Migration_Template.xlsx");
+  };
+
   const downloadStaffTemplate = () => {
     const headers = [["Full Name", "Email Address", "Role (TEACHER, DOS, HEADTEACHER, DIRECTOR)", "Staff Number (Optional)"]];
     const sampleData = [
@@ -1718,7 +1732,7 @@ export default function SchoolPortal({ params }: PageProps) {
     });
   };
 
-  // Bulk student upload handler
+  // Bulk student upload handler (Smart Header-Aware Parser)
   const handleBulkStudentUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!school || !bulkStudentClassId || !bulkStudentStreamId || !studentExcelFile) {
@@ -1739,20 +1753,87 @@ export default function SchoolPortal({ params }: PageProps) {
       let successCount = 0;
       let existingCount = students.length;
 
+      // Smart Header Mapping
+      const rawHeaders = (rows[0] || []).map((h: any) => String(h || "").trim().toLowerCase().replace(/[^a-z0-9]/g, ""));
+      const getColIndex = (...aliases: string[]) => {
+        return rawHeaders.findIndex((h: string) => aliases.some(alias => h === alias.replace(/[^a-z0-9]/g, "")));
+      };
+
+      const fnameIdx = getColIndex("firstname", "first_name", "fname", "first");
+      const lnameIdx = getColIndex("lastname", "last_name", "lname", "surname", "last");
+      const onameIdx = getColIndex("othername", "other_name", "othernames", "middle_name", "other");
+      const fullNameIdx = getColIndex("name", "fullname", "full_name", "studentname", "student_name", "learnername", "learner_name");
+
+      const genderIdx = getColIndex("gender", "sex");
+      const regNumIdx = getColIndex("registrationnumber", "registration_number", "regno", "reg_no", "studentnumber", "student_number", "admissionnumber", "admission_number", "id");
+      const residencyIdx = getColIndex("residency", "residencytype", "residency_type", "type", "entrystatus", "status");
+      const streamIdx = getColIndex("stream", "streamname", "stream_name");
+      const linIdx = getColIndex("lin", "learnerid", "learner_id", "nin");
+      const payCodeIdx = getColIndex("schoolpaycode", "school_pay_code", "studentpaymentcode", "paycode", "pay_code");
+      const parentContactIdx = getColIndex("parentcontact", "parent_contact", "contact", "phone", "parentphone", "guardianphone");
+
+      const isHeaderAware = fullNameIdx !== -1 || fnameIdx !== -1 || lnameIdx !== -1 || regNumIdx !== -1 || streamIdx !== -1;
+
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
-        if (!row || !row[0]) {
+        if (!row) {
           setImportStudentProgress(i);
           continue;
         }
 
-        const name = String(row[0]).trim();
-        let studentNumber = row[1] ? String(row[1]).trim() : "";
-        let typeStr = row[2] ? String(row[2]).trim() : "DAY";
-        let lin = row[3] ? String(row[3]).trim() : "";
-        let genderStr = row[4] ? String(row[4]).trim() : "MALE";
-        let payCode = row[5] ? String(row[5]).trim() : "";
-        let parentContact = row[6] ? String(row[6]).trim() : "";
+        let name = "";
+        let studentNumber = "";
+        let typeStr = "DAY";
+        let lin = "";
+        let genderStr = "MALE";
+        let payCode = "";
+        let parentContact = "";
+        let rowStreamVal = "";
+
+        if (isHeaderAware) {
+          if (fullNameIdx !== -1 && row[fullNameIdx]) {
+            name = String(row[fullNameIdx]).trim();
+          } else {
+            const fn = fnameIdx !== -1 && row[fnameIdx] ? String(row[fnameIdx]).trim() : "";
+            const ln = lnameIdx !== -1 && row[lnameIdx] ? String(row[lnameIdx]).trim() : "";
+            const on = onameIdx !== -1 && row[onameIdx] ? String(row[onameIdx]).trim() : "";
+            name = [fn, ln, on].filter(Boolean).join(" ").trim();
+          }
+
+          if (!name) {
+            setImportStudentProgress(i);
+            continue; // Skip blank rows
+          }
+
+          if (regNumIdx !== -1 && row[regNumIdx]) studentNumber = String(row[regNumIdx]).trim();
+          if (residencyIdx !== -1 && row[residencyIdx]) typeStr = String(row[residencyIdx]).trim();
+          if (streamIdx !== -1 && row[streamIdx]) rowStreamVal = String(row[streamIdx]).trim();
+          if (linIdx !== -1 && row[linIdx]) lin = String(row[linIdx]).trim();
+          if (genderIdx !== -1 && row[genderIdx]) genderStr = String(row[genderIdx]).trim();
+          if (payCodeIdx !== -1 && row[payCodeIdx]) payCode = String(row[payCodeIdx]).trim();
+          if (parentContactIdx !== -1 && row[parentContactIdx]) parentContact = String(row[parentContactIdx]).trim();
+        } else {
+          if (!row[0]) {
+            setImportStudentProgress(i);
+            continue;
+          }
+          name = String(row[0]).trim();
+          studentNumber = row[1] ? String(row[1]).trim() : "";
+          typeStr = row[2] ? String(row[2]).trim() : "DAY";
+          lin = row[3] ? String(row[3]).trim() : "";
+          genderStr = row[4] ? String(row[4]).trim() : "MALE";
+          payCode = row[5] ? String(row[5]).trim() : "";
+          parentContact = row[6] ? String(row[6]).trim() : "";
+        }
+
+        // Target stream resolution per row
+        let targetStreamId = bulkStudentStreamId;
+        if (rowStreamVal) {
+          const matchedStream = streams.find(s => s.classId === bulkStudentClassId && s.name.trim().toLowerCase() === rowStreamVal.toLowerCase());
+          if (matchedStream) {
+            targetStreamId = matchedStream.id;
+          }
+        }
 
         if (!studentNumber) {
           existingCount++;
@@ -1761,26 +1842,27 @@ export default function SchoolPortal({ params }: PageProps) {
         }
 
         let residencyType: "DAY" | "BOARDING" = "DAY";
-        if (typeStr.toUpperCase() === "BOARDING" || typeStr.toUpperCase() === "B") {
+        if (typeStr.toUpperCase().includes("BOARDING") || typeStr.toUpperCase() === "B") {
           residencyType = "BOARDING";
         }
 
         let genderVal: "MALE" | "FEMALE" = "MALE";
-        if (genderStr.toUpperCase() === "FEMALE" || genderStr.toUpperCase() === "F") {
+        if (genderStr.toUpperCase().includes("FEMALE") || genderStr.toUpperCase() === "F") {
           genderVal = "FEMALE";
         }
 
         await createStudent({
           schoolId: school.id,
           classId: bulkStudentClassId,
-          streamId: bulkStudentStreamId,
+          streamId: targetStreamId,
           name,
           studentNumber,
           type: residencyType,
           photo: null,
           lin: lin || null,
+          registrationNumber: studentNumber || null,
           gender: genderVal,
-          studentPaymentCode: payCode || null,
+          studentPaymentCode: (payCode && payCode !== "0") ? payCode : null,
           parentContact: parentContact || null,
         });
         successCount++;
@@ -11598,17 +11680,29 @@ export default function SchoolPortal({ params }: PageProps) {
                 </div>
 
                 <div className="form-group" style={{ marginBottom: "20px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                    <label className="form-label" style={{ margin: 0, color: "#0f172a" }}>Select Excel Data File (.xlsx, .xls)</label>
-                    <button 
-                      type="button" 
-                      onClick={downloadStudentTemplate}
-                      className="btn btn-outline"
-                      style={{ padding: "4px 8px", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px", background: "#f8fafc" }}
-                    >
-                      📥 Download Excel Template
-                    </button>
+                  <div style={{ marginBottom: "12px", padding: "12px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #cbd5e1" }}>
+                    <span style={{ fontSize: "12px", fontWeight: "bold", color: "#1e293b", display: "block", marginBottom: "6px" }}>Download Sample Excel Templates:</span>
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                      <button 
+                        type="button" 
+                        onClick={downloadStudentTemplate}
+                        className="btn btn-outline"
+                        style={{ padding: "5px 10px", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px", background: "#ffffff" }}
+                      >
+                        📥 Standard Template (.xlsx)
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={downloadLearnersMigrationTemplate}
+                        className="btn btn-outline"
+                        style={{ padding: "5px 10px", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px", background: "#eff6ff", borderColor: "#93c5fd", color: "#1d4ed8" }}
+                      >
+                        📄 MoES / UNEB Learners Migration (.xlsx)
+                      </button>
+                    </div>
                   </div>
+
+                  <label className="form-label" style={{ color: "#0f172a", fontWeight: "bold" }}>Select Excel Data File (.xlsx, .xls)</label>
                   <input 
                     type="file" 
                     accept=".xlsx, .xls"
@@ -11618,7 +11712,7 @@ export default function SchoolPortal({ params }: PageProps) {
                     style={{ padding: "8px", color: "#0f172a", backgroundColor: "#ffffff", borderColor: "#cbd5e1" }}
                   />
                   <div style={{ fontSize: "11px", color: "#64748b", marginTop: "8px", lineHeight: "1.4" }}>
-                    Please download the official template, input the details, and upload the completed workbook.
+                    Supports both Standard templates and MoES/UNEB Learners Migration sheets (matching <code>firstName</code>, <code>lastName</code>, <code>registrationNumber</code>, <code>residency</code>, <code>stream</code>, <code>LIN</code>, <code>payCode</code>).
                   </div>
                 </div>
 
